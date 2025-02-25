@@ -1,41 +1,104 @@
-import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
+import { useSocketStore } from './socketStore'
+import { SOCKET_EVENTS } from '../constants/socketEvents'
 
-export const useQueueStore = defineStore('queue', () => {
-  const playersInQueue = ref(0)
-  const inQueue = ref(false)
-  const queueList = ref([])
-  const lastUpdated = ref(null)
+export const useQueueStore = defineStore('queue', {
+  state: () => ({
+    inQueue: false,
+    playersInQueue: 0,
+    queueList: [],
+    loading: false,
+    error: null
+  }),
 
-  // Update queue state
-  function updateQueueState(data) {
-    playersInQueue.value = data.playersInQueue || 0
-    inQueue.value = data.inQueue || false
-    queueList.value = data.queue || []
-    lastUpdated.value = data.timestamp || Date.now()
-    console.log('Queue state updated:', {
-      playersInQueue: playersInQueue.value,
-      inQueue: inQueue.value,
-      queueList: queueList.value,
-      lastUpdated: lastUpdated.value
-    })
-  }
+  actions: {
+    setLoading(status) {
+      this.loading = status;
+    },
 
-  // Reset queue state
-  function resetQueue() {
-    playersInQueue.value = 0
-    inQueue.value = false
-    queueList.value = []
-    lastUpdated.value = null
-    console.log('Queue state reset')
-  }
+    setError(error) {
+      this.error = error;
+    },
 
-  return { 
-    playersInQueue, 
-    inQueue, 
-    queueList,
-    lastUpdated,
-    updateQueueState,
-    resetQueue
+    updateQueueState(data) {
+      if (!data) return;
+      
+      // Handle both direct and response formats
+      const queueData = data.success !== undefined ? data : { success: true, ...data };
+      
+      if (queueData.success) {
+        this.inQueue = !!queueData.inQueue;
+        this.playersInQueue = queueData.playersInQueue || 0;
+        this.queueList = Array.isArray(queueData.queue) ? queueData.queue : [];
+        this.countdown = queueData.countdown || null;
+        this.error = null;
+      } else {
+        this.error = queueData.message || 'Failed to update queue state';
+      }
+    },
+
+    async joinQueue(username) {
+      const socketStore = useSocketStore();
+      this.setLoading(true);
+      try {
+        const response = await socketStore.emit(SOCKET_EVENTS.QUEUE.JOIN, { username });
+        this.updateQueueState(response);
+        return response;
+      } catch (error) {
+        this.setError(error.message);
+        throw error;
+      } finally {
+        this.setLoading(false);
+      }
+    },
+
+    async leaveQueue(username) {
+      const socketStore = useSocketStore();
+      this.setLoading(true);
+      try {
+        console.log('[Queue Debug] Starting leave queue operation:', {
+          username,
+          event: SOCKET_EVENTS.QUEUE.LEAVE,
+          currentState: {
+            inQueue: this.inQueue,
+            playersInQueue: this.playersInQueue,
+            queueList: this.queueList
+          }
+        });
+
+        // Verify socket connection before emit
+        const socketStatus = await socketStore.checkConnection();
+        console.log('[Queue Debug] Socket status:', socketStatus);
+
+        const response = await socketStore.emit(SOCKET_EVENTS.QUEUE.LEAVE, { 
+          username,
+          timestamp: Date.now() // Add timestamp for debugging
+        });
+        
+        console.log('[Queue Debug] Leave queue response:', response);
+        this.updateQueueState(response);
+        
+        return response;
+      } catch (error) {
+        console.error('[Queue Debug] Leave queue error:', {
+          error,
+          errorType: error.constructor.name,
+          errorMessage: error.message,
+          stack: error.stack
+        });
+        this.setError(error.message);
+        throw error;
+      } finally {
+        this.setLoading(false);
+      }
+    },
+
+    resetQueue() {
+      this.inQueue = false;
+      this.playersInQueue = 0;
+      this.queueList = [];
+      this.loading = false;
+      this.error = null;
+    }
   }
 })

@@ -1,275 +1,145 @@
 <script setup>
-import { ref, watch, onBeforeUnmount, onMounted, computed } from 'vue';
-import { authState, logout } from '../stores/auth';
+import { ref, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
-import { useSocket } from '../useSocket';
 import { useQueueStore } from '../stores/queueStore';
+import { useSocketStore } from '../stores/socketStore';
+import { useAuthStore } from '../stores/authStore';
+import { SOCKET_EVENTS } from '../constants/socketEvents';
 
-const { socket, playersInQueue, inQueue, loading, findMatch, leaveQueue } = useSocket();
 const router = useRouter();
-const message = ref('');
-const lobbyId = ref('');
-const isLoggedIn = computed(() => !!localStorage.getItem('token'));
-const username = ref(localStorage.getItem('username'));
 const queueStore = useQueueStore();
+const socketStore = useSocketStore();
+const authStore = useAuthStore();
+const loading = ref(false);
 
+onMounted(async () => {
 
+  // Listen for queue updates
+  socketStore.on(SOCKET_EVENTS.QUEUE.UPDATE, (data) => {
+    console.log('Received queue update:', data);
+    queueStore.updateQueueState({
+      ...data,
+      inQueue: data.queue?.includes(authStore.username)
+    });
+  });
 
+  // Listen for lobby creation
+  socketStore.on(SOCKET_EVENTS.LOBBY.CREATED, (data) => {
+    console.log('Lobby created:', data);
+    if (!data || !data.lobby_id) {
+      console.error('Invalid lobby data received:', data);
+      return;
+    }
 
+    try {
+      queueStore.resetQueue();
+      router.push(`/lobby/${data.lobby_id}`);
+    } catch (error) {
+      console.error('Failed to navigate to lobby:', error);
+    }
+  });
 
-
-
-const handleLogout = () => {
-  logout(router); // Pass the router instance to the centralized logout method
-};
-
-const handleLobbyUpdate = (data) => {
-  console.log('Lobby update received:', data);
-  router.push({ name: 'lobby', params: { lobbyId: data.lobby_id } });
-};
-
-const handleJoinQueue = () => {
-  console.log('Attempting to join queue with username:', username.value);
-  if (!username.value) {
-    message.value = 'No username found';
-    return;
-  }
-
-  if (loading.value) {
-    message.value = 'Already processing queue request';
-    return;
-  }
-
-  findMatch(username.value);
-};
-
-const handleLeaveQueue = () => {
-  console.log('Attempting to leave queue with username:', username.value);
-  if (!username.value) {
-    message.value = 'No username found';
-    return;
-  }
-
-  leaveQueue(username.value);
-};
-
-
-
-
-
-
-// Add a watcher for loading state
-watch(loading, (newValue) => {
-  if (!newValue) {
-    console.log('Queue operation completed, inQueue:', inQueue.value);
+  // Get initial queue status
+  try {
+    const response = await socketStore.emit(SOCKET_EVENTS.QUEUE.STATUS, { 
+      username: authStore.username 
+    });
+    if (response && response.success) {
+      queueStore.updateQueueState({
+        ...response,
+         inQueue: response.queue?.includes(authStore.username)
+        });
+    }
+  } catch (error) {
+    console.error('Failed to get queue status:', error);
   }
 });
 
-
-
-
-
-
-
-
-
-onMounted(() => {
-  if (!isLoggedIn.value) {
-    router.push('/login');
-    return;
-  }
-
-
-  console.log('Home component mounted');
-
-
-  if (socket.value) {
-    
-    socket.value.on('queue_joined', (data) => {
-      console.log('Queue joined response:', data);
-      if (data.success) {
-        message.value = 'Joined queue successfully';
-      } else {
-        message.value = data.message || 'Failed to join queue';
-      }
-    });
-
-    socket.value.on('match_found', (data) => {
-      router.push(`/match/${data.match_id}`);
-      inQueue.value = false;
-      playersInQueue.value = 0;
-    });
- }
-});
-
-
-
-
-
-
-// Clean up listeners when component unmounts
 onBeforeUnmount(() => {
-  if (socket.value) {
-    socket.value.off('queue_joined');
-    socket.value.off('match_found');
-  }
+  socketStore.off(SOCKET_EVENTS.QUEUE.UPDATE);
+  socketStore.off(SOCKET_EVENTS.LOBBY.CREATED);
 });
 
+const joinQueue = async () => {
+  try {
+    loading.value = true;
+    await queueStore.joinQueue(authStore.username);
+  } catch (error) {
+    console.error('Join queue error:', error);
+  } finally {
+    loading.value = false;
+  }
+};
 
-
+const leaveQueue = async () => {
+  try {
+    loading.value = true;
+    console.log('Leaving queue for:', authStore.username);
+    await queueStore.leaveQueue(authStore.username);
+  } catch (error) {
+    console.error('Leave queue error:', error);
+  } finally {
+    loading.value = false;
+  }
+};
 </script>
 
 <template>
-  <div v-if="isLoggedIn" class="queue-container">
-
+  <div class="queue-container">
+    <h1>Game Queue</h1>
+    
     <div class="queue-status">
-      <p v-if="queueStore.playersInQueue > 0" class="queue-count">
+      <p v-if="queueStore.playersInQueue > 0">
         Players in queue: {{ queueStore.playersInQueue }}
       </p>
-      <p v-else class="queue-empty">
-      No players in queue currently.
+      <p v-else>
+        No players in queue currently.
       </p>
-
-      <p class="queue-status-text">
-        Queue Status: {{  queueStore.inQueue ? 'In Queue' : 'Not in Queue' }}
+      <p v-if="queueStore.countdown !== null" class="countdown">
+        Match starting in: {{ queueStore.countdown }}s
       </p>
-
-      <!-- Queue List -->
-      <div v-if="queueStore.queueList.length" class="queue-list">
-        <h3>Current Queue:</h3>
-        <ul>
-          <li v-for="player in queueStore.queueList" :key="player"
-              :class="{ 'current-player': player === username }">
-            {{ player }}
-          </li>
-        </ul>
-      </div>
     </div>
-    
-      <!-- Queue Controls -->
-    <div class="queue-controls">
-      <button 
-        @click="handleJoinQueue" 
-        :disabled="queueStore.inQueue || loading"
-        class="queue-button join-button"
-      >
-        Join Queue
-      </button>
 
-      <button 
-        v-if="queueStore.inQueue" 
-        @click="handleLeaveQueue"
-        class="queue-button leave-button"
-      >
-        Leave Queue
-      </button>
+    <button 
+      v-if="!queueStore.inQueue"
+      @click="joinQueue" 
+      :disabled="loading"
+    >
+      {{ loading ? 'Processing...' : 'Join Queue' }}
+    </button>
 
-      <div v-if="loading" class="spinner">...</div>
-      <p v-if="message" class="message">{{ message }}</p>
-    </div>
+    <button 
+      v-if="queueStore.inQueue" 
+      @click="leaveQueue"
+      :disabled="loading"
+    >
+      Leave Queue
+    </button>
   </div>
-  <div v-else class="login-prompt">
-    <p>Please log in to access the app.</p>
-  </div>
-
 </template>
 
 <style scoped>
 .queue-container {
-  padding: 20px;
-  max-width: 600px;
-  margin: 0 auto;
+  max-width: 400px;
+  margin: 2rem auto;
+  padding: 1rem;
 }
 
-.queue-status {
-  margin-bottom: 20px;
-}
-
-.queue-count, .queue-empty {
-  font-size: 1.2em;
-  margin-bottom: 10px;
-}
-
-.queue-status-text {
-  font-weight: bold;
-  color: #2c3e50;
-}
-.queue-list {
-  margin: 20px 0;
-  padding: 10px;
-  background: #f5f5f5;
-  border-radius: 4px;
-}
-
-.queue-list ul {
-  list-style: none;
-  padding: 0;
-}
-
-.queue-list li {
-  padding: 5px 10px;
-  margin: 2px 0;
-  border-radius: 3px;
-}
-
-.current-player {
-  background: #e3f2fd;
-  font-weight: bold;
-}
-.queue-controls {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.queue-button {
-  padding: 8px 16px;
-  border-radius: 4px;
-  border: none;
+button {
+  display: block;
+  width: 200px;
+  margin: 1rem auto;
+  padding: 0.5rem;
   cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.5;
+}
+.countdown {
+  font-size: 1.2em;
+  color: #4CAF50;
   font-weight: bold;
-  transition: all 0.3s ease;
+  margin-top: 1rem;
 }
-
-.join-button {
-  background: #4CAF50;
-  color: white;
-}
-.join-button:disabled {
-  background: #cccccc;
-  cursor: not-allowed;
-}
-
-.leave-button {
-  background: #f44336;
-  color: white;
-}
-.spinner {
-  margin-top: 20px;
-  border: 4px solid transparent;
-  border-top: 4px solid #f44336;
-  border-radius: 50%;
-  width: 50px;
-  height: 50px;
-  animation: spin 2s linear infinite;
-}
-.message {
-  margin-top: 10px;
-  padding: 10px;
-  border-radius: 4px;
-  background: #e3f2fd;
-}
-
-.login-prompt {
-  text-align: center;
-  padding: 20px;
-  color: #666;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
 </style>

@@ -1,116 +1,274 @@
+<script setup>
+import { onMounted, onBeforeUnmount, ref } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
+import { useLobbyStore } from '../stores/lobbyStore';
+import { useSocketStore } from '../stores/socketStore';
+import { useRootStore } from '../stores/rootStore';
+import { useAuthStore } from '../stores/authStore';
+import { SOCKET_EVENTS } from '../constants/socketEvents';
+
+const router = useRouter();
+const route = useRoute();
+const lobbyStore = useLobbyStore();
+const socketStore = useSocketStore();
+const rootStore = useRootStore();
+const authStore = useAuthStore();
+
+// Constants
+const AVAILABLE_MAPS = ['Map 1', 'Map 2', 'Map 3', 'Map 4', 'Map 5'];
+
+const listeners = ref([]);
+
+// LIFECYCLE HOOKS
+onMounted(async () => {
+  const lobbyId = route.params.lobbyId;
+  lobbyStore.loading = true;
+  
+  try {
+    if (!socketStore.isConnected) {
+      throw new Error('Not connected to server');
+    }
+
+    // Join the lobby first
+    await socketStore.emit(SOCKET_EVENTS.LOBBY.JOIN, { lobby_id: lobbyId });
+
+    const setupListeners = () => {
+      const addListener = (event, callback) => {
+        socketStore.on(event, callback);
+        listeners.value.push({ event, callback });
+      };
+
+      addListener(SOCKET_EVENTS.LOBBY.UPDATE, (data) => {
+        lobbyStore.updateLobbyState(data);
+      });
+
+      addListener(SOCKET_EVENTS.LOBBY.MAP_SELECTED, async (data) => {
+        // Get fresh state first
+        await socketStore.emit(SOCKET_EVENTS.LOBBY.GET_DATA, { lobby_id: lobbyId });
+        lobbyStore.updateLobbyState({
+          selectedMap: data.map,
+          step: 3
+        });
+      });
+
+      addListener(SOCKET_EVENTS.LOBBY.READY, (data) => {
+        lobbyStore.updateLobbyState({
+          ...data,
+          step: 4
+        });
+      });
+    };
+
+    setupListeners();
+
+    // Join lobby and get initial data
+    if (!authStore.username) {
+      throw new Error('No username available');
+    }
+
+    await socketStore.emit(SOCKET_EVENTS.LOBBY.JOIN, { 
+      lobby_id: lobbyId,
+      username: authStore.username
+    });
+    
+    const lobbyData = await socketStore.emit(SOCKET_EVENTS.LOBBY.GET_DATA, {
+      lobby_id: lobbyId 
+    });
+
+    if (!lobbyData || !lobbyData.lobby_id) {
+      throw new Error('Invalid lobby data received');
+    }
+    
+    lobbyStore.updateLobbyState(lobbyData);
+    
+  } catch (error) {
+    rootStore.setError(error.message);
+    router.push('/');
+  } finally {
+    lobbyStore.loading = false;
+  }
+});
+
+onBeforeUnmount(() => {
+  listeners.value.forEach(({ event, callback }) => {
+    socketStore.off(event, callback);
+  });
+  listeners.value = [];
+  lobbyStore.reset();
+});
+
+// METHODS
+const handleVoteMap = async (map) => {
+  try {
+    await socketStore.emit(SOCKET_EVENTS.LOBBY.VOTE_MAP, {
+      lobby_id: lobbyStore.lobbyId,
+      map
+    });
+  } catch (error) {
+    rootStore.setError('Failed to vote for map');
+  }
+};
+
+const handleLeaveLobby = async () => {
+  try {
+    await socketStore.emit(SOCKET_EVENTS.LOBBY.LEAVE, {
+      lobby_id: lobbyStore.lobbyId
+    });
+    router.push('/');
+  } catch (error) {
+    rootStore.setError('Failed to leave lobby');
+  }
+};
+</script>
+
 <template>
-    <div v-if="lobbyData">
-      <h1>Welcome to {{ lobbyId }}</h1>
-      <p>Teams:</p>
-      <ul>
-        <li v-for="(team, index) in lobbyData.teams" :key="index">{{ team }}</li>
-      </ul>
-      <button @click="step = 2">Proceed to Map Voting</button>
+  <div class="lobby">
+    <div class="lobby-header">
+      <h1>Game Lobby</h1>
+      <button @click="handleLeaveLobby" class="leave-button">
+        Leave Lobby
+      </button>
     </div>
-    <div v-else>
-      <p>Loading lobby data...</p>
+
+    <div v-if="lobbyStore.loading" class="loading">
+      Loading lobby...
+    </div>
+    
+    <!-- Step 1: Waiting -->
+    <div v-else-if="lobbyStore.step === 1" class="lobby-section">
+      <h2>Waiting for Players</h2>
+      <div class="players-list">
+        <h3>Players in Lobby:</h3>
+        <ul>
+          <li v-for="player in lobbyStore.players" :key="player">
+            {{ player }}
+          </li>
+        </ul>
+      </div>
     </div>
 
     <!-- Step 2: Map Voting -->
-    <div v-if="step === 2">
-      <h3>Vote for a Map</h3>
-      <ul>
-        <li v-for="map in maps" :key="map">
-          <button @click="voteForMap(map)">{{ map }}</button>
-        </li>
-      </ul>
-      <div v-if="selectedMap">You voted for: {{ selectedMap }}</div>
+    <div v-else-if="lobbyStore.step === 2" class="lobby-section">
+      <h2>Vote for a Map</h2>
+      <div class="map-list">
+        <button
+          v-for="map in AVAILABLE_MAPS"
+          :key="map"
+          @click="handleVoteMap(map)"
+          class="map-button"
+        >
+          {{ map }}
+        </button>
+      </div>
     </div>
 
     <!-- Step 3: Map Selected -->
-    <div v-if="step === 3">
-      <h3>Map Selected: {{ lobbyData.selected_map }}</h3>
-      <button @click="proceedToServerDetails">Show Server Details</button>
+    <div v-else-if="lobbyStore.step === 3" class="lobby-section">
+      <h2>Map Selected</h2>
+      <p class="selected-map">{{ lobbyStore.selectedMap }}</p>
+      <p>Waiting for server allocation...</p>
     </div>
 
     <!-- Step 4: Server Details -->
-    <div v-if="step === 4">
-      <h3>Match Ready</h3>
-      <p>Map: {{ lobbyData.selected_map }}</p>
-      <p>Server IP: {{ lobbyData.server_ip }}</p>
-      <div>
-        <h4>Team 1</h4>
-        <ul>
-          <li v-for="player in lobbyData.teams.team1" :key="player">{{ player }}</li>
-        </ul>
-      </div>
-      <div>
-        <h4>Team 2</h4>
-        <ul>
-          <li v-for="player in lobbyData.teams.team2" :key="player">{{ player }}</li>
-        </ul>
+    <div v-else-if="lobbyStore.step === 4" class="lobby-section">
+      <h2>Match Ready</h2>
+      <div class="match-details">
+        <p>Map: {{ lobbyStore.selectedMap }}</p>
+        <p>Server: {{ lobbyStore.serverDetails?.ip }}</p>
+        
+        <div class="teams">
+          <div class="team">
+            <h3>Team 1</h3>
+            <ul>
+              <li v-for="player in lobbyStore.teams.team1" :key="player">
+                {{ player }}
+              </li>
+            </ul>
+          </div>
+          
+          <div class="team">
+            <h3>Team 2</h3>
+            <ul>
+              <li v-for="player in lobbyStore.teams.team2" :key="player">
+                {{ player }}
+              </li>
+            </ul>
+          </div>
+        </div>
       </div>
     </div>
+  </div>
 </template>
-  
-<script setup>
-  import { ref, onMounted } from 'vue';
-  import { useRouter, useRoute } from 'vue-router';
-  import { io } from 'socket.io-client';
 
-  // Declare props
-  defineProps({
-    lobbyId: String,
-  });
-
-  // Initialize required variables and Socket.IO connection
-  const router = useRouter();
-  const route = useRoute();
-  const socket = io('http://localhost:5000', {
-    transports: ['websocket'], // Force WebSocket
-}); // Ensure your socket is connected here
-  const lobbyId = route.params.lobbyId;
-
-
-  // Reactive variables for component state
-  const lobbyData = ref(null);
-  const step = ref(1);
-  const maps = ['Map 1', 'Map 2', 'Map 3', 'Map 4', 'Map 5'];
-  const selectedMap = ref('');  
-  const players = ref([]); // List of players in the lobby
-  const loading = ref(false);
-  
-
-  onMounted(() => {
-    
-    socket.emit('get-lobby-data', { lobby_id: lobbyId });
-    socket.on('lobby_data', (data) => {
-      lobbyData.value = data;
-      step.value = 1;
-      console.log('Lobby data received:', data);
-    });
-
-    socket.on('map_selected', (data) => {
-      lobbyData.value.selected_map = data.map;  
-      step.value = 3;
-    });
-
-    socket.on('lobby_ready', (data) => {
-      lobbyData.value = data;
-      step.value = 4;
-    });
-});
-
-
-const voteForMap = (map) => {
-  socket.emit('vote-map', { lobby_id: lobbyId, player: localStorage.getItem('username'), vote: map });
-};
-
-const startLobby = () => {
-  socket.emit('start-lobby', { lobby_id: lobbyId });
-};
-
-</script>
-  
 <style scoped>
-  .lobby {
-    padding: 20px;
-    text-align: center;
-  }
+.lobby {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.lobby-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.lobby-section {
+  background: #f5f5f5;
+  padding: 20px;
+  border-radius: 4px;
+  margin-bottom: 20px;
+}
+
+.map-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.map-button {
+  padding: 10px 20px;
+  background: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.leave-button {
+  padding: 8px 16px;
+  background: #f44336;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.teams {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 20px;
+}
+
+.team {
+  flex: 1;
+  margin: 0 10px;
+  padding: 15px;
+  background: white;
+  border-radius: 4px;
+}
+
+.loading {
+  text-align: center;
+  padding: 20px;
+}
+
+.selected-map {
+  font-size: 1.2em;
+  font-weight: bold;
+  color: #4CAF50;
+}
 </style>
   

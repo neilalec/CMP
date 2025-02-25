@@ -1,39 +1,54 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import Home from '../views/Home.vue';
-import Register from '../components/Register.vue';
-import Login from '../components/Login.vue';
+import Auth from '../components/Auth.vue';
 import Lobby from '../components/Lobby.vue';
-import { authState } from '@/stores/auth';
+import { useAuthStore } from '@/stores/authStore';
+import { useRootStore } from '@/stores/rootStore';
 
 const routes = [
-  { path: '/', name: 'home', component: Home,  
-  beforeEnter: (to, from, next) => {
-      if (!authState.isLoggedIn) {
-        next('/login');  // Redirect to login if not logged in
-      } else {
-        next();
-      }
-    }
+  { 
+    path: '/', 
+    name: 'home', 
+    component: Home, 
+    meta: { requiresAuth: true } 
   },
-  { path: '/login', name: 'login', component: Login },
-  { path: '/register', name: 'register', component: Register },
-  { path: '/lobby/:lobbyId', name: 'lobby', component: Lobby, props:true },
-  // { path: '/match/:id', name: 'match', component: MatchPage }
+  { 
+    path: '/auth', 
+    name: 'auth', 
+    component: Auth, 
+    meta: { guest: true } 
+  },
+  { 
+    path: '/lobby/:lobbyId', 
+    name: 'lobby', 
+    component: Lobby, 
+    props: true, 
+    meta: { requiresAuth: true } 
+  }
 ];
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
-  routes,  // Single 'routes' array
+  routes
 });
 
+// Navigation guard
 router.beforeEach((to, from, next) => {
-  const isAuthenticated = authState.isLoggedIn;
-  if (!isAuthenticated && to.name !== 'login' && to.name !== 'register') {
-    next({ name: 'login' }); // Redirect to login only if unauthenticated
+  const authStore = useAuthStore();
+  const rootStore = useRootStore();
+  const isAuthenticated = authStore.isLoggedIn;
+
+  // Clear any existing errors when changing routes
+  rootStore.clearError();
+
+  // Handle authentication redirects
+  if (to.meta.requiresAuth && !isAuthenticated) {
+    next('/auth');
+  } else if (to.meta.guest && isAuthenticated) {
+    next('/');
   } else {
     next();
   }
 });
-
 
 export default router;

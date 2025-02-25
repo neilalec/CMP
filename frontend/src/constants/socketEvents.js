@@ -1,0 +1,48 @@
+export const SOCKET_EVENTS = {
+  // Connection events
+  CONNECTION: {
+    CONNECT: 'connect',
+    DISCONNECT: 'disconnect',
+    ERROR: 'connect_error',
+    RECONNECT: 'reconnect'
+  },
+
+  // Authentication evesnts
+  AUTH: {
+    LOGIN: 'login',
+    LOGIN_SUCCESS: 'login_success',
+    LOGIN_ERROR: 'login_error',
+    AUTHENTICATE: 'authenticate',
+    AUTHENTICATION_SUCCESS: 'authentication_success',
+    AUTHENTICATION_ERROR: 'authentication_error',
+    REGISTER: 'register',
+    REGISTER_SUCCESS: 'register_success',
+    REGISTER_ERROR: 'register_error'
+  },
+
+  // Queue events
+  QUEUE: {
+    JOIN: 'join-queue',
+    JOINED: 'queue_joined',
+    LEAVE: 'leave-queue',
+    LEFT: 'queue_left',
+    UPDATE: 'queue_update',
+    STATUS: 'queue_status',
+  },
+
+  // Lobby events
+  LOBBY: {
+    CREATED: 'lobby_created',
+    JOIN: 'join-lobby',
+    LEAVE: 'leave-lobby',
+    UPDATE: 'lobby_update',
+    DATA: 'lobby_data',
+    GET_DATA: 'get-lobby-data',
+    VOTE_MAP: 'vote-map',
+    MAP_SELECTED: 'map_selected',
+    START: 'start-lobby',
+    READY: 'lobby_ready'
+  },
+
+  MESSAGE: 'message',
+}; 
