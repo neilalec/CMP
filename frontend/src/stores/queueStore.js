@@ -8,88 +8,58 @@ export const useQueueStore = defineStore('queue', {
     playersInQueue: 0,
     queueList: [],
     loading: false,
-    error: null
+    error: null,
+    lastSync: null,
+    countdown: null
   }),
 
   actions: {
-    setLoading(status) {
-      this.loading = status;
-    },
-
-    setError(error) {
-      this.error = error;
-    },
-
     updateQueueState(data) {
       if (!data) return;
       
-      // Handle both direct and response formats
-      const queueData = data.success !== undefined ? data : { success: true, ...data };
-      
-      if (queueData.success) {
-        this.inQueue = !!queueData.inQueue;
-        this.playersInQueue = queueData.playersInQueue || 0;
-        this.queueList = Array.isArray(queueData.queue) ? queueData.queue : [];
-        this.countdown = queueData.countdown || null;
-        this.error = null;
-      } else {
-        this.error = queueData.message || 'Failed to update queue state';
-      }
+      this.inQueue = !!data.inQueue;
+      this.playersInQueue = data.playersInQueue || 0;
+      this.queueList = Array.isArray(data.queue) ? data.queue : [];
+      this.countdown = data.countdown || null;
+      this.error = null;
+      this.lastSync = Date.now();
     },
 
     async joinQueue(username) {
-      const socketStore = useSocketStore();
-      this.setLoading(true);
+      this.loading = true;
       try {
+        const socketStore = useSocketStore();
         const response = await socketStore.emit(SOCKET_EVENTS.QUEUE.JOIN, { username });
         this.updateQueueState(response);
-        return response;
       } catch (error) {
-        this.setError(error.message);
+        this.error = error.message;
         throw error;
       } finally {
-        this.setLoading(false);
+        this.loading = false;
       }
     },
 
     async leaveQueue(username) {
-      const socketStore = useSocketStore();
-      this.setLoading(true);
+      this.loading = true;
       try {
-        console.log('[Queue Debug] Starting leave queue operation:', {
-          username,
-          event: SOCKET_EVENTS.QUEUE.LEAVE,
-          currentState: {
-            inQueue: this.inQueue,
-            playersInQueue: this.playersInQueue,
-            queueList: this.queueList
-          }
-        });
-
-        // Verify socket connection before emit
-        const socketStatus = await socketStore.checkConnection();
-        console.log('[Queue Debug] Socket status:', socketStatus);
-
-        const response = await socketStore.emit(SOCKET_EVENTS.QUEUE.LEAVE, { 
-          username,
-          timestamp: Date.now() // Add timestamp for debugging
-        });
-        
-        console.log('[Queue Debug] Leave queue response:', response);
+        const socketStore = useSocketStore();
+        const response = await socketStore.emit(SOCKET_EVENTS.QUEUE.LEAVE, { username });
         this.updateQueueState(response);
-        
-        return response;
       } catch (error) {
-        console.error('[Queue Debug] Leave queue error:', {
-          error,
-          errorType: error.constructor.name,
-          errorMessage: error.message,
-          stack: error.stack
-        });
-        this.setError(error.message);
+        this.error = error.message;
         throw error;
       } finally {
-        this.setLoading(false);
+        this.loading = false;
+      }
+    },
+
+    async syncWithServer() {
+      try {
+        const socketStore = useSocketStore();
+        const response = await socketStore.emit(SOCKET_EVENTS.QUEUE.STATUS);
+        this.updateQueueState(response);
+      } catch (error) {
+        this.error = error.message;
       }
     },
 
@@ -99,6 +69,7 @@ export const useQueueStore = defineStore('queue', {
       this.queueList = [];
       this.loading = false;
       this.error = null;
+      this.lastSync = null;
     }
   }
 })

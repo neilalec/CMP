@@ -14,15 +14,28 @@ from functools import wraps
 #GLOBAL VARIABLES AND DATA STRUCTURES
 QUEUE_FILE = 'queue.json'
 queue_lock = RLock()
-users = {
-    'neil': '123', 
-    'sam': '123'
-}
+USERS_FILE = 'users.json'
 QUEUE_CHECK_INTERVAL = 5
 CLEANUP_INTERVAL = 30
 SYNC_INTERVAL = 10
 
 load_dotenv()
+
+def load_users():
+    """Load users from file"""
+    try:
+        with open(USERS_FILE, 'r') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {}
+
+def save_users():
+    """Save users to file"""
+    with open(USERS_FILE, 'w') as f:
+        json.dump(users, f)
+
+# Initialize users from file
+users = load_users()
 
 # Load queue from file
 def load_queue():
@@ -358,78 +371,67 @@ def create_lobby():
                 # Get first two players
                 players = matchmaking_queue[:2]
                 
-                # Create new lobby with unique ID
+                # Add debug logging
+                logger.debug(f"Player activity states: {[player_activity.get(p, {}).get('status') for p in players]}")
+                
+                # Verify players are still active
+                active_players = [
+                    player for player in players 
+                    if player in player_activity 
+                    and player_activity[player].get('status') == 'queued'
+                ]
+                
+                logger.debug(f"Active players found: {active_players}")
+                
+                if len(active_players) < 2:
+                    logger.warning("Not enough active players to create lobby")
+                    return False
+
+                # Create new lobby
                 lobby_id = f"lobby_{int(time.time())}"
-                teams = assign_teams(players)
+                teams = assign_teams(active_players)
                 
                 lobbies[lobby_id] = {
                     'lobby_id': lobby_id,
-                    'players': players,
+                    'players': active_players,
                     'teams': teams,
                     'step': 1,
                     'map_votes': {},
                     'selected_map': None,
-                    'server_ip':None
+                    'server_ip': None
                 }
 
-                # Remove players from queue BEFORE notifying them
-                for player in players:
-                    if player in matchmaking_queue:
-                        matchmaking_queue.remove(player)
-                    if player in player_activity:
-                        player_activity[player]['status'] = 'in_lobby'
+                # Update player states and queue
+                for player in active_players:
+                    matchmaking_queue.remove(player)
+                    player_activity[player]['status'] = 'in_lobby'
                 
+                # Save and broadcast updates
                 save_queue()
                 broadcast_queue_update()
                 
-                for player in players:
-                    if player in player_activity:
-                        sid = player_activity[player].get('sid')
-                        if sid:
-                            socketio.emit(SOCKET_EVENTS['LOBBY']['CREATED'], {  # CREATED not CREATE
-                                    'lobby_id': lobby_id,
-                                    'players': players,
-                                    'teams': teams,
-                                    'step': 1
-                                }, room=sid)
-                return True
-            except Exception as e:
-                logger.error(f"Error creating lobby: {str(e)}")
-                return False
-
-
-    """Create a match when enough players are in queue"""
-    with queue_lock:
-        if len(matchmaking_queue) >= 2:
-            # Get first two players
-            players = matchmaking_queue[:2]
-            
-            # Create new lobby
-            lobby_id = f"lobby_{time.time()}"
-            lobbies[lobby_id] = {
-                'lobby_id': lobby_id,
-                'players': players,
-                'teams': {'team1': [], 'team2': []},
-                'map_votes': {},
-                'selected_map': None,
-                'server_ip': '127.0.0.1:12345',
-            }
-            
-            # Remove players from queue
-            for player in players:
-                matchmaking_queue.remove(player)
-            save_queue()
-            
-            # Notify players
-            for player in players:
-                if player in player_activity:
+                # Notify players about lobby creation
+                for player in active_players:
                     sid = player_activity[player].get('sid')
                     if sid:
-                        socketio.emit('match_found', {
+                        socketio.emit(SOCKET_EVENTS['LOBBY']['CREATED'], {
                             'lobby_id': lobby_id,
-                            'players': players
+                            'players': active_players,
+                            'teams': teams,
+                            'step': 1
                         }, room=sid)
-            broadcast_queue_update()  
+                
+                logger.info(f"Created lobby {lobby_id} with players {active_players}")
+                return True
+
+            except Exception as e:
+                logger.error(f"Error creating lobby: {str(e)}")
+                # Cleanup if lobby was partially created
+                if 'lobby_id' in locals() and lobby_id in lobbies:
+                    del lobbies[lobby_id]
+                return False
+
+        return False
 
 def assign_teams(players):
     random.shuffle(players)
@@ -538,6 +540,9 @@ def periodic_queue_management():
             logger.error(f"Error in queue management: {str(e)}")
         eventlet.sleep(5)  # Every 5 seconds
 
+
+
+
 @socketio.on('*')  # Add this at the top of your socket handlers
 @handle_socket_data
 def catch_all(event, *args):
@@ -630,13 +635,33 @@ def handle_disconnect(reason=None):
 @socketio.on(SOCKET_EVENTS['AUTH']['REGISTER'])
 @handle_socket_data
 def register_socket(data):
-    username = data.get('username')
-    password = data.get('password')
-    if username in users:
-        emit('registration_error', {'msg': 'User already exists!'})
-    else:
+    try:
+        username = data.get('username')
+        password = data.get('password')
+        
+        if not username or not password:
+            return {'success': False, 'message': 'Missing credentials'}
+            
+        if username in users:
+            return {'success': False, 'message': 'Username already exists'}
+            
+        # Store the new user
         users[username] = password
-        emit('registration_success', {'msg': 'User registered successfully!'})
+        save_users()
+        
+        # Create access token for automatic login
+        access_token = create_access_token(identity=username)
+        
+        logger.info(f"New user registered: {username}")
+        return {
+            'success': True,
+            'message': 'Registration successful',
+            'access_token': access_token
+        }
+        
+    except Exception as e:
+        logger.error(f"Registration error: {str(e)}")
+        return {'success': False, 'message': 'Registration failed'}
 
 @socketio.on(SOCKET_EVENTS['AUTH']['LOGIN'])
 @handle_socket_data
@@ -650,35 +675,33 @@ def login_socket(data):
 
         if not username or not password:
             logger.debug("Missing credentials")
-            emit(f"{SOCKET_EVENTS['AUTH']['LOGIN']}_response", {
+            return {
                 'success': False,
                 'message': 'Missing credentials'
-            })
-            return
+            }
 
         logger.debug(f"Checking credentials for {username}")
         if users.get(username) != password:
             logger.debug(f"Login failed for user: {username}")
-            emit(f"{SOCKET_EVENTS['AUTH']['LOGIN']}_response", {
+            return {
                 'success': False,
                 'message': 'Invalid credentials'
-            })
-        else:
-            logger.debug(f"Login successful for user: {username}")
-            access_token = create_access_token(identity=username)
-            emit(f"{SOCKET_EVENTS['AUTH']['LOGIN']}_response", {
-                'success': True,
-                'message': 'Login successful',
-                'access_token': access_token
-            })
+            }
+        
+        logger.debug(f"Login successful for user: {username}")
+        access_token = create_access_token(identity=username)
+        return {
+            'success': True,
+            'message': 'Login successful',
+            'access_token': access_token
+        }
+            
     except Exception as e:
         logger.error(f"Error in login handler: {str(e)}", exc_info=True)
-        emit(f"{SOCKET_EVENTS['AUTH']['LOGIN']}_response", {
+        return {
             'success': False,
             'message': 'Server error occurred'
-        })
-    
-    logger.debug("=== Finished login handler ===")
+        }
 
 @socketio.on(SOCKET_EVENTS['AUTH']['AUTHENTICATE'])
 @handle_socket_data
@@ -719,48 +742,43 @@ def handle_join_queue(data):
     """Handle join queue request"""
     try:
         username = data.get('username')
-        logger.info(f"Join queue request from: {username}")
         
         with queue_lock:
             if username not in matchmaking_queue:
+                # Add to queue
                 matchmaking_queue.append(username)
+                player_activity[username] = {
+                    'status': 'queued',
+                    'sid': request.sid
+                }
                 save_queue()
                 
-                # Send immediate response to requesting client
+                # Broadcast update to all clients
+                socketio.emit(SOCKET_EVENTS['QUEUE']['UPDATE'], {
+                    'playersInQueue': len(matchmaking_queue),
+                    'queue': list(matchmaking_queue)
+                })
+                
+                # Send success response to requester
                 emit(f"{SOCKET_EVENTS['QUEUE']['JOIN']}_response", {
                     'success': True,
                     'inQueue': True,
                     'playersInQueue': len(matchmaking_queue),
                     'queue': list(matchmaking_queue)
                 })
-
                 
-                # Broadcast update to ALL clients including sender
-                socketio.emit(SOCKET_EVENTS['QUEUE']['UPDATE'], {
-                    'success': True,
-                    'playersInQueue': len(matchmaking_queue),
-                    'queue': list(matchmaking_queue)
-                }, room=None)  # This ensures ALL clients get the update
-
                 check_queue_and_start_countdown()
-                
             else:
                 emit(f"{SOCKET_EVENTS['QUEUE']['JOIN']}_response", {
                     'success': False,
-                    'message': 'Already in queue',
-                    'inQueue': True,
-                    'playersInQueue': len(matchmaking_queue),
-                    'queue': list(matchmaking_queue)
+                    'message': 'Already in queue'
                 })
 
     except Exception as e:
         logger.error(f"Error in handle_join_queue: {str(e)}")
         emit(f"{SOCKET_EVENTS['QUEUE']['JOIN']}_response", {
             'success': False,
-            'message': 'Failed to join queue',
-            'inQueue': False,
-            'playersInQueue': len(matchmaking_queue),
-            'queue': list(matchmaking_queue)
+            'message': str(e)
         })
 
 

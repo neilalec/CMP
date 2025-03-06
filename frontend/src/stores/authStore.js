@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia';
+import { useSocketStore } from './socketStore';
 import { useRootStore } from './rootStore';
 
 export const useAuthStore = defineStore('auth', {
@@ -9,30 +10,63 @@ export const useAuthStore = defineStore('auth', {
   }),
 
   actions: {
-    setAuth(token, username) {
+    restoreAuth() {
+      const token = localStorage.getItem('token');
+      const username = localStorage.getItem('username');
+      
+      if (token && username) {
+        this.token = token;
+        this.username = username;
+        this.isLoggedIn = true;
+        return true;
+      }
+      
+      return false;
+    },
+
+    async setAuth(token, username) {
       this.token = token;
       this.username = username;
       this.isLoggedIn = true;
-      // Persist to localStorage
+      
       localStorage.setItem('token', token);
       localStorage.setItem('username', username);
     },
 
-    async login(token, username) {
+    async register(token, username) {
       try {
-        this.setAuth(token, username);
+        await this.setAuth(token, username);
         return true;
       } catch (error) {
-        console.error('Login error:', error);
+        const rootStore = useRootStore();
+        rootStore.setError({
+          message: 'Registration failed',
+          details: error.message,
+          context: 'auth-register'
+        });
         this.logout();
         throw error;
       }
     },
 
-    async logout() {
-      const rootStore = useRootStore();
-      
-      // Clear auth state first
+    async login(token, username) {
+      try {
+        await this.setAuth(token, username);
+        return true;
+      } catch (error) {
+        const rootStore = useRootStore();
+        rootStore.setError({
+          message: 'Login failed',
+          details: error.message,
+          context: 'auth-login'
+        });
+        this.logout();
+        throw error;
+      }
+    },
+
+    logout() {
+      // Clear auth state
       this.token = null;
       this.username = null;
       this.isLoggedIn = false;
@@ -40,21 +74,18 @@ export const useAuthStore = defineStore('auth', {
       // Clear localStorage
       localStorage.removeItem('token');
       localStorage.removeItem('username');
-      
-      // Clear error state
+
+      // Cleanup socket
+      const socketStore = useSocketStore();
+      socketStore.cleanupSocket();
+
+      // Clear any errors
+      const rootStore = useRootStore();
       rootStore.clearError();
     },
 
-    restoreAuth() {
-      const token = localStorage.getItem('token');
-      const username = localStorage.getItem('username');
-      
-      if (token && username) {
-        this.setAuth(token, username);
-        return true;
-      }
-      
-      return false;
+    checkAuth() {
+      return this.isLoggedIn && !!this.token && !!this.username;
     }
   }
 });

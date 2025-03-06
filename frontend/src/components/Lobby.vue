@@ -29,60 +29,55 @@ onMounted(async () => {
       throw new Error('Not connected to server');
     }
 
-    // Join the lobby first
-    await socketStore.emit(SOCKET_EVENTS.LOBBY.JOIN, { lobby_id: lobbyId });
-
+    // Setup all listeners at once
     const setupListeners = () => {
-      const addListener = (event, callback) => {
-        socketStore.on(event, callback);
-        listeners.value.push({ event, callback });
-      };
+      const events = [
+        {
+          event: SOCKET_EVENTS.LOBBY.UPDATE,
+          handler: (data) => lobbyStore.updateLobbyState(data)
+        },
+        {
+          event: SOCKET_EVENTS.LOBBY.MAP_SELECTED,
+          handler: async (data) => {
+            await socketStore.emit(SOCKET_EVENTS.LOBBY.GET_DATA, { lobby_id: lobbyId });
+            lobbyStore.updateLobbyState({
+              selectedMap: data.map,
+              step: 3
+            });
+          }
+        },
+        {
+          event: SOCKET_EVENTS.LOBBY.READY,
+          handler: (data) => {
+            lobbyStore.updateLobbyState({
+              ...data,
+              step: 4
+            });
+          }
+        }
+      ];
 
-      addListener(SOCKET_EVENTS.LOBBY.UPDATE, (data) => {
-        lobbyStore.updateLobbyState(data);
-      });
-
-      addListener(SOCKET_EVENTS.LOBBY.MAP_SELECTED, async (data) => {
-        // Get fresh state first
-        await socketStore.emit(SOCKET_EVENTS.LOBBY.GET_DATA, { lobby_id: lobbyId });
-        lobbyStore.updateLobbyState({
-          selectedMap: data.map,
-          step: 3
-        });
-      });
-
-      addListener(SOCKET_EVENTS.LOBBY.READY, (data) => {
-        lobbyStore.updateLobbyState({
-          ...data,
-          step: 4
-        });
+      // Register all listeners
+      events.forEach(({ event, handler }) => {
+        socketStore.on(event, handler);
+        listeners.value.push({ event, handler });
       });
     };
 
     setupListeners();
-
-    // Join lobby and get initial data
-    if (!authStore.username) {
-      throw new Error('No username available');
-    }
-
+    
+    // Join lobby
     await socketStore.emit(SOCKET_EVENTS.LOBBY.JOIN, { 
       lobby_id: lobbyId,
-      username: authStore.username
-    });
-    
-    const lobbyData = await socketStore.emit(SOCKET_EVENTS.LOBBY.GET_DATA, {
-      lobby_id: lobbyId 
+      username: authStore.username 
     });
 
-    if (!lobbyData || !lobbyData.lobby_id) {
-      throw new Error('Invalid lobby data received');
-    }
-    
-    lobbyStore.updateLobbyState(lobbyData);
-    
   } catch (error) {
-    rootStore.setError(error.message);
+    rootStore.setError({
+      message: 'Failed to join lobby',
+      details: error.message,
+      context: 'lobby-join'
+    });
     router.push('/');
   } finally {
     lobbyStore.loading = false;
@@ -90,8 +85,9 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
-  listeners.value.forEach(({ event, callback }) => {
-    socketStore.off(event, callback);
+  // Remove all listeners
+  listeners.value.forEach(({ event, handler }) => {
+    socketStore.off(event, handler);
   });
   listeners.value = [];
   lobbyStore.reset();
@@ -105,7 +101,11 @@ const handleVoteMap = async (map) => {
       map
     });
   } catch (error) {
-    rootStore.setError('Failed to vote for map');
+    rootStore.setError({
+      message: 'Failed to vote for map',
+      details: error.message,
+      context: 'lobby-vote'
+    });
   }
 };
 

@@ -1,4 +1,5 @@
 import { io } from 'socket.io-client';
+import { getEnvConfig } from '../config/env';
 import { SOCKET_EVENTS } from '../constants/socketEvents';
 
 class SocketService {
@@ -10,7 +11,10 @@ class SocketService {
     this.connectionHandlers = new Set(); // Track handlers
   }
 
-  connect(token, username) {
+  async connect(token, username) {
+    const config = getEnvConfig();
+    const socketUrl = config.VITE_SOCKET_URL;
+
     return new Promise((resolve, reject) => {
       if (this.socket?.connected) {
         console.log('Already connected, reusing connection');
@@ -26,7 +30,7 @@ class SocketService {
       try {
         console.log('Creating new socket connection...', { token, username });
         
-        this.socket = io(import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000', {
+        this.socket = io(socketUrl, {
           auth: { token, username },
           transports: ['websocket'],
           reconnection: true,
@@ -122,74 +126,25 @@ class SocketService {
 
   emit(event, data) {
     return new Promise((resolve, reject) => {
+      // Connection check
       if (!this.socket || !this.connected) {
-        console.error('[Socket Error] Socket not connected:', {
-          socketExists: !!this.socket,
-          isConnected: this.connected
-        });
         reject(new Error('Socket not connected'));
         return;
       }
 
-      console.log(`[Socket Debug] Preparing to emit ${event}:`, {
-        event,
-        data,
-        socketId: this.socket.id,
-        connected: this.socket.connected,
-        readyState: this.socket.readyState,
-        transport: this.socket.transport?.name
+      // Use Socket.IO's acknowledgment callback
+      this.socket.emit(event, data, (response) => {
+        if (response && response.success === false) {
+          reject(new Error(response.message));
+        } else {
+          resolve(response);
+        }
       });
 
-      // Add error handler
-      const errorHandler = (error) => {
-        console.error(`[Socket Error] Error during ${event}:`, error);
-        this.socket.off('error', errorHandler);
-        reject(error);
-      };
-      this.socket.on('error', errorHandler);
-
-      // Add connect_error handler
-      const connectErrorHandler = (error) => {
-        console.error(`[Socket Error] Connect error during ${event}:`, error);
-        this.socket.off('connect_error', connectErrorHandler);
-        reject(error);
-      };
-      this.socket.on('connect_error', connectErrorHandler);
-
-      const responseEvent = `${event}_response`;
-      
-      try {
-        this.socket.emit(event, data, (error) => {
-          if (error) {
-            console.error(`[Socket Error] Acknowledgment error for ${event}:`, error);
-            reject(error);
-          }
-        });
-        console.log(`[Socket Debug] Emitted ${event}`);
-      } catch (error) {
-        console.error(`[Socket Error] Failed to emit ${event}:`, error);
-        reject(error);
-        return;
-      }
-
-      const timeoutId = setTimeout(() => {
-        this.socket.off('error', errorHandler);
-        this.socket.off('connect_error', connectErrorHandler);
-        console.log(`[Socket Debug] Timeout reached for ${responseEvent}:`, {
-          socketId: this.socket.id,
-          connected: this.socket.connected,
-          disconnected: this.socket.disconnected
-        });
+      // Add timeout
+      setTimeout(() => {
         reject(new Error('Socket request timeout'));
       }, 5000);
-
-      this.socket.once(responseEvent, (response) => {
-        clearTimeout(timeoutId);
-        this.socket.off('error', errorHandler);
-        this.socket.off('connect_error', connectErrorHandler);
-        console.log(`[Socket Debug] Received ${responseEvent}:`, response);
-        resolve(response);
-      });
     });
   }
 

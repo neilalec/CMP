@@ -10,7 +10,20 @@ export const useRootStore = defineStore('root', {
   
   actions: {
     setError(error) {
-      this.errorQueue.push(error);
+      // Handle both string and object errors
+      const errorObj = typeof error === 'string' 
+        ? { message: error } 
+        : error;
+
+      // Add timestamp and ensure message exists
+      const formattedError = {
+        ...errorObj,
+        timestamp: new Date(),
+        message: errorObj.message || 'An unknown error occurred'
+      };
+
+      this.errorQueue.push(formattedError);
+      
       if (!this.currentError) {
         this.processNextError();
       }

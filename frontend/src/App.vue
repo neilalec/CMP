@@ -12,14 +12,8 @@ const socketStore = useSocketStore();
 const rootStore = useRootStore();
 
 // Initialize auth state and socket on mount
-onMounted(async () => {
-  try {
-    if (authStore.restoreAuth()) {
-      console.log('Auth restored');
-    }
-  } catch (error) {
-    console.error('Failed to restore session:', error);
-    await authStore.logout();
+onMounted(() => {
+  if (!authStore.restoreAuth()) {
     router.push('/auth');
   }
 });
@@ -27,11 +21,8 @@ onMounted(async () => {
 // Handle logout
 const handleLogout = async () => {
   try {
-    // First cleanup socket
     await socketStore.cleanupSocket();
-    // Then logout auth
-    await authStore.logout();
-    // Finally redirect
+    authStore.logout();
     router.push('/auth');
   } catch (error) {
     rootStore.setError('Logout failed');
@@ -39,24 +30,17 @@ const handleLogout = async () => {
 };
 
 // Initialize socket connection when authenticated
-watch(() => authStore.isLoggedIn, async (isLoggedIn, oldValue) => {
-  console.log('Auth state changed:', { isLoggedIn, oldValue });
-  if (isLoggedIn && authStore.token && !socketStore.isConnected) {
+watch(() => authStore.isLoggedIn, async (isLoggedIn) => {
+  if (isLoggedIn && authStore.token) {
     try {
-      console.log('Attempting to initialize socket...');
       rootStore.setLoading(true);
       await socketStore.initSocket(authStore.token, authStore.username);
-      console.log('Socket initialized successfully');
     } catch (error) {
-      console.error('Socket initialization error:', error);
       rootStore.setError('Failed to connect to server');
-      await authStore.logout();
+      authStore.logout();
     } finally {
       rootStore.setLoading(false);
     }
-  } else if (!isLoggedIn && oldValue) {
-    console.log('Cleaning up socket due to logout');
-    await socketStore.cleanupSocket();
   }
 }, { immediate: true });
 

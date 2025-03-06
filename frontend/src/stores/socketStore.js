@@ -46,9 +46,21 @@ export const useSocketStore = defineStore('socket', {
     async emit(event, data, retryCount = 0) {
       const rootStore = useRootStore();
       const maxRetries = 2;
+      const timeout = 5000; // 5 seconds timeout
       
       try {
-        return await socketService.emit(event, data);
+        return await new Promise((resolve, reject) => {
+          // Add a timeout
+          const timeoutId = setTimeout(() => {
+            reject(new AppError('Socket request timeout', 'SOCKET_ERROR', event));
+          }, timeout);
+
+          // Emit the event and wait for response
+          socketService.socket.emit(event, data, (response) => {
+            clearTimeout(timeoutId);
+            resolve(response);
+          });
+        });
       } catch (error) {
         if (error.message === 'Socket not connected' && retryCount < maxRetries) {
           await new Promise(resolve => setTimeout(resolve, 1000));

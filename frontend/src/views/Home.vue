@@ -13,10 +13,11 @@ const authStore = useAuthStore();
 const loading = ref(false);
 
 onMounted(async () => {
+  // Initial queue sync
+  await queueStore.syncWithServer();
 
   // Listen for queue updates
   socketStore.on(SOCKET_EVENTS.QUEUE.UPDATE, (data) => {
-    console.log('Received queue update:', data);
     queueStore.updateQueueState({
       ...data,
       inQueue: data.queue?.includes(authStore.username)
@@ -25,34 +26,11 @@ onMounted(async () => {
 
   // Listen for lobby creation
   socketStore.on(SOCKET_EVENTS.LOBBY.CREATED, (data) => {
-    console.log('Lobby created:', data);
-    if (!data || !data.lobby_id) {
-      console.error('Invalid lobby data received:', data);
-      return;
-    }
-
-    try {
+    if (data?.lobby_id) {
       queueStore.resetQueue();
       router.push(`/lobby/${data.lobby_id}`);
-    } catch (error) {
-      console.error('Failed to navigate to lobby:', error);
     }
   });
-
-  // Get initial queue status
-  try {
-    const response = await socketStore.emit(SOCKET_EVENTS.QUEUE.STATUS, { 
-      username: authStore.username 
-    });
-    if (response && response.success) {
-      queueStore.updateQueueState({
-        ...response,
-         inQueue: response.queue?.includes(authStore.username)
-        });
-    }
-  } catch (error) {
-    console.error('Failed to get queue status:', error);
-  }
 });
 
 onBeforeUnmount(() => {
@@ -61,23 +39,18 @@ onBeforeUnmount(() => {
 });
 
 const joinQueue = async () => {
+  loading.value = true;
   try {
-    loading.value = true;
     await queueStore.joinQueue(authStore.username);
-  } catch (error) {
-    console.error('Join queue error:', error);
   } finally {
     loading.value = false;
   }
 };
 
 const leaveQueue = async () => {
+  loading.value = true;
   try {
-    loading.value = true;
-    console.log('Leaving queue for:', authStore.username);
     await queueStore.leaveQueue(authStore.username);
-  } catch (error) {
-    console.error('Leave queue error:', error);
   } finally {
     loading.value = false;
   }
@@ -95,7 +68,7 @@ const leaveQueue = async () => {
       <p v-else>
         No players in queue currently.
       </p>
-      <p v-if="queueStore.countdown !== null" class="countdown">
+      <p v-if="queueStore.countdown" class="countdown">
         Match starting in: {{ queueStore.countdown }}s
       </p>
     </div>

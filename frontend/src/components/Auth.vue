@@ -28,23 +28,29 @@ const handleSubmit = async () => {
     }
 
     // Login/Register
-    const response = await socketStore.emit(
-      formType.value === 'login' ? SOCKET_EVENTS.AUTH.LOGIN : SOCKET_EVENTS.AUTH.REGISTER,
-      {
-        username: username.value,
-        password: password.value
-      }
-    );
+    const eventType = formType.value === 'login' ? 
+      SOCKET_EVENTS.AUTH.LOGIN : 
+      SOCKET_EVENTS.AUTH.REGISTER;
+
+    const response = await socketStore.emit(eventType, {
+      username: username.value,
+      password: password.value
+    });
 
     if (response.success) {
-      console.log('Authentication successful');
-      await authStore.login(response.access_token, username.value);
+      console.log(`${formType.value} successful`);
+      // Use appropriate store action based on form type
+      if (formType.value === 'login') {
+        await authStore.login(response.access_token, username.value);
+      } else {
+        await authStore.register(response.access_token, username.value);
+      }
       router.push('/');
     } else {
-      throw new Error(response.message || 'Authentication failed');
+      throw new Error(response.message || `${formType.value} failed`);
     }
   } catch (error) {
-    console.error('Authentication error:', error);
+    console.error(`${formType.value} error:`, error);
     rootStore.setError(error.message);
   } finally {
     loading.value = false;
