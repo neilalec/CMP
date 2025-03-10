@@ -42,6 +42,12 @@ onMounted(async () => {
           event: SOCKET_EVENTS.LOBBY.UPDATE,
           handler: (data) => {
             console.log('Lobby update received:', data);
+            if (data.isAssigningTeams !== undefined) {
+              lobbyStore.startTeamAssignment();
+            }
+            if (data.teams) {
+              lobbyStore.updateTeams(data.teams);
+            }
             lobbyStore.updateLobbyState(data);
           }
         },
@@ -194,10 +200,18 @@ const handleLeaveLobby = async () => {
       Loading lobby...
     </div>
     
-    <!-- Step 1: Waiting -->
-    <div v-else-if="lobbyStore.step === 1" class="lobby-section">
+    <!-- Step 1: Waiting with Countdown -->
+    <div v-if="lobbyStore.step === 1" class="lobby-section">
       <h2>Waiting for Players</h2>
-      <div class="players-list">
+      
+      <!-- Show countdown if active -->
+      <div v-if="lobbyStore.countdown !== null" class="countdown">
+        <h3>Teams will be assigned in:</h3>
+        <div class="countdown-timer">{{ lobbyStore.countdown }}</div>
+      </div>
+      
+      <!-- Show players list if not assigning teams and not showing teams -->
+      <div v-if="!lobbyStore.isAssigningTeams && !lobbyStore.showingTeams" class="players-list">
         <h3>Players in Lobby:</h3>
         <ul>
           <li v-for="player in lobbyStore.players" :key="player">
@@ -205,19 +219,55 @@ const handleLeaveLobby = async () => {
           </li>
         </ul>
       </div>
+      
+      <!-- Show teams after assignment -->
+      <div v-else-if="lobbyStore.showingTeams" class="teams-display">
+        <h3>Teams have been assigned!</h3>
+        <div class="teams-container">
+          <div class="team">
+            <h3>Team 1</h3>
+            <ul>
+              <li v-for="player in lobbyStore.teams.team1" :key="player">
+                {{ player }}
+              </li>
+            </ul>
+          </div>
+          
+          <div class="team">
+            <h3>Team 2</h3>
+            <ul>
+              <li v-for="player in lobbyStore.teams.team2" :key="player">
+                {{ player }}
+              </li>
+            </ul>
+          </div>
+        </div>
+        <div class="transition-message">
+          Map voting will begin in a few seconds...
+        </div>
+      </div>
     </div>
 
     <!-- Step 2: Map Voting -->
     <div v-else-if="lobbyStore.step === 2" class="lobby-section">
       <h2>Vote for a Map</h2>
+      <div v-if="lobbyStore.votingCountdown" class="countdown">
+        <div class="countdown-timer">{{ lobbyStore.votingCountdown }}</div>
+        <p>seconds remaining to vote</p>
+      </div>
+      
       <div class="map-list">
         <button
           v-for="map in AVAILABLE_MAPS"
           :key="map"
           @click="handleVoteMap(map)"
-          class="map-button"
+          :class="['map-button', { 'voted': lobbyStore.mapVotes[authStore.username] === map }]"
+          :disabled="lobbyStore.mapVotes[authStore.username]"
         >
           {{ map }}
+          <span class="vote-count" v-if="lobbyStore.mapVotes[map]">
+            ({{ lobbyStore.getVotesForMap(map) }})
+          </span>
         </button>
       </div>
     </div>
@@ -289,12 +339,36 @@ const handleLeaveLobby = async () => {
 }
 
 .map-button {
-  padding: 10px 20px;
+  position: relative;
+  padding: 15px 25px;
+  margin: 10px;
   background: #4CAF50;
   color: white;
   border: none;
   border-radius: 4px;
   cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.map-button:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.map-button.voted {
+  background: #2E7D32;
+  transform: scale(1.05);
+}
+
+.vote-count {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background: #FFF;
+  color: #4CAF50;
+  border-radius: 50%;
+  padding: 2px 6px;
+  font-size: 0.8em;
 }
 
 .leave-button {
@@ -329,6 +403,36 @@ const handleLeaveLobby = async () => {
   font-size: 1.2em;
   font-weight: bold;
   color: #4CAF50;
+}
+
+.countdown {
+  text-align: center;
+  margin: 20px 0;
+}
+
+.countdown-timer {
+  font-size: 48px;
+  font-weight: bold;
+  color: #4CAF50;
+}
+
+.teams-container {
+  display: flex;
+  justify-content: space-around;
+  margin: 20px 0;
+}
+
+.transition-message {
+  text-align: center;
+  margin-top: 20px;
+  color: #666;
+  font-style: italic;
+}
+
+.teams-display h3 {
+  text-align: center;
+  color: #2c3e50;
+  margin-bottom: 20px;
 }
 </style>
   

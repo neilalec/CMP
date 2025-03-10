@@ -68564,3 +68564,170 @@ AttributeError: 'list' object has no attribute 'get'
 2025-03-10 17:43:29,094 - INFO - User sam disconnected. Reason: transport close
 2025-03-10 17:43:29,096 - INFO - Added sam to disconnected players in lobby lobby_1741628407
 2025-03-10 17:43:29,097 - INFO - Server stopped
+2025-03-10 17:48:20,193 - INFO - Starting Flask application
+2025-03-10 17:48:20,193 - INFO - Configuring CORS
+2025-03-10 17:48:20,193 - INFO - CORS configured
+2025-03-10 17:48:20,193 - INFO - === Socket Events Configuration ===
+2025-03-10 17:48:20,193 - INFO - Queue Leave Event: leave-queue
+2025-03-10 17:48:20,193 - INFO - Queue Join Event: join-queue
+2025-03-10 17:48:20,193 - INFO - Queue Status Event: queue_status
+2025-03-10 17:48:20,193 - INFO - Queue Update Event: queue_update
+2025-03-10 17:48:20,193 - INFO - Initializing SocketIO
+2025-03-10 17:48:20,210 - INFO - SocketIO initialized
+2025-03-10 17:48:20,210 - INFO - Cleaning up stale state...
+2025-03-10 17:48:20,210 - INFO - Cleanup complete
+2025-03-10 17:48:20,210 - INFO - Started queue management task
+2025-03-10 17:48:20,210 - INFO - Started stale player cleanup task
+2025-03-10 17:48:20,210 - INFO - Starting server...
+2025-03-10 17:48:23,455 - INFO - Join lobby request from None for lobby lobby_1741628407 (rejoin: True)
+2025-03-10 17:48:23,455 - WARNING - Attempted to join non-existent lobby: lobby_1741628407
+2025-03-10 17:48:24,510 - INFO - Sending login response for neil: {'success': True, 'message': 'Login successful', 'access_token': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc0MTYyODkwNCwianRpIjoiN2I2ZmU1YzQtMzhjMy00NDgyLWFjNjgtZTNiNjgzMjcxZmY4IiwidHlwZSI6ImFjY2VzcyIsInN1YiI6Im5laWwiLCJuYmYiOjE3NDE2Mjg5MDQsImNzcmYiOiI1MzM0ODk0ZC1lMTE4LTRhN2ItYjRjMS1lZmE1ODQ1ZTQ0NjYiLCJleHAiOjE3NDE2Mjk4MDR9.P3VS3xxZg0Gld3hV_As4v9FYAEHy4SLuZz8CCD0MvTo', 'active_lobby': None}
+2025-03-10 17:48:24,512 - INFO - User neil disconnected. Reason: client disconnect
+2025-03-10 17:48:29,675 - INFO - Join lobby request from None for lobby lobby_1741628407 (rejoin: True)
+2025-03-10 17:48:29,675 - WARNING - Attempted to join non-existent lobby: lobby_1741628407
+2025-03-10 17:48:30,649 - INFO - Sending login response for sam: {'success': True, 'message': 'Login successful', 'access_token': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc0MTYyODkxMCwianRpIjoiY2JlMmNhMjMtMWZiNS00ZDExLThiYTItMzc1YTEwYzJhYWExIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6InNhbSIsIm5iZiI6MTc0MTYyODkxMCwiY3NyZiI6IjJhMmIxZWU2LWU2YTAtNDljOC04ZGE5LTEzZTg0YjYzNzA1NiIsImV4cCI6MTc0MTYyOTgxMH0.wGUnwUyUl3YFJhFkIzV6nJe3Tgjs0ikpKscpAO6v2bk', 'active_lobby': None}
+2025-03-10 17:48:30,651 - INFO - User sam disconnected. Reason: client disconnect
+2025-03-10 17:48:38,485 - INFO - === Leave queue handler START ===
+2025-03-10 17:48:38,485 - INFO - Removed sam from queue
+2025-03-10 17:48:38,485 - INFO - Sending leave queue response: {'success': True, 'inQueue': False, 'playersInQueue': 1, 'queue': ['neil']}
+2025-03-10 17:48:38,568 - INFO - Canceling countdown - not enough players
+2025-03-10 17:48:49,464 - INFO - Created lobby lobby_1741628929 with players ['neil', 'sam']
+2025-03-10 17:48:49,479 - INFO - Join lobby request from neil for lobby lobby_1741628929 (rejoin: True)
+2025-03-10 17:48:49,481 - INFO - Join lobby request from sam for lobby lobby_1741628929 (rejoin: True)
+2025-03-10 17:51:03,235 - INFO - Join lobby request from sam for lobby lobby_1741628929 (rejoin: True)
+2025-03-10 17:51:03,241 - INFO - Join lobby request from neil for lobby lobby_1741628929 (rejoin: True)
+2025-03-10 17:51:27,203 - INFO - User sam disconnected. Reason: transport close
+2025-03-10 17:51:27,203 - INFO - Added sam to disconnected players in lobby lobby_1741628929
+2025-03-10 17:51:27,212 - INFO - User neil disconnected. Reason: transport close
+2025-03-10 17:51:27,213 - INFO - Added neil to disconnected players in lobby lobby_1741628929
+2025-03-10 17:51:28,180 - INFO - Join lobby request from sam for lobby lobby_1741628929 (rejoin: True)
+2025-03-10 17:51:28,180 - INFO - Player sam reconnected to lobby lobby_1741628929
+2025-03-10 17:51:28,180 - INFO - Join lobby request from neil for lobby lobby_1741628929 (rejoin: True)
+2025-03-10 17:51:28,180 - INFO - Player neil reconnected to lobby lobby_1741628929
+2025-03-10 17:51:40,505 - INFO - User sam disconnected. Reason: transport close
+2025-03-10 17:51:40,505 - INFO - Added sam to disconnected players in lobby lobby_1741628929
+2025-03-10 17:51:40,505 - INFO - User neil disconnected. Reason: transport close
+2025-03-10 17:51:40,505 - INFO - Added neil to disconnected players in lobby lobby_1741628929
+2025-03-10 17:51:40,505 - INFO - Server stopped
+2025-03-10 17:51:42,435 - INFO - Starting Flask application
+2025-03-10 17:51:42,435 - INFO - Configuring CORS
+2025-03-10 17:51:42,435 - INFO - CORS configured
+2025-03-10 17:51:42,435 - INFO - === Socket Events Configuration ===
+2025-03-10 17:51:42,435 - INFO - Queue Leave Event: leave-queue
+2025-03-10 17:51:42,437 - INFO - Queue Join Event: join-queue
+2025-03-10 17:51:42,437 - INFO - Queue Status Event: queue_status
+2025-03-10 17:51:42,437 - INFO - Queue Update Event: queue_update
+2025-03-10 17:51:42,437 - INFO - Initializing SocketIO
+2025-03-10 17:51:42,445 - INFO - SocketIO initialized
+2025-03-10 17:51:42,445 - INFO - Cleaning up stale state...
+2025-03-10 17:51:42,447 - INFO - Cleanup complete
+2025-03-10 17:51:42,447 - INFO - Started queue management task
+2025-03-10 17:51:42,447 - INFO - Started stale player cleanup task
+2025-03-10 17:51:42,447 - INFO - Starting server...
+2025-03-10 17:51:53,350 - INFO - Sending login response for neil: {'success': True, 'message': 'Login successful', 'access_token': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc0MTYyOTExMywianRpIjoiY2Q1ZmMxZGMtOTJmOS00YTlkLWI4MGQtMGU2OGNjYjU3N2FhIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6Im5laWwiLCJuYmYiOjE3NDE2MjkxMTMsImNzcmYiOiIyMDIxNjY5ZC1iNzc3LTQ0OTgtYTZiOS1mZWZmYTcwZDcxNzQiLCJleHAiOjE3NDE2MzAwMTN9.qw2wlIXE5egaX3OwG06i0bC4hZ5O2mBVhNOr29uGZL4', 'active_lobby': None}
+2025-03-10 17:51:53,354 - INFO - User neil disconnected. Reason: client disconnect
+2025-03-10 17:51:59,296 - INFO - Sending login response for sam: {'success': True, 'message': 'Login successful', 'access_token': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc0MTYyOTExOSwianRpIjoiYjk0ZmRiZGMtMDFjMi00YTkwLWJhMjctM2YzZGJjN2ZjZmIyIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6InNhbSIsIm5iZiI6MTc0MTYyOTExOSwiY3NyZiI6IjAxYjkxZmY3LTkzYTgtNDc5MS1iYzA3LWY0ODYxOTEyOWNkMSIsImV4cCI6MTc0MTYzMDAxOX0.JeTf-b0QOHnmMgNhO05iWZ1RcYnvWjq2R_RDDaT22DE', 'active_lobby': None}
+2025-03-10 17:51:59,299 - INFO - User sam disconnected. Reason: client disconnect
+2025-03-10 17:52:06,244 - INFO - User sam disconnected. Reason: client disconnect
+2025-03-10 17:52:07,413 - INFO - Sending login response for sam: {'success': True, 'message': 'Login successful', 'access_token': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc0MTYyOTEyNywianRpIjoiMTdlZjM3ZWYtYWUzZC00Y2IxLWJhMDYtNGE1ZWFlNTZkNjQ3IiwidHlwZSI6ImFjY2VzcyIsInN1YiI6InNhbSIsIm5iZiI6MTc0MTYyOTEyNywiY3NyZiI6ImZjNDI1YTBlLTE5NzgtNDRkOS05YWU5LTdmMWZkZDgzMzA5YSIsImV4cCI6MTc0MTYzMDAyN30.MrqpMTvFD71vD5ctm3aXLiO4J5qhp3jJhD5bJrxqju8', 'active_lobby': None}
+2025-03-10 17:52:07,416 - INFO - User sam disconnected. Reason: client disconnect
+2025-03-10 17:52:09,495 - INFO - === Leave queue handler START ===
+2025-03-10 17:52:09,496 - INFO - Removed sam from queue
+2025-03-10 17:52:09,496 - INFO - Sending leave queue response: {'success': True, 'inQueue': False, 'playersInQueue': 1, 'queue': ['neil']}
+2025-03-10 17:52:09,629 - INFO - Canceling countdown - not enough players
+2025-03-10 17:52:12,177 - INFO - Sending login response for sam: {'success': True, 'message': 'Login successful', 'access_token': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc0MTYyOTEzMiwianRpIjoiODhlODJjNmYtZDE1OC00ZDEyLTllYTMtZDhjYzEyZmYxMzVlIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6InNhbSIsIm5iZiI6MTc0MTYyOTEzMiwiY3NyZiI6ImYyMDQ2YjE1LWNjMmEtNGIxMC04YjIxLThhY2Y5OWRiODEzNiIsImV4cCI6MTc0MTYzMDAzMn0.Qiuf0Ym_gBim_x-1iYtwv_jXYbByZHqXOP9KWsuugZk', 'active_lobby': None}
+2025-03-10 17:52:12,179 - INFO - User sam disconnected. Reason: client disconnect
+2025-03-10 17:52:16,905 - INFO - User sam disconnected. Reason: client disconnect
+2025-03-10 17:52:19,288 - INFO - Sending login response for sam: {'success': True, 'message': 'Login successful', 'access_token': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc0MTYyOTEzOSwianRpIjoiZTY1NjFmZGUtZWY2Yy00NDAyLWJiMTEtODI1MjE5MTM2ZjUzIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6InNhbSIsIm5iZiI6MTc0MTYyOTEzOSwiY3NyZiI6ImVhMGEwNGVmLTgyNmMtNDI4OS05MDFmLTAzY2M5ZjVkNzYyYiIsImV4cCI6MTc0MTYzMDAzOX0.iF5xoYMotIYBq4tDcAZgHyKUC0UF8hNjGUAvkd9vM38', 'active_lobby': None}
+2025-03-10 17:52:19,292 - INFO - User sam disconnected. Reason: client disconnect
+2025-03-10 17:52:23,821 - INFO - Created lobby lobby_1741629143 with players ['neil', 'sam']
+2025-03-10 17:52:23,834 - INFO - Join lobby request from sam for lobby lobby_1741629143 (rejoin: True)
+2025-03-10 17:52:23,836 - INFO - Join lobby request from neil for lobby lobby_1741629143 (rejoin: True)
+2025-03-10 17:52:28,841 - INFO - Teams assigned in lobby lobby_1741629143: {'team1': ['sam'], 'team2': ['neil']}
+2025-03-10 17:55:54,193 - INFO - User sam disconnected. Reason: transport close
+2025-03-10 17:55:54,194 - INFO - Added sam to disconnected players in lobby lobby_1741629143
+2025-03-10 17:55:54,207 - INFO - User neil disconnected. Reason: transport close
+2025-03-10 17:55:54,208 - INFO - Added neil to disconnected players in lobby lobby_1741629143
+2025-03-10 17:55:55,174 - INFO - Join lobby request from sam for lobby lobby_1741629143 (rejoin: True)
+2025-03-10 17:55:55,175 - INFO - Player sam reconnected to lobby lobby_1741629143
+2025-03-10 17:55:55,176 - INFO - Join lobby request from neil for lobby lobby_1741629143 (rejoin: True)
+2025-03-10 17:55:55,177 - INFO - Player neil reconnected to lobby lobby_1741629143
+2025-03-10 17:56:03,199 - INFO - User sam disconnected. Reason: transport close
+2025-03-10 17:56:03,199 - INFO - Added sam to disconnected players in lobby lobby_1741629143
+2025-03-10 17:56:03,209 - INFO - User neil disconnected. Reason: transport close
+2025-03-10 17:56:03,209 - INFO - Added neil to disconnected players in lobby lobby_1741629143
+2025-03-10 17:56:04,184 - INFO - Join lobby request from sam for lobby lobby_1741629143 (rejoin: True)
+2025-03-10 17:56:04,184 - INFO - Player sam reconnected to lobby lobby_1741629143
+2025-03-10 17:56:04,186 - INFO - Join lobby request from neil for lobby lobby_1741629143 (rejoin: True)
+2025-03-10 17:56:04,186 - INFO - Player neil reconnected to lobby lobby_1741629143
+2025-03-10 17:56:10,372 - INFO - Join lobby request from sam for lobby lobby_1741629143 (rejoin: True)
+2025-03-10 17:56:10,374 - INFO - Join lobby request from neil for lobby lobby_1741629143 (rejoin: True)
+2025-03-10 17:56:37,875 - INFO - User neil disconnected. Reason: transport close
+2025-03-10 17:56:37,875 - INFO - Added neil to disconnected players in lobby lobby_1741629143
+2025-03-10 17:56:37,877 - INFO - User sam disconnected. Reason: transport close
+2025-03-10 17:56:37,877 - INFO - Added sam to disconnected players in lobby lobby_1741629143
+2025-03-10 17:56:37,877 - INFO - Server stopped
+2025-03-10 17:56:39,756 - INFO - Starting Flask application
+2025-03-10 17:56:39,756 - INFO - Configuring CORS
+2025-03-10 17:56:39,756 - INFO - CORS configured
+2025-03-10 17:56:39,756 - INFO - === Socket Events Configuration ===
+2025-03-10 17:56:39,756 - INFO - Queue Leave Event: leave-queue
+2025-03-10 17:56:39,756 - INFO - Queue Join Event: join-queue
+2025-03-10 17:56:39,756 - INFO - Queue Status Event: queue_status
+2025-03-10 17:56:39,756 - INFO - Queue Update Event: queue_update
+2025-03-10 17:56:39,756 - INFO - Initializing SocketIO
+2025-03-10 17:56:39,765 - INFO - SocketIO initialized
+2025-03-10 17:56:39,765 - INFO - Cleaning up stale state...
+2025-03-10 17:56:39,765 - INFO - Cleanup complete
+2025-03-10 17:56:39,765 - INFO - Started queue management task
+2025-03-10 17:56:39,765 - INFO - Started stale player cleanup task
+2025-03-10 17:56:39,765 - INFO - Starting server...
+2025-03-10 17:56:44,455 - INFO - Sending login response for neil: {'success': True, 'message': 'Login successful', 'access_token': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc0MTYyOTQwNCwianRpIjoiY2UzNjVlMTktYmYzNi00MmZkLTg3MTMtZGY2ZDFhNTI5YmYyIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6Im5laWwiLCJuYmYiOjE3NDE2Mjk0MDQsImNzcmYiOiJhZDY5ODExZC0xMWRjLTQxZDAtOTdlOS05YzI3YTkyN2QxZDAiLCJleHAiOjE3NDE2MzAzMDR9.nmxqt43IwJkKhgLz8JlEscqSdkJAAgt0aspiwoM59Ag', 'active_lobby': None}
+2025-03-10 17:56:44,457 - INFO - User neil disconnected. Reason: client disconnect
+2025-03-10 17:56:48,644 - INFO - Sending login response for sam: {'success': True, 'message': 'Login successful', 'access_token': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc0MTYyOTQwOCwianRpIjoiMjI5OTU0NDctNzM2Zi00NjFhLWIzZDYtOWYwZWIzN2M0NDdkIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6InNhbSIsIm5iZiI6MTc0MTYyOTQwOCwiY3NyZiI6IjFiOWRmN2UyLTM1NjEtNDJhNi05MzMwLThmODNmY2Q5ZmYyZSIsImV4cCI6MTc0MTYzMDMwOH0.ChPvPYu5TeJhWs5MwbT7ohRPP4z0KBtHnWFhvmm4MkM', 'active_lobby': None}
+2025-03-10 17:56:48,647 - INFO - User sam disconnected. Reason: client disconnect
+2025-03-10 17:57:00,697 - INFO - Created lobby lobby_1741629420 with players ['sam', 'neil']
+2025-03-10 17:57:00,710 - INFO - Join lobby request from sam for lobby lobby_1741629420 (rejoin: True)
+2025-03-10 17:57:00,713 - INFO - Join lobby request from neil for lobby lobby_1741629420 (rejoin: True)
+2025-03-10 17:57:10,724 - INFO - Teams assigned in lobby lobby_1741629420: {'team1': ['sam'], 'team2': ['neil']}
+2025-03-10 17:59:41,235 - INFO - User neil disconnected. Reason: client disconnect
+2025-03-10 17:59:41,236 - INFO - Added neil to disconnected players in lobby lobby_1741629420
+2025-03-10 17:59:42,519 - INFO - Reconnecting neil to lobby lobby_1741629420
+2025-03-10 17:59:42,520 - INFO - User neil rejoined lobby lobby_1741629420 after login
+2025-03-10 17:59:42,520 - INFO - Sending login response for neil: {'success': True, 'message': 'Login successful', 'access_token': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc0MTYyOTU4MiwianRpIjoiNGYxNjRhZjItYWFhNy00MjQzLTg4YmYtMjIyNmEzMTE2OGVkIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6Im5laWwiLCJuYmYiOjE3NDE2Mjk1ODIsImNzcmYiOiIyMGE2ZTY1Ny1iMmY2LTQwZjItYmViNS0yZTFmN2JiYWQzNTEiLCJleHAiOjE3NDE2MzA0ODJ9.vfJK-m_f0Hu_23F5Yx3Ey91cMwfcq5FsvxTfvkni568', 'active_lobby': 'lobby_1741629420'}
+2025-03-10 17:59:42,523 - INFO - User neil disconnected. Reason: client disconnect
+2025-03-10 17:59:42,523 - INFO - Added neil to disconnected players in lobby lobby_1741629420
+2025-03-10 17:59:42,950 - INFO - Join lobby request from neil for lobby lobby_1741629420 (rejoin: True)
+2025-03-10 17:59:42,950 - INFO - Player neil reconnected to lobby lobby_1741629420
+2025-03-10 17:59:50,847 - INFO - User sam disconnected. Reason: client disconnect
+2025-03-10 17:59:50,847 - INFO - Added sam to disconnected players in lobby lobby_1741629420
+2025-03-10 17:59:52,060 - INFO - Reconnecting sam to lobby lobby_1741629420
+2025-03-10 17:59:52,061 - INFO - User sam rejoined lobby lobby_1741629420 after login
+2025-03-10 17:59:52,061 - INFO - Sending login response for sam: {'success': True, 'message': 'Login successful', 'access_token': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc0MTYyOTU5MiwianRpIjoiZWRlZmJiYWItMTQ5Mi00YmE2LWE3ZTAtMWQzNWRmODkyMGUwIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6InNhbSIsIm5iZiI6MTc0MTYyOTU5MiwiY3NyZiI6IjU5YmViOWM5LWUyY2YtNDlmMi04NjQ3LTc5NjEzMTA3MjAwNSIsImV4cCI6MTc0MTYzMDQ5Mn0.zGPvBXZYOMaepXcQuCEJe6WR-yqG01r97HzUdvspI54', 'active_lobby': 'lobby_1741629420'}
+2025-03-10 17:59:52,065 - INFO - User sam disconnected. Reason: client disconnect
+2025-03-10 17:59:52,066 - INFO - Added sam to disconnected players in lobby lobby_1741629420
+2025-03-10 17:59:52,392 - INFO - Join lobby request from sam for lobby lobby_1741629420 (rejoin: True)
+2025-03-10 17:59:52,392 - INFO - Player sam reconnected to lobby lobby_1741629420
+2025-03-10 18:00:45,193 - INFO - User sam disconnected. Reason: transport close
+2025-03-10 18:00:45,193 - INFO - Added sam to disconnected players in lobby lobby_1741629420
+2025-03-10 18:00:45,232 - INFO - User neil disconnected. Reason: transport close
+2025-03-10 18:00:45,234 - INFO - Added neil to disconnected players in lobby lobby_1741629420
+2025-03-10 18:00:46,174 - INFO - Join lobby request from sam for lobby lobby_1741629420 (rejoin: True)
+2025-03-10 18:00:46,175 - INFO - Player sam reconnected to lobby lobby_1741629420
+2025-03-10 18:00:46,176 - INFO - Join lobby request from neil for lobby lobby_1741629420 (rejoin: True)
+2025-03-10 18:00:46,176 - INFO - Player neil reconnected to lobby lobby_1741629420
+2025-03-10 18:00:47,188 - INFO - User sam disconnected. Reason: transport close
+2025-03-10 18:00:47,188 - INFO - Added sam to disconnected players in lobby lobby_1741629420
+2025-03-10 18:00:47,196 - INFO - User neil disconnected. Reason: transport close
+2025-03-10 18:00:47,196 - INFO - Added neil to disconnected players in lobby lobby_1741629420
+2025-03-10 18:00:48,183 - INFO - Join lobby request from sam for lobby lobby_1741629420 (rejoin: True)
+2025-03-10 18:00:48,183 - INFO - Player sam reconnected to lobby lobby_1741629420
+2025-03-10 18:00:48,183 - INFO - Join lobby request from neil for lobby lobby_1741629420 (rejoin: True)
+2025-03-10 18:00:48,183 - INFO - Player neil reconnected to lobby lobby_1741629420
+2025-03-10 18:00:52,234 - INFO - Join lobby request from sam for lobby lobby_1741629420 (rejoin: True)
+2025-03-10 18:00:52,236 - INFO - Join lobby request from neil for lobby lobby_1741629420 (rejoin: True)
+2025-03-10 18:09:00,708 - INFO - User neil disconnected. Reason: transport close
+2025-03-10 18:09:00,708 - INFO - Added neil to disconnected players in lobby lobby_1741629420
+2025-03-10 18:09:00,708 - INFO - User sam disconnected. Reason: transport close
+2025-03-10 18:09:00,708 - INFO - Added sam to disconnected players in lobby lobby_1741629420
+2025-03-10 18:09:00,708 - INFO - Server stopped

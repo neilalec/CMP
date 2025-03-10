@@ -41,7 +41,9 @@ export const SOCKET_EVENTS = {
     VOTE_MAP: 'vote-map',
     MAP_SELECTED: 'map_selected',
     START: 'start-lobby',
-    READY: 'lobby_ready'
+    READY: 'lobby_ready',
+    COUNTDOWN: 'lobby_countdown',
+    TEAMS_ASSIGNED: 'teams_assigned',
   },
 
   MESSAGE: 'message',

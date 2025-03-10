@@ -17,7 +17,12 @@ export const useLobbyStore = defineStore('lobby', {
     serverDetails: null,
     step: 1,
     loading: false,
-    error: null
+    error: null,
+    countdown: null,
+    isAssigningTeams: false,
+    showingTeams: false,
+    mapVotes: {},
+    votingCountdown: null
   }),
 
   actions: {
@@ -46,7 +51,22 @@ export const useLobbyStore = defineStore('lobby', {
         if (data.selected_map) this.selectedMap = data.selected_map;
         if (data.teams) this.teams = data.teams;
         if (data.server_details) this.serverDetails = data.server_details;
-        if (data.step) this.step = data.step;
+        if (data.step) {
+          if (data.step === 2) {
+            setTimeout(() => {
+              this.step = data.step;
+              this.showingTeams = false;
+            }, 5000);
+          } else {
+            this.step = data.step;
+          }
+        }
+        if (data.countdown !== undefined) {
+          this.countdown = data.countdown;
+        }
+        if (data.isAssigningTeams !== undefined) {
+          this.isAssigningTeams = data.isAssigningTeams;
+        }
         this.error = null;
       } catch (error) {
         console.error('Error updating lobby state:', error);
@@ -88,6 +108,47 @@ export const useLobbyStore = defineStore('lobby', {
       this.step = 1;
       this.loading = false;
       this.error = null;
+      this.countdown = null;
+      this.isAssigningTeams = false;
+      this.showingTeams = false;
+      this.mapVotes = {};
+      this.votingCountdown = null;
+    },
+
+    updateCountdown(count) {
+      this.countdown = count;
+    },
+
+    startTeamAssignment() {
+      this.isAssigningTeams = true;
+      this.showingTeams = false;
+    },
+
+    updateTeams(teams) {
+      this.teams = teams;
+      this.showingTeams = true;
+      this.isAssigningTeams = false;
+    },
+
+    submitMapVote(map) {
+      const socketStore = useSocketStore();
+      return socketStore.emit(SOCKET_EVENTS.LOBBY.VOTE_MAP, {
+        lobby_id: this.lobbyId,
+        player: this.username,
+        map: map
+      });
+    },
+
+    updateMapVotes(votes) {
+      this.mapVotes = votes;
+    },
+
+    updateVotingCountdown(count) {
+      this.votingCountdown = count;
+    },
+
+    setSelectedMap(map) {
+      this.selectedMap = map;
     }
   },
 
@@ -106,6 +167,10 @@ export const useLobbyStore = defineStore('lobby', {
     
     isLobbyViable: (state) => {
       return state.connectedPlayers.length >= 2;
+    },
+
+    getVotesForMap: (state) => (map) => {
+      return Object.values(state.mapVotes).filter(vote => vote === map).length;
     }
   }
 });

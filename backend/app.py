@@ -19,6 +19,7 @@ QUEUE_CHECK_INTERVAL = 5
 CLEANUP_INTERVAL = 30
 SYNC_INTERVAL = 10
 countdown_active = False
+AVAILABLE_MAPS = ['Map 1', 'Map 2', 'Map 3', 'Map 4', 'Map 5']
 
 load_dotenv()
 
@@ -148,7 +149,9 @@ SOCKET_EVENTS =  {
         'VOTE_MAP': 'vote-map',
         'MAP_SELECTED': 'map_selected',
         'START': 'start-lobby',
-        'READY': 'lobby_ready'
+        'READY': 'lobby_ready',
+        'COUNTDOWN': 'lobby_countdown',
+        'TEAMS_ASSIGNED': 'teams_assigned',
     },
 
     'MESSAGE': 'message',
@@ -357,6 +360,62 @@ def save_queue():
         logger.error(f"Failed to save queue: {str(e)}")
         pass
 
+def start_map_voting(lobby_id):
+    """Handle map voting countdown and selection"""
+    try:
+        countdown = 15  # 15 second countdown
+        lobby = lobbies.get(lobby_id)
+        
+        if not lobby:
+            logger.error(f"Lobby {lobby_id} not found when starting map vote")
+            return
+            
+        logger.info(f"Starting map voting countdown for lobby {lobby_id}")
+        
+        # Initialize map_votes if not exists
+        if 'map_votes' not in lobby:
+            lobby['map_votes'] = {}
+            
+        while countdown > 0:
+            # Emit countdown update
+            socketio.emit('lobby_update', {
+                'votingCountdown': countdown,
+                'lobby_id': lobby_id,
+                'map_votes': lobby['map_votes']
+            }, room=lobby_id)
+            
+            logger.debug(f"Map voting countdown: {countdown}, Votes: {lobby['map_votes']}")
+            eventlet.sleep(1)
+            countdown -= 1
+        
+        # After countdown ends, tally votes
+        if lobby['map_votes']:
+            vote_counts = Counter(lobby['map_votes'].values())
+            max_votes = max(vote_counts.values())
+            tied_maps = [m for m, v in vote_counts.items() if v == max_votes]
+            selected_map = random.choice(tied_maps) if len(tied_maps) > 1 else tied_maps[0]
+            logger.info(f"Map voting complete. Votes: {vote_counts}, Selected: {selected_map}")
+        else:
+            # If no votes, randomly select a map
+            selected_map = random.choice(AVAILABLE_MAPS)
+            logger.info(f"No votes cast, randomly selected map: {selected_map}")
+        
+        # Update lobby with selected map
+        lobby['selected_map'] = selected_map
+        lobby['step'] = 3
+        
+        # Notify clients about selected map
+        socketio.emit('lobby_update', {
+            'step': 3,
+            'selected_map': selected_map,
+            'lobby_id': lobby_id
+        }, room=lobby_id)
+        
+        logger.info(f"Map {selected_map} selected for lobby {lobby_id}")
+        
+    except Exception as e:
+        logger.error(f"Error in map voting countdown: {str(e)}")
+
 @with_retry(max_attempts=3)
 def broadcast_queue_update(countdown=None):
     """Broadcast queue status to all connected clients"""
@@ -397,15 +456,16 @@ def create_lobby():
                 
                 # Create new lobby
                 lobby_id = f"lobby_{int(time.time())}"
-                teams = assign_teams(players)
                 
                 lobby_data = {
                     'lobby_id': lobby_id,
                     'players': players,
-                    'teams': teams,
+                    'teams': {'team1': [], 'team2': []},  # Empty teams initially
                     'step': 1,
                     'selected_map': None,
-                    'server_details': None
+                    'server_details': None,
+                    'countdown_active': True,  # Add countdown flag
+                    'map_votes': {},  # Initialize map_votes
                 }
                 
                 lobbies[lobby_id] = lobby_data
@@ -420,6 +480,9 @@ def create_lobby():
                 save_queue()
                 broadcast_queue_update()
                 
+                # Start countdown for team assignment
+                eventlet.spawn(start_team_assignment_countdown, lobby_id)
+                
                 # Notify players about lobby creation
                 logger.info(f"Created lobby {lobby_id} with players {players}")
                 socketio.emit(SOCKET_EVENTS['LOBBY']['CREATED'], lobby_data)
@@ -428,12 +491,76 @@ def create_lobby():
 
             except Exception as e:
                 logger.error(f"Error creating lobby: {str(e)}")
-                # Cleanup if lobby was partially created
                 if 'lobby_id' in locals() and lobby_id in lobbies:
                     del lobbies[lobby_id]
                 return False
 
         return False
+
+def start_team_assignment_countdown(lobby_id):
+    """Handle countdown and team assignment for a lobby"""
+    try:
+        countdown = 5  # 5 second countdown
+        lobby = lobbies.get(lobby_id)
+        
+        if not lobby:
+            return
+            
+        # Signal start of team assignment
+        socketio.emit('lobby_update', {
+            'isAssigningTeams': True,
+            'lobby_id': lobby_id
+        }, room=lobby_id)
+            
+        while countdown > 0:
+            # Emit countdown update
+            socketio.emit('lobby_update', {
+                'countdown': countdown,
+                'lobby_id': lobby_id
+            }, room=lobby_id)
+            
+            eventlet.sleep(1)
+            countdown -= 1
+        
+        # Assign teams
+        players = lobby['players']
+        random.shuffle(players)
+        mid = len(players) // 2
+        teams = {
+            'team1': players[:mid],
+            'team2': players[mid:]
+        }
+        
+        # Update lobby with teams
+        lobby['teams'] = teams
+        lobby['countdown_active'] = False
+        
+        # First notify about team assignment (step 1)
+        socketio.emit('lobby_update', {
+            'teams': teams,
+            'lobby_id': lobby_id,
+            'countdown': None,
+            'isAssigningTeams': False,
+            'step': 1  # Keep at step 1 to show teams
+        }, room=lobby_id)
+        
+        # Wait 5 seconds to show teams
+        eventlet.sleep(5)
+        
+        # Then move to map voting (step 2) and start voting countdown
+        lobby['step'] = 2
+        socketio.emit('lobby_update', {
+            'step': 2,
+            'lobby_id': lobby_id
+        }, room=lobby_id)
+        
+        # Start map voting countdown in a new greenlet
+        eventlet.spawn(start_map_voting, lobby_id)
+        
+        logger.info(f"Teams assigned in lobby {lobby_id}: {teams}")
+        
+    except Exception as e:
+        logger.error(f"Error in team assignment countdown: {str(e)}")
 
 def assign_teams(players):
     random.shuffle(players)
@@ -1103,23 +1230,44 @@ def get_lobby_data(data):
 @socketio.on(SOCKET_EVENTS['LOBBY']['VOTE_MAP'])
 @handle_socket_data
 def vote_map(data):
-    lobby_id = data.get('lobby_id')
-    player = data.get('player')
-    vote = data.get('vote')
-
-    lobby = lobbies.get(lobby_id)
-    if lobby:
-        lobby['map_votes'][player] = vote
-
-        # Check if all players have voted
-        if len(lobby['map_votes']) == len(lobby['players']):
-            vote_counts = Counter(lobby['map_votes'].values())
-            max_votes = max(vote_counts.values())
-            tied_maps = [m for m, v in vote_counts.items() if v == max_votes]
-            lobby['selected_map'] = random.choice(tied_maps) if len(tied_maps) > 1 else tied_maps[0]
-
-            emit(SOCKET_EVENTS['LOBBY']['MAP_SELECTED'], {'map': lobby['selected_map']}, room=lobby_id)
-
+    """Handle map vote from player"""
+    try:
+        lobby_id = data.get('lobby_id')
+        map_choice = data.get('map')
+        
+        if not lobby_id or not map_choice:
+            return {'success': False, 'message': 'Missing required data'}
+            
+        lobby = lobbies.get(lobby_id)
+        if not lobby:
+            return {'success': False, 'message': 'Lobby not found'}
+            
+        # Get username from request
+        username = get_username_by_sid(request.sid)
+        if not username:
+            return {'success': False, 'message': 'User not found'}
+            
+        # Initialize map_votes if not exists
+        if 'map_votes' not in lobby:
+            lobby['map_votes'] = {}
+            
+        # Record the vote
+        lobby['map_votes'][username] = map_choice
+        
+        logger.info(f"Player {username} voted for map {map_choice} in lobby {lobby_id}")
+        
+        # Broadcast updated votes to all players in lobby
+        socketio.emit('lobby_update', {
+            'map_votes': lobby['map_votes'],
+            'lobby_id': lobby_id
+        }, room=lobby_id)
+        
+        return {'success': True}
+        
+    except Exception as e:
+        logger.error(f"Error in vote_map: {str(e)}")
+        return {'success': False, 'message': str(e)}
+        
 # Register signal handlers
 signal.signal(signal.SIGINT, signal_handler)  # Ctrl+C
 signal.signal(signal.SIGTERM, signal_handler) # Termination signal
