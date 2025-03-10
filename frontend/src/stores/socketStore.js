@@ -4,32 +4,45 @@ import { useRootStore } from './rootStore';
 import { SOCKET_EVENTS } from '../constants/socketEvents';
 import { AppError } from '../utils/errorHandler';
 import { useAuthStore } from './authStore';
+import { useLobbyStore } from './lobbyStore';
 
 export const useSocketStore = defineStore('socket', {
   state: () => ({
     isConnected: false,
     loading: false,
-    reconnectAttempts: 0
+    reconnectAttempts: 0,
+    lastError: null
   }),
 
   actions: {
-    async initSocket(token = null, username = null, retryCount = 0) {
-      const maxRetries = 3;
+    async initSocket(token = null, username = null) {
       const rootStore = useRootStore();
+      const lobbyStore = useLobbyStore();
       
-      console.log('Initializing socket connection...'); // Debug log
+      console.log('SocketStore initSocket called with:', { token, username });
       
       try {
         this.loading = true;
+        this.lastError = null;
+
         await socketService.connect(token, username);
+        
+        // Listen for lobby creation events during authentication
+        socketService.on(SOCKET_EVENTS.LOBBY.CREATED, (data) => {
+          if (data?.lobby_id) {
+            lobbyStore.updateLobbyState(data);
+          }
+        });
+
         this.isConnected = true;
-        console.log('Socket connected successfully');
+        console.log('Socket connection established');
+        
+        return true;
       } catch (error) {
-        console.error('Socket initialization error:', error);
-        if (retryCount < maxRetries) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          return this.initSocket(token, username, retryCount + 1);
-        }
+        this.isConnected = false;
+        this.lastError = error.message;
+        console.error('Socket initialization failed:', error);
+        rootStore.setError('Failed to connect to server');
         throw error;
       } finally {
         this.loading = false;
@@ -37,36 +50,31 @@ export const useSocketStore = defineStore('socket', {
     },
 
     cleanupSocket() {
+      console.log('Cleaning up socket connection');
       socketService.disconnect();
       this.isConnected = false;
       this.reconnectAttempts = 0;
+      this.lastError = null;
     },
 
-    // Proxy methods to socketService with error handling
-    async emit(event, data, retryCount = 0) {
+    async emit(event, data) {
       const rootStore = useRootStore();
-      const maxRetries = 2;
-      const timeout = 5000; // 5 seconds timeout
       
-      try {
-        return await new Promise((resolve, reject) => {
-          // Add a timeout
-          const timeoutId = setTimeout(() => {
-            reject(new AppError('Socket request timeout', 'SOCKET_ERROR', event));
-          }, timeout);
+      // Wait for existing connection attempt to complete
+      while (this.loading) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      
+      if (!this.isConnected) {
+        console.log('Socket not connected, waiting for connection...');
+        // Don't try to reconnect here, just throw
+        throw new Error('Socket not connected');
+      }
 
-          // Emit the event and wait for response
-          socketService.socket.emit(event, data, (response) => {
-            clearTimeout(timeoutId);
-            resolve(response);
-          });
-        });
+      try {
+        const response = await socketService.emit(event, data);
+        return response;
       } catch (error) {
-        if (error.message === 'Socket not connected' && retryCount < maxRetries) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          return this.emit(event, data, retryCount + 1);
-        }
-        
         rootStore.setError(`Failed to emit ${event}: ${error.message}`);
         throw new AppError(error.message, 'SOCKET_ERROR', event);
       }
@@ -85,6 +93,9 @@ export const useSocketStore = defineStore('socket', {
     },
 
     on(event, callback) {
+      if (!this.isConnected) {
+        console.warn('Adding listener while socket is not connected:', event);
+      }
       socketService.on(event, callback);
     },
 

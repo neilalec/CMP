@@ -18,6 +18,7 @@ USERS_FILE = 'users.json'
 QUEUE_CHECK_INTERVAL = 5
 CLEANUP_INTERVAL = 30
 SYNC_INTERVAL = 10
+countdown_active = False
 
 load_dotenv()
 
@@ -52,19 +53,33 @@ player_activity = {}
 lobbies = {}
 
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
         logging.FileHandler('matchmaking.log'),
         logging.StreamHandler()
     ]
 )
+
+class LogFilter(logging.Filter):
+    def filter(self, record):
+        # Filter out routine socket messages
+        if any(msg in record.getMessage() for msg in [
+            'Sending packet MESSAGE',
+            'Received packet MESSAGE',
+            'Broadcasting queue update',
+            'Queue before broadcast'
+        ]):
+            return False
+        return True
+
 logger = logging.getLogger(__name__)
+logger.addFilter(LogFilter())
 
 # Reduce engineio/socketio logging
-logging.getLogger('engineio').setLevel(logging.INFO)
-logging.getLogger('socketio').setLevel(logging.INFO)
-logging.getLogger('werkzeug').setLevel(logging.INFO)
+logging.getLogger('engineio').setLevel(logging.WARNING)
+logging.getLogger('socketio').setLevel(logging.WARNING)
+logging.getLogger('werkzeug').setLevel(logging.WARNING)
 
 #APP CONFIGURATION
 app = Flask(__name__)
@@ -152,8 +167,8 @@ socketio = SocketIO(
     app,
     cors_allowed_origins=["http://localhost:5173"],
     async_mode='eventlet',
-    logger=True,
-    engineio_logger=True,
+    logger=False,
+    engineio_logger=False,
     ping_timeout=5000,
     ping_interval=25000,
     cors_credentials=True,
@@ -286,34 +301,40 @@ def check_queue_and_start_countdown():
     
     if should_start_countdown:
         countdown_start = 10
+        global countdown_active
+        countdown_active = True
         
         def countdown():
             nonlocal countdown_start
-            while countdown_start > 0:
-                # Check if we should continue countdown
-                with queue_lock:
-                    if len(matchmaking_queue) < 2:
-                        logger.info("Canceling countdown - not enough players")
-                        return
-                    
-                    # Broadcast countdown to all clients
-                    socketio.emit(SOCKET_EVENTS['QUEUE']['UPDATE'], {
-                        'success': True,
-                        'playersInQueue': len(matchmaking_queue),
-                        'queue': list(matchmaking_queue),
-                        'countdown': countdown_start
-                    })
-                
-                countdown_start -= 1
-                eventlet.sleep(1)
+            global countdown_active
             
-            # Create lobby when countdown ends
-            # Double check we still have enough players
-            with queue_lock:
-                if len(matchmaking_queue) >= 2:
+            while countdown_start > 0 and countdown_active:
+                try:
+                    with queue_lock:
+                        if len(matchmaking_queue) < 2:
+                            logger.info("Canceling countdown - not enough players")
+                            countdown_active = False
+                            broadcast_queue_update()  # Send update without countdown
+                            return
+                        
+                        # Only broadcast countdown updates from here
+                        broadcast_queue_update(countdown_start)
+                    
+                    countdown_start -= 1
+                    eventlet.sleep(1)
+                except Exception as e:
+                    logger.error(f"Error in countdown: {e}")
+                    countdown_active = False
+                    return
+            
+            if countdown_active:  # Only create lobby if countdown wasn't cancelled
+                try:
                     create_lobby()
-        
-        # Start countdown in background
+                except Exception as e:
+                    logger.error(f"Error creating lobby after countdown: {e}")
+                finally:
+                    countdown_active = False
+
         eventlet.spawn(countdown)
 
 def add_to_queue(username):
@@ -348,7 +369,8 @@ def broadcast_queue_update(countdown=None):
             'playersInQueue': len(matchmaking_queue),
             'queue': list(matchmaking_queue)
         }
-        if countdown is not None:
+        # Only add countdown if it's provided and greater than 0
+        if countdown is not None and countdown > 0:
             queue_status['countdown'] = countdown
 
         # Broadcast to all clients without specifying a room
@@ -358,7 +380,7 @@ def broadcast_queue_update(countdown=None):
             room=None
         )
         
-        logger.debug(f"Broadcasting queue update to all clients: {queue_status}")
+        logger.debug(f"Broadcasting queue update: {queue_status}")
     except Exception as e:
         logger.error(f"Error in broadcast_queue_update: {str(e)}")
 
@@ -371,57 +393,37 @@ def create_lobby():
                 # Get first two players
                 players = matchmaking_queue[:2]
                 
-                # Add debug logging
-                logger.debug(f"Player activity states: {[player_activity.get(p, {}).get('status') for p in players]}")
+                logger.debug(f"Creating lobby for players: {players}")
                 
-                # Verify players are still active
-                active_players = [
-                    player for player in players 
-                    if player in player_activity 
-                    and player_activity[player].get('status') == 'queued'
-                ]
-                
-                logger.debug(f"Active players found: {active_players}")
-                
-                if len(active_players) < 2:
-                    logger.warning("Not enough active players to create lobby")
-                    return False
-
                 # Create new lobby
                 lobby_id = f"lobby_{int(time.time())}"
-                teams = assign_teams(active_players)
+                teams = assign_teams(players)
                 
-                lobbies[lobby_id] = {
+                lobby_data = {
                     'lobby_id': lobby_id,
-                    'players': active_players,
+                    'players': players,
                     'teams': teams,
                     'step': 1,
-                    'map_votes': {},
                     'selected_map': None,
-                    'server_ip': None
+                    'server_details': None
                 }
+                
+                lobbies[lobby_id] = lobby_data
 
                 # Update player states and queue
-                for player in active_players:
+                for player in players:
                     matchmaking_queue.remove(player)
-                    player_activity[player]['status'] = 'in_lobby'
+                    if player in player_activity:
+                        player_activity[player]['status'] = 'in_lobby'
                 
                 # Save and broadcast updates
                 save_queue()
                 broadcast_queue_update()
                 
                 # Notify players about lobby creation
-                for player in active_players:
-                    sid = player_activity[player].get('sid')
-                    if sid:
-                        socketio.emit(SOCKET_EVENTS['LOBBY']['CREATED'], {
-                            'lobby_id': lobby_id,
-                            'players': active_players,
-                            'teams': teams,
-                            'step': 1
-                        }, room=sid)
+                logger.info(f"Created lobby {lobby_id} with players {players}")
+                socketio.emit(SOCKET_EVENTS['LOBBY']['CREATED'], lobby_data)
                 
-                logger.info(f"Created lobby {lobby_id} with players {active_players}")
                 return True
 
             except Exception as e:
@@ -460,10 +462,7 @@ def cleanup_player(username):
             }, room=lobby_id)
             
             # Remove the lobby if it's no longer viable
-            del lobbies[lobby_id]
-            emit('lobby_closed', {
-                'msg': 'Lobby closed due to player disconnection'
-            }, room=lobby_id)
+            del lobbies[lobby_id]  # This is too aggressive - we shouldn't delete the lobby
 
 def cleanup_stale_players():
     while True:
@@ -530,15 +529,12 @@ def periodic_queue_management():
     while True:
         try:
             with app.app_context():
-                with queue_lock:
-                    # Check for lobby creation
-                    if len(matchmaking_queue) >= 2:
-                        create_lobby()
-                    # Broadcast updates
+                global countdown_active
+                if not countdown_active:
                     broadcast_queue_update()
         except Exception as e:
             logger.error(f"Error in queue management: {str(e)}")
-        eventlet.sleep(5)  # Every 5 seconds
+        eventlet.sleep(5)
 
 
 
@@ -553,45 +549,47 @@ def catch_all(event, *args):
 
 #SOCKET EVENT HANDLERS
 @socketio.on(SOCKET_EVENTS['CONNECTION']['CONNECT'])
-@handle_socket_data
 def handle_connect(auth):
     """Handle new socket connections"""
     try:
-        token = auth.get('token') or request.args.get('token')
-        username = auth.get('username') or request.args.get('username')
+        # Get auth data from handshake
+        auth = request.args.get('auth', {})
+        if isinstance(auth, str):
+            try:
+                auth = json.loads(auth)
+            except:
+                auth = {}
+                
+        token = auth.get('token')
+        username = auth.get('username')
         sid = request.sid
-        logger.debug(f"Connection attempt from {username}")
         
-        if not token or not username:
-            logger.debug("No credentials provided, allowing anonymous connection")
+        logger.debug(f"Connection attempt - SID: {sid}, Username: {username}, Has token: {bool(token)}")
+        
+        # Allow unauthenticated connections initially
+        if not token:
+            logger.debug(f"Allowing unauthenticated connection for initial auth")
             return True
             
+        # For authenticated connections, verify token
         try:
-            # Verify JWT token
-            decoded = verify_jwt_in_request()
+            verify_jwt_in_request()
             current_user = get_jwt_identity()
             
-            if current_user != username:
+            if username and current_user != username:
                 logger.warning(f"Token username mismatch: {current_user} != {username}")
                 return False
 
-            # Update player activity
-            player_activity[username] = {
-                'sid': request.sid,
-                'username': username,
-                'status': 'idle',
-                'last_seen': time.time()
-            }
+            # Update player activity for authenticated users
+            if username:
+                player_activity[username] = {
+                    'sid': request.sid,
+                    'username': username,
+                    'status': 'idle',
+                    'last_seen': time.time()
+                }
             
-            # Broadcast current queue status to all clients
-            queue_status = {
-                'inQueue': username in matchmaking_queue,
-                'playersInQueue': len(matchmaking_queue),
-                'queue': list(matchmaking_queue)
-            }
-            socketio.emit(SOCKET_EVENTS['QUEUE']['UPDATE'], queue_status)
-            
-            logger.info(f"User {username} authenticated successfully")
+            logger.info(f"Authenticated connection successful for {username}")
             return True
             
         except Exception as e:
@@ -618,15 +616,30 @@ def handle_disconnect(reason=None):
         if username:
             logger.info(f"User {username} disconnected. Reason: {reason}")
             
-            # Only remove from queue if it's an explicit disconnect, not a refresh
-            if reason != 'transport close' and username in matchmaking_queue:
-                matchmaking_queue.remove(username)
-                broadcast_queue_update()
-            
+            # Update player activity status
             if username in player_activity:
-                # Don't delete, just mark as disconnected
                 player_activity[username]['status'] = 'disconnected'
                 player_activity[username]['last_seen'] = time.time()
+                
+                # Check if player was in a lobby
+                lobby_id = player_activity[username].get('lobby_id')
+                if lobby_id and lobby_id in lobbies:
+                    lobby = lobbies[lobby_id]
+                    # Add to disconnected players set
+                    if 'disconnected_players' not in lobby:
+                        lobby['disconnected_players'] = set()
+                    lobby['disconnected_players'].add(username)
+                    logger.info(f"Added {username} to disconnected players in lobby {lobby_id}")
+                    
+                    # Notify other players in lobby
+                    emit('player_disconnected', {
+                        'username': username,
+                        'temporary': True
+                    }, room=lobby_id)
+            
+            # Handle queue state if needed
+            if username in matchmaking_queue:
+                broadcast_queue_update()
                 
     except Exception as e:
         logger.error(f"Error in handle_disconnect: {str(e)}")
@@ -662,7 +675,7 @@ def register_socket(data):
     except Exception as e:
         logger.error(f"Registration error: {str(e)}")
         return {'success': False, 'message': 'Registration failed'}
-
+        
 @socketio.on(SOCKET_EVENTS['AUTH']['LOGIN'])
 @handle_socket_data
 def login_socket(data):
@@ -690,11 +703,45 @@ def login_socket(data):
         
         logger.debug(f"Login successful for user: {username}")
         access_token = create_access_token(identity=username)
-        return {
+        
+        # Check if user was in a lobby before
+        active_lobby_id = None
+        for lobby_id, lobby in lobbies.items():
+            if username in lobby['players']:
+                # Only set active lobby if player was disconnected
+                if 'disconnected_players' in lobby and username in lobby['disconnected_players']:
+                    active_lobby_id = lobby_id
+                    lobby['disconnected_players'].remove(username)
+                    logger.info(f"Reconnecting {username} to lobby {lobby_id}")
+                break
+        
+        # Update player activity with lobby info if applicable
+        player_activity[username] = {
+            'sid': request.sid,
+            'status': 'in_lobby' if active_lobby_id else 'authenticated',
+            'lobby_id': active_lobby_id,
+            'last_seen': time.time()
+        }
+        
+        # Join the socket room if user was in a lobby
+        if active_lobby_id:
+            join_room(active_lobby_id)
+            logger.info(f"User {username} rejoined lobby {active_lobby_id} after login")
+            
+            # Notify other players in lobby
+            emit('player_reconnected', {
+                'username': username
+            }, room=active_lobby_id)
+        
+        response = {
             'success': True,
             'message': 'Login successful',
-            'access_token': access_token
+            'access_token': access_token,
+            'active_lobby': active_lobby_id
         }
+        
+        logger.info(f"Sending login response for {username}: {response}")
+        return response
             
     except Exception as e:
         logger.error(f"Error in login handler: {str(e)}", exc_info=True)
@@ -881,42 +928,143 @@ def handle_join_lobby(data):
     try:
         lobby_id = data.get('lobby_id')
         username = data.get('username')
-        logger.info(f"Join lobby request from {username} for lobby {lobby_id}")
+        is_rejoin = data.get('rejoin', False)
+        
+        logger.info(f"Join lobby request from {username} for lobby {lobby_id} (rejoin: {is_rejoin})")
         
         if lobby_id in lobbies:
             lobby = lobbies[lobby_id]
             
-            # Verify player is supposed to be in this lobby
-            if username not in lobby['players']:
+            # Check if player is in lobby or was disconnected
+            is_lobby_member = username in lobby['players']
+            was_disconnected = username in lobby.get('disconnected_players', set())
+            
+            if not is_lobby_member and not (is_rejoin and was_disconnected):
                 logger.warning(f"Unauthorized lobby join attempt by {username}")
-                emit('error', {'message': 'Not authorized to join this lobby'})
-                return
+                return {
+                    'success': False,
+                    'message': 'Not authorized to join this lobby'
+                }
+            
+            # Handle reconnection
+            if was_disconnected:
+                lobby['disconnected_players'].remove(username)
+                logger.info(f"Player {username} reconnected to lobby {lobby_id}")
             
             # Join the socket room
             join_room(lobby_id)
             
             # Update player status
-            if username in player_activity:
-                player_activity[username]['status'] = 'in_lobby'
+            player_activity[username] = {
+                'status': 'in_lobby',
+                'sid': request.sid,
+                'lobby_id': lobby_id,
+                'last_seen': time.time()
+            }
             
-            # Send current lobby state
-            emit(SOCKET_EVENTS['LOBBY']['UPDATE'], {
+            # Prepare lobby state response
+            lobby_state = {
                 'lobby_id': lobby_id,
                 'players': lobby['players'],
                 'teams': lobby['teams'],
                 'step': lobby['step'],
                 'selected_map': lobby.get('selected_map'),
-                'server_ip': lobby.get('server_ip')
-            }, room=lobby_id)
+                'server_details': lobby.get('server_details')
+            }
             
-            logger.info(f"Player {username} joined lobby {lobby_id}")
+            # Notify other players about reconnection if applicable
+            if was_disconnected:
+                emit('player_reconnected', {'username': username}, room=lobby_id)
+            
+            # Send success response with lobby state
+            return {
+                'success': True,
+                'data': lobby_state,
+                'message': 'Rejoined lobby successfully' if was_disconnected else 'Joined lobby successfully'
+            }
+            
         else:
             logger.warning(f"Attempted to join non-existent lobby: {lobby_id}")
-            emit('error', {'message': 'Lobby not found'})
+            return {
+                'success': False,
+                'message': 'Lobby not found'
+            }
             
     except Exception as e:
         logger.error(f"Error in handle_join_lobby: {str(e)}")
-        emit('error', {'message': 'Failed to join lobby'})
+        return {
+            'success': False,
+            'message': 'Failed to join lobby'
+        }
+
+@socketio.on(SOCKET_EVENTS['LOBBY']['LEAVE'])
+@handle_socket_data
+def handle_leave_lobby(data):
+    """Handle lobby leave request"""
+    try:
+        lobby_id = data.get('lobby_id')
+        username = data.get('username', get_username_by_sid(request.sid))
+        
+        logger.info(f"Leave lobby request from {username} for lobby {lobby_id}")
+        
+        if not lobby_id or not username:
+            return {
+                'success': False,
+                'message': 'Missing lobby_id or username'
+            }
+            
+        if lobby_id in lobbies:
+            lobby = lobbies[lobby_id]
+            
+            # Remove player from lobby
+            if username in lobby['players']:
+                lobby['players'].remove(username)
+                
+                # Remove from teams
+                for team in ['team1', 'team2']:
+                    if username in lobby['teams'][team]:
+                        lobby['teams'][team].remove(username)
+                
+                # Remove from disconnected players if present
+                if 'disconnected_players' in lobby and username in lobby['disconnected_players']:
+                    lobby['disconnected_players'].remove(username)
+                
+                # Update player activity
+                if username in player_activity:
+                    player_activity[username].pop('lobby_id', None)
+                    player_activity[username]['status'] = 'authenticated'
+                
+                # Leave the socket room
+                leave_room(lobby_id)
+                
+                # Notify other players
+                emit('player_left', {
+                    'username': username,
+                    'lobby_id': lobby_id
+                }, room=lobby_id)
+                
+                # If lobby is empty, remove it
+                if not lobby['players']:
+                    del lobbies[lobby_id]
+                    logger.info(f"Removed empty lobby {lobby_id}")
+                
+                logger.info(f"Player {username} left lobby {lobby_id}")
+                return {
+                    'success': True,
+                    'message': 'Successfully left lobby'
+                }
+            
+        return {
+            'success': False,
+            'message': 'Lobby not found or player not in lobby'
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in handle_leave_lobby: {str(e)}")
+        return {
+            'success': False,
+            'message': 'Failed to leave lobby'
+        }
 
 @socketio.on(SOCKET_EVENTS['LOBBY']['START'])
 @handle_socket_data

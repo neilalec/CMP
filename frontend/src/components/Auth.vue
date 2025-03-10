@@ -11,7 +11,7 @@ const authStore = useAuthStore();
 const rootStore = useRootStore();
 const socketStore = useSocketStore();
 
-const formType = ref('login'); // 'login' or 'register'
+const formType = ref('login');
 const username = ref('');
 const password = ref('');
 const loading = ref(false);
@@ -21,17 +21,8 @@ const handleSubmit = async () => {
   rootStore.clearError();
 
   try {
-    // First, ensure socket connection with username
-    if (!socketStore.isConnected) {
-      console.log('Socket not connected, attempting to connect...');
-      await socketStore.initSocket(null, username.value);
-    }
-
-    // Login/Register
-    const eventType = formType.value === 'login' ? 
-      SOCKET_EVENTS.AUTH.LOGIN : 
-      SOCKET_EVENTS.AUTH.REGISTER;
-
+    const eventType = formType.value === 'login' ? 'login' : 'register';
+    
     const response = await socketStore.emit(eventType, {
       username: username.value,
       password: password.value
@@ -39,13 +30,16 @@ const handleSubmit = async () => {
 
     if (response.success) {
       console.log(`${formType.value} successful`);
-      // Use appropriate store action based on form type
-      if (formType.value === 'login') {
-        await authStore.login(response.access_token, username.value);
+      // Set auth state
+      await authStore.setAuth(response.access_token, username.value);
+      
+      // Check for active lobby in response
+      if (response.active_lobby) {
+        console.log('Active lobby found:', response.active_lobby);
+        router.push(`/lobby/${response.active_lobby}`);
       } else {
-        await authStore.register(response.access_token, username.value);
+        router.push('/');
       }
-      router.push('/');
     } else {
       throw new Error(response.message || `${formType.value} failed`);
     }
@@ -60,9 +54,9 @@ const handleSubmit = async () => {
 const toggleForm = () => {
   formType.value = formType.value === 'login' ? 'register' : 'login';
   rootStore.clearError();
-  username.value = '';  // Clear form
-  password.value = '';  // Clear form
-  loading.value = false;  // Reset loading state
+  username.value = '';
+  password.value = '';
+  loading.value = false;
 };
 </script>
 

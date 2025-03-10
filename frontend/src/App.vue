@@ -11,10 +11,27 @@ const authStore = useAuthStore();
 const socketStore = useSocketStore();
 const rootStore = useRootStore();
 
-// Initialize auth state and socket on mount
-onMounted(() => {
-  if (!authStore.restoreAuth()) {
-    router.push('/auth');
+// Initialize socket and auth state on mount
+onMounted(async () => {
+  console.log('App mounted, initializing base socket connection...');
+  try {
+    // First restore auth state
+    const isAuthenticated = authStore.restoreAuth();
+    
+    // Initialize socket with auth credentials if available
+    if (isAuthenticated) {
+      await socketStore.initSocket(authStore.token, authStore.username);
+    } else {
+      await socketStore.initSocket();
+    }
+    
+    // Redirect if not authenticated
+    if (!isAuthenticated) {
+      router.push('/auth');
+    }
+  } catch (error) {
+    console.error('Failed to initialize socket:', error);
+    rootStore.setError('Failed to connect to server');
   }
 });
 
@@ -23,18 +40,28 @@ const handleLogout = async () => {
   try {
     await socketStore.cleanupSocket();
     authStore.logout();
+    // Reinitialize unauthenticated socket after logout
+    await socketStore.initSocket();
     router.push('/auth');
   } catch (error) {
     rootStore.setError('Logout failed');
   }
 };
 
-// Initialize socket connection when authenticated
+// Watch for auth state changes to update socket connection
 watch(() => authStore.isLoggedIn, async (isLoggedIn) => {
   if (isLoggedIn && authStore.token) {
     try {
       rootStore.setLoading(true);
+      // Cleanup existing socket and create new authenticated connection
+      await socketStore.cleanupSocket();
       await socketStore.initSocket(authStore.token, authStore.username);
+      
+      // Remove automatic navigation - let Auth.vue handle it
+      // const storedLobbyId = localStorage.getItem('currentLobby');
+      // if (storedLobbyId) {
+      //   router.push(`/lobby/${storedLobbyId}`);
+      // }
     } catch (error) {
       rootStore.setError('Failed to connect to server');
       authStore.logout();
@@ -42,7 +69,7 @@ watch(() => authStore.isLoggedIn, async (isLoggedIn) => {
       rootStore.setLoading(false);
     }
   }
-}, { immediate: true });
+});
 
 // Cleanup on component unmount
 onBeforeUnmount(() => {

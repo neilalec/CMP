@@ -22,11 +22,17 @@ const listeners = ref([]);
 // LIFECYCLE HOOKS
 onMounted(async () => {
   const lobbyId = route.params.lobbyId;
+  console.log('Lobby component mounted. ID:', lobbyId);
   lobbyStore.loading = true;
   
   try {
-    if (!socketStore.isConnected) {
-      throw new Error('Not connected to server');
+    // Wait for socket connection
+    let attempts = 0;
+    while (!socketStore.isConnected) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+      if (attempts++ > 50) {
+        throw new Error('Socket connection timeout');
+      }
     }
 
     // Setup all listeners at once
@@ -34,7 +40,10 @@ onMounted(async () => {
       const events = [
         {
           event: SOCKET_EVENTS.LOBBY.UPDATE,
-          handler: (data) => lobbyStore.updateLobbyState(data)
+          handler: (data) => {
+            console.log('Lobby update received:', data);
+            lobbyStore.updateLobbyState(data);
+          }
         },
         {
           event: SOCKET_EVENTS.LOBBY.MAP_SELECTED,
@@ -54,6 +63,33 @@ onMounted(async () => {
               step: 4
             });
           }
+        },
+        {
+          event: 'player_disconnected',
+          handler: (data) => {
+            console.log('Player disconnected:', data);
+            if (data.username === authStore.username) {
+              // If we're the one who disconnected, handle accordingly
+              lobbyStore.handleDisconnect();
+            } else {
+              // Otherwise just update the lobby state
+              lobbyStore.updatePlayerStatus(data.username, 'disconnected');
+            }
+          }
+        },
+        {
+          event: 'player_reconnected',
+          handler: (data) => {
+            console.log('Player reconnected:', data);
+            lobbyStore.updatePlayerStatus(data.username, 'connected');
+          }
+        },
+        {
+          event: 'player_left',
+          handler: (data) => {
+            console.log('Player left:', data);
+            lobbyStore.removePlayer(data.username);
+          }
         }
       ];
 
@@ -66,13 +102,23 @@ onMounted(async () => {
 
     setupListeners();
     
-    // Join lobby
-    await socketStore.emit(SOCKET_EVENTS.LOBBY.JOIN, { 
+    // Try to join/rejoin lobby
+    const joinResponse = await socketStore.emit(SOCKET_EVENTS.LOBBY.JOIN, { 
       lobby_id: lobbyId,
-      username: authStore.username 
+      username: authStore.username,
+      rejoin: true  // Add this flag to indicate possible reconnection
     });
+    
+    console.log('Join lobby response:', joinResponse);
+    
+    if (joinResponse?.success) {  // Check for success flag
+      lobbyStore.updateLobbyState(joinResponse.data);
+    } else {
+      throw new Error(joinResponse?.message || 'Failed to join lobby');
+    }
 
   } catch (error) {
+    console.error('Error joining lobby:', error);
     rootStore.setError({
       message: 'Failed to join lobby',
       details: error.message,
@@ -111,12 +157,26 @@ const handleVoteMap = async (map) => {
 
 const handleLeaveLobby = async () => {
   try {
-    await socketStore.emit(SOCKET_EVENTS.LOBBY.LEAVE, {
-      lobby_id: lobbyStore.lobbyId
+    const response = await socketStore.emit(SOCKET_EVENTS.LOBBY.LEAVE, {
+      lobby_id: lobbyStore.lobbyId,
+      username: authStore.username
     });
-    router.push('/');
+    
+    if (response.success) {
+      // Clear lobby state
+      lobbyStore.leaveLobby();
+      // Remove from localStorage to prevent auto-rejoin
+      localStorage.removeItem('currentLobby');
+      router.push('/');
+    } else {
+      throw new Error(response.message || 'Failed to leave lobby');
+    }
   } catch (error) {
-    rootStore.setError('Failed to leave lobby');
+    rootStore.setError({
+      message: 'Failed to leave lobby',
+      details: error.message,
+      context: 'lobby-leave'
+    });
   }
 };
 </script>

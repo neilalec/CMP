@@ -13,11 +13,20 @@ const authStore = useAuthStore();
 const loading = ref(false);
 
 onMounted(async () => {
-  // Initial queue sync
-  await queueStore.syncWithServer();
+  console.log('Home component mounted');
+  
+  // Wait for socket to be ready
+  while (!socketStore.isConnected) {
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  console.log('Socket connected, syncing with server...');
+
+  // Now safe to sync - pass username to get accurate queue status
+  await queueStore.syncWithServer(authStore.username);
 
   // Listen for queue updates
   socketStore.on(SOCKET_EVENTS.QUEUE.UPDATE, (data) => {
+    console.log('Queue update received:', data);
     queueStore.updateQueueState({
       ...data,
       inQueue: data.queue?.includes(authStore.username)
@@ -26,9 +35,13 @@ onMounted(async () => {
 
   // Listen for lobby creation
   socketStore.on(SOCKET_EVENTS.LOBBY.CREATED, (data) => {
+    console.log('Lobby created event received:', data);
     if (data?.lobby_id) {
       queueStore.resetQueue();
+      console.log('Redirecting to lobby:', data.lobby_id);
       router.push(`/lobby/${data.lobby_id}`);
+    } else {
+      console.error('Invalid lobby data received:', data);
     }
   });
 });

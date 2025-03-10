@@ -53,10 +53,10 @@ export const useQueueStore = defineStore('queue', {
       }
     },
 
-    async syncWithServer() {
+    async syncWithServer(username) {
       try {
         const socketStore = useSocketStore();
-        const response = await socketStore.emit(SOCKET_EVENTS.QUEUE.STATUS);
+        const response = await socketStore.emit(SOCKET_EVENTS.QUEUE.STATUS, { username });
         this.updateQueueState(response);
       } catch (error) {
         this.error = error.message;

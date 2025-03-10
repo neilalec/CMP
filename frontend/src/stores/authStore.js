@@ -71,13 +71,13 @@ export const useAuthStore = defineStore('auth', {
       this.username = null;
       this.isLoggedIn = false;
 
-      // Clear localStorage
+      // Clear localStorage auth data only
       localStorage.removeItem('token');
       localStorage.removeItem('username');
-
-      // Cleanup socket
-      const socketStore = useSocketStore();
-      socketStore.cleanupSocket();
+      
+      // Don't cleanup socket or lobby state
+      // const socketStore = useSocketStore();
+      // socketStore.cleanupSocket();
 
       // Clear any errors
       const rootStore = useRootStore();
