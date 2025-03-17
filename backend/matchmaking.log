@@ -68731,3 +68731,498 @@ AttributeError: 'list' object has no attribute 'get'
 2025-03-10 18:09:00,708 - INFO - User sam disconnected. Reason: transport close
 2025-03-10 18:09:00,708 - INFO - Added sam to disconnected players in lobby lobby_1741629420
 2025-03-10 18:09:00,708 - INFO - Server stopped
+2025-03-11 10:46:52,653 - INFO - Starting Flask application
+2025-03-11 10:46:52,653 - INFO - Configuring CORS
+2025-03-11 10:46:52,653 - INFO - CORS configured
+2025-03-11 10:46:52,653 - INFO - === Socket Events Configuration ===
+2025-03-11 10:46:52,653 - INFO - Queue Leave Event: leave-queue
+2025-03-11 10:46:52,653 - INFO - Queue Join Event: join-queue
+2025-03-11 10:46:52,653 - INFO - Queue Status Event: queue_status
+2025-03-11 10:46:52,653 - INFO - Queue Update Event: queue_update
+2025-03-11 10:46:52,653 - INFO - Initializing SocketIO
+2025-03-11 10:46:52,695 - INFO - SocketIO initialized
+2025-03-11 10:46:52,695 - INFO - Cleaning up stale state...
+2025-03-11 10:46:52,695 - INFO - Cleanup complete
+2025-03-11 10:46:52,695 - INFO - Started queue management task
+2025-03-11 10:46:52,695 - INFO - Started stale player cleanup task
+2025-03-11 10:46:52,695 - INFO - Starting server...
+2025-03-11 10:49:52,153 - INFO - Sending login response for neil: {'success': True, 'message': 'Login successful', 'access_token': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc0MTY5MDE5MiwianRpIjoiYjllNjZmMmQtODA1Yy00ZmI2LTgwMzUtYTQ5Y2E5Mjg0ZTMyIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6Im5laWwiLCJuYmYiOjE3NDE2OTAxOTIsImNzcmYiOiI3ZmQwMjUyZC04MjIwLTQxN2QtOWVkNS1kZDE4ZjM0Y2JmMWMiLCJleHAiOjE3NDE2OTEwOTJ9.ZK7DHUru_GNcEXZu8a0cZFH4FxIdnkyPgPLMauu5_Mo', 'active_lobby': None}
+2025-03-11 10:49:52,192 - INFO - User neil disconnected. Reason: client disconnect
+2025-03-11 10:50:12,549 - INFO - === Leave queue handler START ===
+2025-03-11 10:50:12,551 - INFO - Removed neil from queue
+2025-03-11 10:50:12,551 - INFO - Sending leave queue response: {'success': True, 'inQueue': False, 'playersInQueue': 0, 'queue': []}
+2025-03-11 10:50:16,908 - INFO - User sam disconnected. Reason: client disconnect
+2025-03-11 10:50:18,839 - INFO - Sending login response for sam: {'success': True, 'message': 'Login successful', 'access_token': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc0MTY5MDIxOCwianRpIjoiNTdkYmE3MWUtZThmOC00NzhmLWFiOWEtYmIxZDYwMmM1YTQzIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6InNhbSIsIm5iZiI6MTc0MTY5MDIxOCwiY3NyZiI6ImE5NTE3OWNjLTg1MDEtNGI4MS04NDUzLWEwZmE2ZmQwN2ZiYSIsImV4cCI6MTc0MTY5MTExOH0.v8s5Dd3NEG-MW8LXRF583-s2IgBA6uVayJRTMAVDfo4', 'active_lobby': None}
+2025-03-11 10:50:18,845 - INFO - User sam disconnected. Reason: client disconnect
+2025-03-11 10:50:25,337 - INFO - Created lobby lobby_1741690225 with players ['sam', 'neil']
+2025-03-11 10:50:25,361 - INFO - Join lobby request from neil for lobby lobby_1741690225 (rejoin: True)
+2025-03-11 10:50:25,392 - INFO - Join lobby request from sam for lobby lobby_1741690225 (rejoin: True)
+2025-03-11 10:50:30,404 - INFO - User sam disconnected. Reason: client disconnect
+2025-03-11 10:50:30,404 - INFO - Added sam to disconnected players in lobby lobby_1741690225
+2025-03-11 10:50:32,059 - INFO - Reconnecting sam to lobby lobby_1741690225
+2025-03-11 10:50:32,060 - INFO - User sam rejoined lobby lobby_1741690225 after login
+2025-03-11 10:50:32,060 - INFO - Sending login response for sam: {'success': True, 'message': 'Login successful', 'access_token': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc0MTY5MDIzMiwianRpIjoiMGY1OGI4ZTktMDczNy00MjFhLTgwOTMtMmE3NWE0M2NiZDZjIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6InNhbSIsIm5iZiI6MTc0MTY5MDIzMiwiY3NyZiI6IjE4MDliZTIwLThkNGQtNDhlNi04MTY0LThlZGUyZTdhMDI3ZCIsImV4cCI6MTc0MTY5MTEzMn0.3wQdCsGPtBLPyIRi_FvXCmxLEKuKDRK6rI2t1DjvzVo', 'active_lobby': 'lobby_1741690225'}
+2025-03-11 10:50:32,065 - INFO - User sam disconnected. Reason: client disconnect
+2025-03-11 10:50:32,071 - INFO - Added sam to disconnected players in lobby lobby_1741690225
+2025-03-11 10:50:32,390 - INFO - Join lobby request from sam for lobby lobby_1741690225 (rejoin: True)
+2025-03-11 10:50:32,390 - INFO - Player sam reconnected to lobby lobby_1741690225
+2025-03-11 10:50:35,369 - INFO - Teams assigned in lobby lobby_1741690225: {'team1': ['neil'], 'team2': ['sam']}
+2025-03-11 10:50:35,369 - INFO - Starting map voting countdown for lobby lobby_1741690225
+2025-03-11 10:50:50,469 - INFO - No votes cast, randomly selected map: Map 1
+2025-03-11 10:50:50,469 - INFO - Map Map 1 selected for lobby lobby_1741690225
+2025-03-11 10:50:53,508 - INFO - User sam disconnected. Reason: client disconnect
+2025-03-11 10:50:53,513 - INFO - Added sam to disconnected players in lobby lobby_1741690225
+2025-03-11 10:50:55,096 - INFO - Reconnecting sam to lobby lobby_1741690225
+2025-03-11 10:50:55,096 - INFO - User sam rejoined lobby lobby_1741690225 after login
+2025-03-11 10:50:55,098 - INFO - Sending login response for sam: {'success': True, 'message': 'Login successful', 'access_token': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc0MTY5MDI1NSwianRpIjoiMTg4NmQ3NGUtZDFmZS00OGU5LWFmOGQtOTFmMTBiMTViZDFkIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6InNhbSIsIm5iZiI6MTc0MTY5MDI1NSwiY3NyZiI6ImQwYmQ3MTkwLTUyZjUtNDA3NS1iY2ZhLTljOWQwYTI5MDdiMCIsImV4cCI6MTc0MTY5MTE1NX0.TDqRF9ksGcA9WGeX4E1Aa0K5npHkfnVoJcCmu8ZvpD8', 'active_lobby': 'lobby_1741690225'}
+2025-03-11 10:50:55,102 - INFO - User sam disconnected. Reason: client disconnect
+2025-03-11 10:50:55,113 - INFO - Added sam to disconnected players in lobby lobby_1741690225
+2025-03-11 10:50:55,530 - INFO - Join lobby request from sam for lobby lobby_1741690225 (rejoin: True)
+2025-03-11 10:50:55,530 - INFO - Player sam reconnected to lobby lobby_1741690225
+2025-03-11 10:52:38,247 - INFO - User neil disconnected. Reason: transport close
+2025-03-11 10:52:38,249 - INFO - Added neil to disconnected players in lobby lobby_1741690225
+2025-03-11 10:52:38,250 - INFO - User sam disconnected. Reason: transport close
+2025-03-11 10:52:38,251 - INFO - Added sam to disconnected players in lobby lobby_1741690225
+2025-03-11 10:52:38,251 - INFO - Server stopped
+2025-03-12 14:56:40,202 - INFO - Starting Flask application
+2025-03-12 14:56:40,202 - INFO - Configuring CORS
+2025-03-12 14:56:40,202 - INFO - CORS configured
+2025-03-12 14:56:40,216 - INFO - === Socket Events Configuration ===
+2025-03-12 14:56:40,216 - INFO - Queue Leave Event: leave-queue
+2025-03-12 14:56:40,216 - INFO - Queue Join Event: join-queue
+2025-03-12 14:56:40,216 - INFO - Queue Status Event: queue_status
+2025-03-12 14:56:40,216 - INFO - Queue Update Event: queue_update
+2025-03-12 14:56:40,216 - INFO - Initializing SocketIO
+2025-03-12 14:56:40,238 - INFO - SocketIO initialized
+2025-03-12 14:56:40,240 - INFO - Cleaning up stale state...
+2025-03-12 14:56:40,240 - INFO - Cleanup complete
+2025-03-12 14:56:40,240 - INFO - Started queue management task
+2025-03-12 14:56:40,240 - INFO - Started stale player cleanup task
+2025-03-12 14:56:40,243 - INFO - Starting server...
+2025-03-12 15:09:51,493 - INFO - Created lobby lobby_1741792191 with players ['neil', 'sam']
+2025-03-12 15:09:51,617 - INFO - Join lobby request from neil for lobby lobby_1741792191 (rejoin: True)
+2025-03-12 15:09:51,619 - INFO - Join lobby request from sam for lobby lobby_1741792191 (rejoin: True)
+2025-03-12 15:10:01,589 - INFO - Teams assigned in lobby lobby_1741792191: {'team1': ['sam'], 'team2': ['neil']}
+2025-03-12 15:10:01,590 - INFO - Starting map voting countdown for lobby lobby_1741792191
+2025-03-12 15:10:16,706 - INFO - No votes cast, randomly selected map: Map 1
+2025-03-12 15:10:16,707 - INFO - Map Map 1 selected for lobby lobby_1741792191
+2025-03-12 15:29:05,098 - INFO - User sam disconnected. Reason: client disconnect
+2025-03-12 15:29:05,104 - INFO - Added sam to disconnected players in lobby lobby_1741792191
+2025-03-12 15:29:06,970 - INFO - Reconnecting sam to lobby lobby_1741792191
+2025-03-12 15:29:06,973 - INFO - User sam rejoined lobby lobby_1741792191 after login
+2025-03-12 15:29:06,975 - INFO - Sending login response for sam: {'success': True, 'message': 'Login successful', 'access_token': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc0MTc5MzM0NiwianRpIjoiZjdiOWRkN2EtYzYwYy00OWNlLThlZGQtY2RiNGVhN2IyMzIyIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6InNhbSIsIm5iZiI6MTc0MTc5MzM0NiwiY3NyZiI6IjI0YjNlMjRlLTRhMWItNGQ1OS1iNzQ0LTBkMDQwZjczZGY4OSIsImV4cCI6MTc0MTc5NDI0Nn0.BD539HNoc8wWFbmaQt8PQIXNBWjauwyjwHXmt1xhzmE', 'active_lobby': 'lobby_1741792191'}
+2025-03-12 15:29:06,986 - INFO - User sam disconnected. Reason: client disconnect
+2025-03-12 15:29:06,987 - INFO - Added sam to disconnected players in lobby lobby_1741792191
+2025-03-12 15:29:07,328 - INFO - Join lobby request from sam for lobby lobby_1741792191 (rejoin: True)
+2025-03-12 15:29:07,329 - INFO - Player sam reconnected to lobby lobby_1741792191
+2025-03-12 15:30:31,870 - INFO - User neil disconnected. Reason: transport close
+2025-03-12 15:30:31,872 - INFO - Added neil to disconnected players in lobby lobby_1741792191
+2025-03-12 15:30:31,884 - INFO - User sam disconnected. Reason: transport close
+2025-03-12 15:30:31,886 - INFO - Added sam to disconnected players in lobby lobby_1741792191
+2025-03-12 15:52:04,304 - INFO - Removing stale player neil
+2025-03-12 15:52:04,413 - INFO - Removing stale player sam
+2025-03-12 16:07:57,830 - INFO - Join lobby request from sam for lobby lobby_1741792191 (rejoin: True)
+2025-03-12 16:07:57,832 - INFO - Player sam reconnected to lobby lobby_1741792191
+2025-03-12 16:09:08,728 - INFO - Join lobby request from neil for lobby lobby_1741792191 (rejoin: True)
+2025-03-12 16:09:08,728 - INFO - Player neil reconnected to lobby lobby_1741792191
+2025-03-12 16:39:58,066 - INFO - User sam disconnected. Reason: transport close
+2025-03-12 16:39:58,108 - INFO - Added sam to disconnected players in lobby lobby_1741792191
+2025-03-17 16:41:22,474 - INFO - Starting Flask application
+2025-03-17 16:41:22,480 - INFO - Configuring CORS
+2025-03-17 16:41:22,480 - INFO - CORS configured
+2025-03-17 16:41:22,480 - INFO - === Socket Events Configuration ===
+2025-03-17 16:41:22,480 - INFO - Queue Leave Event: leave-queue
+2025-03-17 16:41:22,480 - INFO - Queue Join Event: join-queue
+2025-03-17 16:41:22,480 - INFO - Queue Status Event: queue_status
+2025-03-17 16:41:22,480 - INFO - Queue Update Event: queue_update
+2025-03-17 16:41:22,480 - INFO - Initializing SocketIO
+2025-03-17 16:41:22,508 - INFO - SocketIO initialized
+2025-03-17 16:41:22,512 - INFO - Cleaning up stale state...
+2025-03-17 16:41:22,512 - INFO - Cleanup complete
+2025-03-17 16:41:22,512 - INFO - Started queue management task
+2025-03-17 16:41:22,514 - INFO - Started stale player cleanup task
+2025-03-17 16:41:22,514 - INFO - Starting server...
+2025-03-17 16:42:29,512 - INFO - Sending login response for sam: {'success': True, 'message': 'Login successful', 'access_token': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc0MjIyOTc0OSwianRpIjoiMTkzZWRiZDQtY2NmMC00MTA3LTlmMGYtNmEyNjU5NGUzZjVlIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6InNhbSIsIm5iZiI6MTc0MjIyOTc0OSwiY3NyZiI6IjkxMGRkNmRmLWMzOTktNGE3MS05NjFkLTM4OGYwNjEzMmI1OSIsImV4cCI6MTc0MjIzMDY0OX0.V_65cm9T42f69N-hJxFdwGi0tmXFGZzwN7Jc6yfDDlk', 'active_lobby': None}
+2025-03-17 16:42:29,517 - INFO - User sam disconnected. Reason: client disconnect
+2025-03-17 16:42:31,794 - INFO - Sending login response for neil: {'success': True, 'message': 'Login successful', 'access_token': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc0MjIyOTc1MSwianRpIjoiMGJmN2ZhYzYtM2YwYS00ZWUzLWEwNmItZmIyZGE2ZmFmMWZiIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6Im5laWwiLCJuYmYiOjE3NDIyMjk3NTEsImNzcmYiOiI3OWZiNmYxZC01MmI1LTQ5ZTItYTJhNS0wOTEwOTAyMDZmNmIiLCJleHAiOjE3NDIyMzA2NTF9.l1VFdRfteGTWna0HRWs841rAx6OdFXzajYA_VVlWSBc', 'active_lobby': None}
+2025-03-17 16:42:31,799 - INFO - User neil disconnected. Reason: client disconnect
+2025-03-17 16:42:51,042 - INFO - === Leave queue handler START ===
+2025-03-17 16:42:51,045 - INFO - Removed sam from queue
+2025-03-17 16:42:51,045 - INFO - Sending leave queue response: {'success': True, 'inQueue': False, 'playersInQueue': 1, 'queue': ['neil']}
+2025-03-17 16:42:51,297 - INFO - Canceling countdown - not enough players
+2025-03-17 16:43:02,990 - INFO - Created lobby lobby_1742229782 with players ['neil', 'sam']
+2025-03-17 16:43:03,016 - INFO - Join lobby request from sam for lobby lobby_1742229782 (rejoin: True)
+2025-03-17 16:43:03,018 - INFO - Join lobby request from neil for lobby lobby_1742229782 (rejoin: True)
+2025-03-17 16:43:13,037 - INFO - Teams assigned in lobby lobby_1742229782: {'team1': ['sam'], 'team2': ['neil']}
+2025-03-17 16:43:13,039 - INFO - Starting map voting countdown for lobby lobby_1742229782
+2025-03-17 16:43:28,149 - INFO - No votes cast, randomly selected map: Map 5
+2025-03-17 16:43:28,149 - INFO - Map Map 5 selected for lobby lobby_1742229782
+2025-03-17 16:48:05,143 - INFO - User sam disconnected. Reason: transport close
+2025-03-17 16:48:05,143 - INFO - Added sam to disconnected players in lobby lobby_1742229782
+2025-03-17 16:48:05,174 - INFO - User neil disconnected. Reason: transport close
+2025-03-17 16:48:05,174 - INFO - Added neil to disconnected players in lobby lobby_1742229782
+2025-03-17 16:48:06,007 - INFO - Join lobby request from sam for lobby lobby_1742229782 (rejoin: True)
+2025-03-17 16:48:06,011 - INFO - Player sam reconnected to lobby lobby_1742229782
+2025-03-17 16:48:06,012 - INFO - Join lobby request from neil for lobby lobby_1742229782 (rejoin: True)
+2025-03-17 16:48:06,014 - INFO - Player neil reconnected to lobby lobby_1742229782
+2025-03-17 16:48:57,287 - INFO - Join lobby request from neil for lobby lobby_1742229782 (rejoin: True)
+2025-03-17 16:48:57,297 - INFO - Join lobby request from sam for lobby lobby_1742229782 (rejoin: True)
+2025-03-17 16:51:22,053 - INFO - User sam disconnected. Reason: transport close
+2025-03-17 16:51:22,054 - INFO - Added sam to disconnected players in lobby lobby_1742229782
+2025-03-17 16:51:22,082 - INFO - User neil disconnected. Reason: transport close
+2025-03-17 16:51:22,082 - INFO - Added neil to disconnected players in lobby lobby_1742229782
+2025-03-17 16:51:23,017 - INFO - Join lobby request from sam for lobby lobby_1742229782 (rejoin: True)
+2025-03-17 16:51:23,018 - INFO - Player sam reconnected to lobby lobby_1742229782
+2025-03-17 16:51:23,023 - INFO - Join lobby request from neil for lobby lobby_1742229782 (rejoin: True)
+2025-03-17 16:51:23,023 - INFO - Player neil reconnected to lobby lobby_1742229782
+2025-03-17 17:00:09,449 - INFO - User neil disconnected. Reason: transport close
+2025-03-17 17:00:09,453 - INFO - Added neil to disconnected players in lobby lobby_1742229782
+2025-03-17 17:00:09,457 - INFO - User sam disconnected. Reason: transport close
+2025-03-17 17:00:09,457 - INFO - Added sam to disconnected players in lobby lobby_1742229782
+2025-03-17 17:00:09,461 - INFO - Server stopped
+2025-03-17 17:00:14,547 - INFO - Starting Flask application
+2025-03-17 17:00:14,551 - INFO - Configuring CORS
+2025-03-17 17:00:14,551 - INFO - CORS configured
+2025-03-17 17:00:14,551 - INFO - === Socket Events Configuration ===
+2025-03-17 17:00:14,553 - INFO - Queue Leave Event: leave-queue
+2025-03-17 17:00:14,553 - INFO - Queue Join Event: join-queue
+2025-03-17 17:00:14,553 - INFO - Queue Status Event: queue_status
+2025-03-17 17:00:14,553 - INFO - Queue Update Event: queue_update
+2025-03-17 17:00:14,553 - INFO - Initializing SocketIO
+2025-03-17 17:00:14,576 - INFO - SocketIO initialized
+2025-03-17 17:00:14,576 - INFO - Cleaning up stale state...
+2025-03-17 17:00:14,579 - INFO - Cleanup complete
+2025-03-17 17:00:14,579 - INFO - Started queue management task
+2025-03-17 17:00:14,579 - INFO - Started stale player cleanup task
+2025-03-17 17:00:14,579 - INFO - Starting server...
+2025-03-17 17:00:31,420 - INFO - Sending login response for neil: {'success': True, 'message': 'Login successful', 'access_token': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc0MjIzMDgzMSwianRpIjoiMDIwN2EwN2MtNDY5NS00ZWZkLTliNmItMDAzOGNhMjBkODE0IiwidHlwZSI6ImFjY2VzcyIsInN1YiI6Im5laWwiLCJuYmYiOjE3NDIyMzA4MzEsImNzcmYiOiI1MmExZDQ5Mi0xZmI2LTRkNWEtOGZkMy0zNWUyN2Q3NmFmYTkiLCJleHAiOjE3NDIyMzE3MzF9.l-gJy0vQ2G1W3FHG7aIlvlH6Hag_YRt8kA8p_GWdKJM', 'active_lobby': None}
+2025-03-17 17:00:31,437 - INFO - User neil disconnected. Reason: client disconnect
+2025-03-17 17:00:43,601 - INFO - Join lobby request from sam for lobby lobby_1742229782 (rejoin: True)
+2025-03-17 17:00:43,601 - WARNING - Attempted to join non-existent lobby: lobby_1742229782
+2025-03-17 17:00:47,418 - INFO - Sending login response for sam: {'success': True, 'message': 'Login successful', 'access_token': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc0MjIzMDg0NywianRpIjoiZDM2N2Q1YTUtYTZiNy00M2UzLWEyNzktNmY5MTMxN2M3MGFkIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6InNhbSIsIm5iZiI6MTc0MjIzMDg0NywiY3NyZiI6IjFhYzRhMTk5LWQ5MDUtNDBiYS05YTQ2LTgxMmMyODljNmY0ZCIsImV4cCI6MTc0MjIzMTc0N30.MYNxpZZ22hboJnx47rTfzEs_7usj2DZ4EfGGDONCXpI', 'active_lobby': None}
+2025-03-17 17:00:47,435 - INFO - User sam disconnected. Reason: client disconnect
+2025-03-17 17:01:00,869 - INFO - Created lobby lobby_1742230860 with players ['sam', 'neil']
+2025-03-17 17:01:00,899 - INFO - Join lobby request from sam for lobby lobby_1742230860 (rejoin: True)
+2025-03-17 17:01:00,918 - INFO - Join lobby request from neil for lobby lobby_1742230860 (rejoin: True)
+2025-03-17 17:01:10,927 - INFO - Teams assigned in lobby lobby_1742230860: {'team1': ['neil'], 'team2': ['sam']}
+2025-03-17 17:01:10,927 - INFO - Starting map voting countdown for lobby lobby_1742230860
+2025-03-17 17:01:26,090 - INFO - No votes cast, randomly selected map: Map 5
+2025-03-17 17:01:26,090 - INFO - Map Map 5 selected for lobby lobby_1742230860
+2025-03-17 17:07:37,086 - INFO - User sam disconnected. Reason: transport close
+2025-03-17 17:07:37,088 - INFO - Added sam to disconnected players in lobby lobby_1742230860
+2025-03-17 17:07:37,114 - INFO - User neil disconnected. Reason: transport close
+2025-03-17 17:07:37,134 - INFO - Added neil to disconnected players in lobby lobby_1742230860
+2025-03-17 17:28:30,729 - INFO - Removing stale player neil
+2025-03-17 17:28:30,894 - INFO - Removing stale player sam
+2025-03-17 18:21:34,071 - INFO - Join lobby request from neil for lobby lobby_1742230860 (rejoin: True)
+2025-03-17 18:21:34,071 - INFO - Player neil reconnected to lobby lobby_1742230860
+2025-03-17 18:21:40,009 - INFO - User neil disconnected. Reason: client disconnect
+2025-03-17 18:21:40,011 - INFO - Added neil to disconnected players in lobby lobby_1742230860
+2025-03-17 18:21:43,767 - INFO - Join lobby request from sam for lobby lobby_1742230860 (rejoin: True)
+2025-03-17 18:21:43,767 - INFO - Player sam reconnected to lobby lobby_1742230860
+2025-03-17 18:21:44,793 - INFO - Leave lobby request from sam for lobby lobby_1742230860
+2025-03-17 18:21:44,793 - INFO - Player sam left lobby lobby_1742230860
+2025-03-17 18:21:46,952 - INFO - Reconnecting neil to lobby lobby_1742230860
+2025-03-17 18:21:46,952 - INFO - User neil rejoined lobby lobby_1742230860 after login
+2025-03-17 18:21:46,956 - INFO - Sending login response for neil: {'success': True, 'message': 'Login successful', 'access_token': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc0MjIzNTcwNiwianRpIjoiM2NhODJiMjYtYTVjOC00YjY4LWI2ZGQtNjM3YTIwNzJjMmI2IiwidHlwZSI6ImFjY2VzcyIsInN1YiI6Im5laWwiLCJuYmYiOjE3NDIyMzU3MDYsImNzcmYiOiIyMGMwYjEzOS1jMzcxLTRjNTctYjg5Ny1kZDgxM2YzMjM3NzMiLCJleHAiOjE3NDIyMzY2MDZ9.JzK4P4E2b0FnylD-ML4Sw0xx9bEAIXS8Ek89MvazPfw', 'active_lobby': 'lobby_1742230860'}
+2025-03-17 18:21:46,963 - INFO - User neil disconnected. Reason: client disconnect
+2025-03-17 18:21:46,963 - INFO - Added neil to disconnected players in lobby lobby_1742230860
+2025-03-17 18:21:47,421 - INFO - Join lobby request from neil for lobby lobby_1742230860 (rejoin: True)
+2025-03-17 18:21:47,421 - INFO - Player neil reconnected to lobby lobby_1742230860
+2025-03-17 18:21:49,278 - INFO - Leave lobby request from neil for lobby lobby_1742230860
+2025-03-17 18:21:49,278 - INFO - Removed empty lobby lobby_1742230860
+2025-03-17 18:21:49,278 - INFO - Player neil left lobby lobby_1742230860
+2025-03-17 18:22:10,505 - INFO - Created lobby lobby_1742235730 with players ['neil', 'sam']
+2025-03-17 18:22:10,557 - INFO - Join lobby request from neil for lobby lobby_1742235730 (rejoin: True)
+2025-03-17 18:22:10,598 - INFO - Join lobby request from sam for lobby lobby_1742235730 (rejoin: True)
+2025-03-17 18:22:20,582 - INFO - Teams assigned in lobby lobby_1742235730: {'team1': ['neil'], 'team2': ['sam']}
+2025-03-17 18:22:20,587 - INFO - Starting map voting countdown for lobby lobby_1742235730
+2025-03-17 18:22:35,722 - INFO - No votes cast, randomly selected map: Map 3
+2025-03-17 18:22:35,723 - INFO - Map Map 3 selected for lobby lobby_1742235730
+2025-03-17 18:25:02,586 - INFO - Join lobby request from neil for lobby lobby_1742235730 (rejoin: True)
+2025-03-17 18:25:02,605 - INFO - Join lobby request from sam for lobby lobby_1742235730 (rejoin: True)
+2025-03-17 18:34:42,866 - INFO - Leave lobby request from sam for lobby lobby_1742235730
+2025-03-17 18:34:42,866 - INFO - Player sam left lobby lobby_1742235730
+2025-03-17 18:34:46,329 - INFO - Leave lobby request from neil for lobby lobby_1742235730
+2025-03-17 18:34:46,334 - INFO - Removed empty lobby lobby_1742235730
+2025-03-17 18:34:46,334 - INFO - Player neil left lobby lobby_1742235730
+2025-03-17 18:35:00,129 - INFO - Created lobby lobby_1742236500 with players ['neil', 'sam']
+2025-03-17 18:35:00,151 - INFO - Join lobby request from neil for lobby lobby_1742236500 (rejoin: True)
+2025-03-17 18:35:00,177 - INFO - Join lobby request from sam for lobby lobby_1742236500 (rejoin: True)
+2025-03-17 18:35:10,212 - INFO - Teams assigned in lobby lobby_1742236500: {'team1': ['sam'], 'team2': ['neil']}
+2025-03-17 18:35:10,212 - INFO - Starting map voting countdown for lobby lobby_1742236500
+2025-03-17 18:35:25,294 - INFO - No votes cast, randomly selected map: Map 4
+2025-03-17 18:35:25,294 - INFO - Map Map 4 selected for lobby lobby_1742236500
+2025-03-17 18:42:22,565 - INFO - User sam disconnected. Reason: transport close
+2025-03-17 18:42:22,565 - INFO - Added sam to disconnected players in lobby lobby_1742236500
+2025-03-17 18:42:22,565 - INFO - User neil disconnected. Reason: transport close
+2025-03-17 18:42:22,565 - INFO - Added neil to disconnected players in lobby lobby_1742236500
+2025-03-17 18:42:22,573 - INFO - Server stopped
+2025-03-17 18:42:26,645 - INFO - Starting Flask application
+2025-03-17 18:42:26,647 - INFO - Configuring CORS
+2025-03-17 18:42:26,647 - INFO - CORS configured
+2025-03-17 18:42:26,649 - INFO - === Socket Events Configuration ===
+2025-03-17 18:42:26,649 - INFO - Queue Leave Event: leave-queue
+2025-03-17 18:42:26,649 - INFO - Queue Join Event: join-queue
+2025-03-17 18:42:26,649 - INFO - Queue Status Event: queue_status
+2025-03-17 18:42:26,649 - INFO - Queue Update Event: queue_update
+2025-03-17 18:42:26,649 - INFO - Initializing SocketIO
+2025-03-17 18:42:26,667 - INFO - SocketIO initialized
+2025-03-17 18:42:26,667 - INFO - Cleaning up stale state...
+2025-03-17 18:42:26,667 - INFO - Cleanup complete
+2025-03-17 18:42:26,667 - INFO - Started queue management task
+2025-03-17 18:42:26,667 - INFO - Started stale player cleanup task
+2025-03-17 18:42:26,667 - INFO - Starting server...
+2025-03-17 18:42:32,685 - INFO - Leave lobby request from neil for lobby lobby_1742236500
+2025-03-17 18:42:34,971 - INFO - Leave lobby request from neil for lobby lobby_1742236500
+2025-03-17 18:42:37,981 - INFO - Sending login response for neil: {'success': True, 'message': 'Login successful', 'access_token': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc0MjIzNjk1NywianRpIjoiYzZmMDg3NTktMDFhMS00MzczLWIxNGYtNTdjY2JkN2JjMDQ2IiwidHlwZSI6ImFjY2VzcyIsInN1YiI6Im5laWwiLCJuYmYiOjE3NDIyMzY5NTcsImNzcmYiOiIwMzJmNzJkOC1lYmJiLTQ4NzgtOGYwNC0wMDBkOTdiN2E5MjkiLCJleHAiOjE3NDIyMzc4NTd9.rPOGDnJPhy74M8hZRAM0912zF7fsZGmDmclDXdulmzc', 'active_lobby': None}
+2025-03-17 18:42:37,997 - INFO - User neil disconnected. Reason: client disconnect
+2025-03-17 18:42:40,938 - INFO - Sending login response for sam: {'success': True, 'message': 'Login successful', 'access_token': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc0MjIzNjk2MCwianRpIjoiZDY1Mzc4MWYtMmZiMS00MDlhLWEwNjYtOGM4NWQ4ZGRkNThiIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6InNhbSIsIm5iZiI6MTc0MjIzNjk2MCwiY3NyZiI6ImVhNDRhNjFlLTcwMGEtNGY3ZC1iOWUwLTdkYjg4YzJhYWQzMiIsImV4cCI6MTc0MjIzNzg2MH0.1HajMr_zEBbz14C4Zfs1BytOPNX43qLiPlRedfzu1fo', 'active_lobby': None}
+2025-03-17 18:42:40,943 - INFO - User sam disconnected. Reason: client disconnect
+2025-03-17 18:42:54,645 - INFO - Created lobby lobby_1742236974 with players ['neil', 'sam']
+2025-03-17 18:42:54,692 - INFO - Join lobby request from neil for lobby lobby_1742236974 (rejoin: True)
+2025-03-17 18:42:54,698 - INFO - Join lobby request from sam for lobby lobby_1742236974 (rejoin: True)
+2025-03-17 18:43:04,696 - INFO - Teams assigned in lobby lobby_1742236974: {'team1': ['neil'], 'team2': ['sam']}
+2025-03-17 18:43:04,698 - INFO - Starting map voting countdown for lobby lobby_1742236974
+2025-03-17 18:43:19,796 - INFO - No votes cast, randomly selected map: Map 4
+2025-03-17 18:43:19,796 - INFO - Map Map 4 selected for lobby lobby_1742236974
+2025-03-17 18:45:03,218 - INFO - User neil disconnected. Reason: client disconnect
+2025-03-17 18:45:03,218 - INFO - Added neil to disconnected players in lobby lobby_1742236974
+2025-03-17 18:45:06,267 - INFO - User sam disconnected. Reason: client disconnect
+2025-03-17 18:45:06,267 - INFO - Added sam to disconnected players in lobby lobby_1742236974
+2025-03-17 18:45:07,903 - INFO - Reconnecting sam to lobby lobby_1742236974
+2025-03-17 18:45:07,904 - INFO - User sam rejoined lobby lobby_1742236974 after login
+2025-03-17 18:45:07,904 - INFO - Sending login response for sam: {'success': True, 'message': 'Login successful', 'access_token': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc0MjIzNzEwNywianRpIjoiMzFkOWU0ZWMtOWY3Yi00NzJiLWIzY2YtOGIwODU1MWEzN2Q4IiwidHlwZSI6ImFjY2VzcyIsInN1YiI6InNhbSIsIm5iZiI6MTc0MjIzNzEwNywiY3NyZiI6ImMzMWY1NWQ0LTgwNTktNDRlYS04ZjhhLTNiOTllNGVjZTUwYiIsImV4cCI6MTc0MjIzODAwN30.l1WZvNP_c5s3ds4kypX66vX0SowSwRwzh4NSdgwCB8E', 'active_lobby': 'lobby_1742236974'}
+2025-03-17 18:45:07,909 - INFO - User sam disconnected. Reason: client disconnect
+2025-03-17 18:45:07,910 - INFO - Added sam to disconnected players in lobby lobby_1742236974
+2025-03-17 18:45:08,248 - INFO - Join lobby request from sam for lobby lobby_1742236974 (rejoin: True)
+2025-03-17 18:45:08,248 - INFO - Player sam reconnected to lobby lobby_1742236974
+2025-03-17 18:45:10,731 - INFO - Reconnecting neil to lobby lobby_1742236974
+2025-03-17 18:45:10,733 - INFO - User neil rejoined lobby lobby_1742236974 after login
+2025-03-17 18:45:10,735 - INFO - Sending login response for neil: {'success': True, 'message': 'Login successful', 'access_token': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc0MjIzNzExMCwianRpIjoiMTUyNjliM2QtMTk3Zi00MzRmLWExMjAtZTQxMThlMjE3NmIwIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6Im5laWwiLCJuYmYiOjE3NDIyMzcxMTAsImNzcmYiOiIwMGI4YjVmZi1jOTRjLTRlZDYtYWIwZi1iMzJiYmMzODAyNTQiLCJleHAiOjE3NDIyMzgwMTB9.TA4SqsqqD66BE1P70gMgtymKXx6AXpIgWhnYrQEgNQI', 'active_lobby': 'lobby_1742236974'}
+2025-03-17 18:45:10,743 - INFO - User neil disconnected. Reason: client disconnect
+2025-03-17 18:45:10,745 - INFO - Added neil to disconnected players in lobby lobby_1742236974
+2025-03-17 18:45:11,175 - INFO - Join lobby request from neil for lobby lobby_1742236974 (rejoin: True)
+2025-03-17 18:45:11,176 - INFO - Player neil reconnected to lobby lobby_1742236974
+2025-03-17 18:45:13,450 - INFO - Leave lobby request from sam for lobby lobby_1742236974
+2025-03-17 18:45:13,450 - INFO - Player sam left lobby lobby_1742236974
+2025-03-17 18:45:14,821 - INFO - Leave lobby request from neil for lobby lobby_1742236974
+2025-03-17 18:45:14,824 - INFO - Removed empty lobby lobby_1742236974
+2025-03-17 18:45:14,824 - INFO - Player neil left lobby lobby_1742236974
+2025-03-17 18:45:27,546 - INFO - Created lobby lobby_1742237127 with players ['sam', 'neil']
+2025-03-17 18:45:27,564 - INFO - Join lobby request from neil for lobby lobby_1742237127 (rejoin: True)
+2025-03-17 18:45:27,635 - INFO - Join lobby request from sam for lobby lobby_1742237127 (rejoin: True)
+2025-03-17 18:45:37,578 - INFO - Teams assigned in lobby lobby_1742237127: {'team1': ['sam'], 'team2': ['neil']}
+2025-03-17 18:45:37,580 - INFO - Starting map voting countdown for lobby lobby_1742237127
+2025-03-17 18:45:52,702 - INFO - No votes cast, randomly selected map: Map 5
+2025-03-17 18:45:52,704 - INFO - Map Map 5 selected for lobby lobby_1742237127
+2025-03-17 18:46:50,057 - INFO - User sam disconnected. Reason: transport close
+2025-03-17 18:46:50,057 - INFO - Added sam to disconnected players in lobby lobby_1742237127
+2025-03-17 18:46:50,128 - INFO - User neil disconnected. Reason: transport close
+2025-03-17 18:46:50,129 - INFO - Added neil to disconnected players in lobby lobby_1742237127
+2025-03-17 18:46:51,012 - INFO - Join lobby request from neil for lobby lobby_1742237127 (rejoin: True)
+2025-03-17 18:46:51,012 - INFO - Player neil reconnected to lobby lobby_1742237127
+2025-03-17 18:46:51,013 - INFO - Join lobby request from sam for lobby lobby_1742237127 (rejoin: True)
+2025-03-17 18:46:51,015 - INFO - Player sam reconnected to lobby lobby_1742237127
+2025-03-17 18:46:58,317 - INFO - Join lobby request from neil for lobby lobby_1742237127 (rejoin: True)
+2025-03-17 18:46:58,320 - INFO - Join lobby request from sam for lobby lobby_1742237127 (rejoin: True)
+2025-03-17 19:24:10,181 - INFO - User sam disconnected. Reason: transport close
+2025-03-17 19:24:10,192 - INFO - Added sam to disconnected players in lobby lobby_1742237127
+2025-03-17 19:24:10,203 - INFO - User neil disconnected. Reason: transport close
+2025-03-17 19:24:10,205 - INFO - Added neil to disconnected players in lobby lobby_1742237127
+2025-03-17 19:24:11,012 - INFO - Join lobby request from sam for lobby lobby_1742237127 (rejoin: True)
+2025-03-17 19:24:11,012 - INFO - Player sam reconnected to lobby lobby_1742237127
+2025-03-17 19:24:11,020 - INFO - Join lobby request from neil for lobby lobby_1742237127 (rejoin: True)
+2025-03-17 19:24:11,021 - INFO - Player neil reconnected to lobby lobby_1742237127
+2025-03-17 19:26:05,843 - INFO - User neil disconnected. Reason: transport close
+2025-03-17 19:26:05,843 - INFO - Added neil to disconnected players in lobby lobby_1742237127
+2025-03-17 19:26:05,844 - INFO - User sam disconnected. Reason: transport close
+2025-03-17 19:26:05,844 - INFO - Added sam to disconnected players in lobby lobby_1742237127
+2025-03-17 19:26:05,846 - INFO - Server stopped
+2025-03-17 19:26:08,956 - INFO - Starting Flask application
+2025-03-17 19:26:08,958 - INFO - Configuring CORS
+2025-03-17 19:26:08,958 - INFO - CORS configured
+2025-03-17 19:26:08,958 - INFO - === Socket Events Configuration ===
+2025-03-17 19:26:08,960 - INFO - Queue Leave Event: leave-queue
+2025-03-17 19:26:08,960 - INFO - Queue Join Event: join-queue
+2025-03-17 19:26:08,960 - INFO - Queue Status Event: queue_status
+2025-03-17 19:26:08,960 - INFO - Queue Update Event: queue_update
+2025-03-17 19:26:08,960 - INFO - Initializing SocketIO
+2025-03-17 19:26:08,980 - INFO - SocketIO initialized
+2025-03-17 19:26:08,988 - INFO - Cleaning up stale state...
+2025-03-17 19:26:09,005 - INFO - Cleanup complete
+2025-03-17 19:26:09,005 - INFO - Started queue management task
+2025-03-17 19:26:09,007 - INFO - Started stale player cleanup task
+2025-03-17 19:26:09,007 - INFO - Starting server...
+2025-03-17 19:26:25,193 - INFO - Sending login response for sam: {'success': True, 'message': 'Login successful', 'access_token': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc0MjIzOTU4NSwianRpIjoiNmUyZTA4ZmMtMzk0YS00ZGFmLThlMTYtOGIxMWNlY2UyNWQxIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6InNhbSIsIm5iZiI6MTc0MjIzOTU4NSwiY3NyZiI6IjY5YTM2NWEzLTFiNTMtNDc4NC04NWE5LWJiNDc5MTM3Nzc1YiIsImV4cCI6MTc0MjI0MDQ4NX0.GBJkqF50O9_V7y2--lPuTweJsYT7AOI_n0MhkZn7kGk', 'active_lobby': None}
+2025-03-17 19:26:25,197 - INFO - User sam disconnected. Reason: client disconnect
+2025-03-17 19:26:27,652 - INFO - Sending login response for neil: {'success': True, 'message': 'Login successful', 'access_token': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc0MjIzOTU4NywianRpIjoiZTg4ODZlY2YtMmNmNi00MTZhLWI0NTAtYzI0YjNmZTE0M2MyIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6Im5laWwiLCJuYmYiOjE3NDIyMzk1ODcsImNzcmYiOiJhYWE5ZTliNC1hNDFkLTQ1MGItYjQzMC05ODBkNmVmYzYzNDIiLCJleHAiOjE3NDIyNDA0ODd9.L6brLl9RqiTtC0hWqlpUDbVv_Yxb59Gv3SDMGxD9DVg', 'active_lobby': None}
+2025-03-17 19:26:27,663 - INFO - User neil disconnected. Reason: client disconnect
+2025-03-17 19:26:38,631 - INFO - Created lobby lobby_1742239598 with players ['sam', 'neil']
+2025-03-17 19:26:38,685 - INFO - Join lobby request from sam for lobby lobby_1742239598 (rejoin: True)
+2025-03-17 19:26:38,694 - INFO - Join lobby request from neil for lobby lobby_1742239598 (rejoin: True)
+2025-03-17 19:26:48,723 - INFO - Teams assigned in lobby lobby_1742239598: {'team1': ['neil'], 'team2': ['sam']}
+2025-03-17 19:26:48,723 - INFO - Starting map voting countdown for lobby lobby_1742239598
+2025-03-17 19:27:03,878 - INFO - No votes cast, randomly selected map: Map 1
+2025-03-17 19:27:03,878 - INFO - Map Map 1 selected for lobby lobby_1742239598
+2025-03-17 19:29:56,300 - INFO - Join lobby request from sam for lobby lobby_1742239598 (rejoin: True)
+2025-03-17 19:29:56,307 - INFO - Join lobby request from neil for lobby lobby_1742239598 (rejoin: True)
+2025-03-17 19:31:59,524 - INFO - User sam disconnected. Reason: transport close
+2025-03-17 19:31:59,524 - INFO - Added sam to disconnected players in lobby lobby_1742239598
+2025-03-17 19:31:59,525 - INFO - User neil disconnected. Reason: transport close
+2025-03-17 19:31:59,525 - INFO - Added neil to disconnected players in lobby lobby_1742239598
+2025-03-17 19:31:59,525 - INFO - Server stopped
+2025-03-17 19:32:03,818 - INFO - Starting Flask application
+2025-03-17 19:32:03,830 - INFO - Configuring CORS
+2025-03-17 19:32:03,830 - INFO - CORS configured
+2025-03-17 19:32:03,830 - INFO - === Socket Events Configuration ===
+2025-03-17 19:32:03,830 - INFO - Queue Leave Event: leave-queue
+2025-03-17 19:32:03,830 - INFO - Queue Join Event: join-queue
+2025-03-17 19:32:03,830 - INFO - Queue Status Event: queue_status
+2025-03-17 19:32:03,833 - INFO - Queue Update Event: queue_update
+2025-03-17 19:32:03,833 - INFO - Initializing SocketIO
+2025-03-17 19:32:03,850 - INFO - SocketIO initialized
+2025-03-17 19:32:03,850 - INFO - Cleaning up stale state...
+2025-03-17 19:32:03,850 - INFO - Cleanup complete
+2025-03-17 19:32:03,850 - INFO - Started queue management task
+2025-03-17 19:32:03,850 - INFO - Started stale player cleanup task
+2025-03-17 19:32:03,856 - INFO - Starting server...
+2025-03-17 19:32:07,452 - INFO - Sending login response for neil: {'success': True, 'message': 'Login successful', 'access_token': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc0MjIzOTkyNywianRpIjoiOTRiN2EzNDYtYmU2MS00MTlhLTk4M2YtZWQ4OGY2OTUzYzg3IiwidHlwZSI6ImFjY2VzcyIsInN1YiI6Im5laWwiLCJuYmYiOjE3NDIyMzk5MjcsImNzcmYiOiJkYzMzZjIxOC1mNWViLTQzNDMtOGZmMi05NzMzM2MzMWY3ZGQiLCJleHAiOjE3NDIyNDA4Mjd9.UelD_sX9f0CoJx-qyJMXwD8Ye27mjzyYiZoOhLI2Xak', 'active_lobby': None}
+2025-03-17 19:32:07,457 - INFO - User neil disconnected. Reason: client disconnect
+2025-03-17 19:32:14,516 - INFO - Sending login response for sam: {'success': True, 'message': 'Login successful', 'access_token': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc0MjIzOTkzNCwianRpIjoiMTdlYTIwYjYtOGQ3My00NWY4LTgyZTEtZTRkZTY2ZTdmZThjIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6InNhbSIsIm5iZiI6MTc0MjIzOTkzNCwiY3NyZiI6ImM2MjY2ZjdiLTlhODEtNDQzNy1iMTRkLWY5ZDJkZWNhYTk5OSIsImV4cCI6MTc0MjI0MDgzNH0.FIH9FmVt-PsV6ICHypwkiZvX-Z2QIqc23mttzRjJF_o', 'active_lobby': None}
+2025-03-17 19:32:14,516 - INFO - User sam disconnected. Reason: client disconnect
+2025-03-17 19:32:26,759 - INFO - Created lobby lobby_1742239946 with players ['sam', 'neil']
+2025-03-17 19:32:26,788 - INFO - Join lobby request from neil for lobby lobby_1742239946 (rejoin: True)
+2025-03-17 19:32:26,802 - INFO - Join lobby request from sam for lobby lobby_1742239946 (rejoin: True)
+2025-03-17 19:32:36,802 - INFO - Teams assigned in lobby lobby_1742239946: {'team1': ['sam'], 'team2': ['neil']}
+2025-03-17 19:32:36,803 - INFO - Starting map voting countdown for lobby lobby_1742239946
+2025-03-17 19:32:43,946 - INFO - Received vote request - Lobby: lobby_1742239946, Map: Map 1
+2025-03-17 19:32:43,946 - INFO - Found username neil for SID Ft7sV5nOiiVk7KSMAAAF
+2025-03-17 19:32:43,946 - INFO - Processing vote for neil in lobby lobby_1742239946
+2025-03-17 19:32:43,946 - INFO - Current votes in lobby lobby_1742239946:
+2025-03-17 19:32:43,946 - INFO - Map votes: {'neil': 'Map 1'}
+2025-03-17 19:32:43,946 - INFO - Vote counts: {'Map 1': 1}
+2025-03-17 19:32:50,127 - INFO - Received vote request - Lobby: lobby_1742239946, Map: Map 1
+2025-03-17 19:32:50,130 - INFO - Found username sam for SID TfWyfLn5yrc_-Zu4AAAJ
+2025-03-17 19:32:50,130 - INFO - Processing vote for sam in lobby lobby_1742239946
+2025-03-17 19:32:50,130 - INFO - Current votes in lobby lobby_1742239946:
+2025-03-17 19:32:50,130 - INFO - Map votes: {'neil': 'Map 1', 'sam': 'Map 1'}
+2025-03-17 19:32:50,130 - INFO - Vote counts: {'Map 1': 2}
+2025-03-17 19:32:51,941 - INFO - Final vote counts: {'Map 1': 2}
+2025-03-17 19:32:51,941 - INFO - Selected map: Map 1 with 2 votes
+2025-03-17 19:32:51,943 - INFO - Map Map 1 selected for lobby lobby_1742239946
+2025-03-17 19:34:03,123 - INFO - User neil disconnected. Reason: client disconnect
+2025-03-17 19:34:03,128 - INFO - Added neil to disconnected players in lobby lobby_1742239946
+2025-03-17 19:34:05,560 - INFO - Reconnecting neil to lobby lobby_1742239946
+2025-03-17 19:34:05,560 - INFO - User neil rejoined lobby lobby_1742239946 after login
+2025-03-17 19:34:05,563 - INFO - Sending login response for neil: {'success': True, 'message': 'Login successful', 'access_token': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc0MjI0MDA0NSwianRpIjoiMGVjNzk3MDctNzEwZS00MzIyLWEyNGQtMGViMTAwYzEwNGQ2IiwidHlwZSI6ImFjY2VzcyIsInN1YiI6Im5laWwiLCJuYmYiOjE3NDIyNDAwNDUsImNzcmYiOiJmZjkzYTY4MC1mMWRlLTRkM2EtYmQ4My03MTNlN2Q1YTc1N2IiLCJleHAiOjE3NDIyNDA5NDV9.nGwu5MRS0c10ZX72Pqu2A9Xts4mrUwIx0HutkfkEvQI', 'active_lobby': 'lobby_1742239946'}
+2025-03-17 19:34:05,572 - INFO - User neil disconnected. Reason: client disconnect
+2025-03-17 19:34:05,574 - INFO - Added neil to disconnected players in lobby lobby_1742239946
+2025-03-17 19:34:05,995 - INFO - Join lobby request from neil for lobby lobby_1742239946 (rejoin: True)
+2025-03-17 19:34:05,997 - INFO - Player neil reconnected to lobby lobby_1742239946
+2025-03-17 19:34:07,075 - INFO - Found username neil for SID 3NE3fdIHRHOimCPYAAAN
+2025-03-17 19:34:07,079 - INFO - Leave lobby request from neil for lobby lobby_1742239946
+2025-03-17 19:34:07,079 - INFO - Player neil left lobby lobby_1742239946
+2025-03-17 19:34:10,660 - INFO - Found username sam for SID TfWyfLn5yrc_-Zu4AAAJ
+2025-03-17 19:34:10,660 - INFO - Leave lobby request from sam for lobby lobby_1742239946
+2025-03-17 19:34:10,660 - INFO - Removed empty lobby lobby_1742239946
+2025-03-17 19:34:10,668 - INFO - Player sam left lobby lobby_1742239946
+2025-03-17 19:34:25,505 - INFO - Created lobby lobby_1742240065 with players ['neil', 'sam']
+2025-03-17 19:34:25,529 - INFO - Join lobby request from neil for lobby lobby_1742240065 (rejoin: True)
+2025-03-17 19:34:25,533 - INFO - Join lobby request from sam for lobby lobby_1742240065 (rejoin: True)
+2025-03-17 19:34:35,554 - INFO - Teams assigned in lobby lobby_1742240065: {'team1': ['neil'], 'team2': ['sam']}
+2025-03-17 19:34:35,555 - INFO - Starting map voting countdown for lobby lobby_1742240065
+2025-03-17 19:34:44,833 - INFO - Received vote request - Lobby: lobby_1742240065, Map: Map 3
+2025-03-17 19:34:44,833 - INFO - Found username neil for SID 3NE3fdIHRHOimCPYAAAN
+2025-03-17 19:34:44,833 - INFO - Processing vote for neil in lobby lobby_1742240065
+2025-03-17 19:34:44,833 - INFO - Current votes in lobby lobby_1742240065:
+2025-03-17 19:34:44,833 - INFO - Map votes: {'neil': 'Map 3'}
+2025-03-17 19:34:44,833 - INFO - Vote counts: {'Map 3': 1}
+2025-03-17 19:34:50,653 - INFO - Final vote counts: {'Map 3': 1}
+2025-03-17 19:34:50,655 - INFO - Selected map: Map 3 with 1 votes
+2025-03-17 19:34:50,655 - INFO - Map Map 3 selected for lobby lobby_1742240065
+2025-03-17 19:35:00,611 - INFO - Found username neil for SID 3NE3fdIHRHOimCPYAAAN
+2025-03-17 19:35:00,612 - INFO - Leave lobby request from neil for lobby lobby_1742240065
+2025-03-17 19:35:00,612 - INFO - Player neil left lobby lobby_1742240065
+2025-03-17 19:35:27,329 - INFO - Found username sam for SID TfWyfLn5yrc_-Zu4AAAJ
+2025-03-17 19:35:27,329 - INFO - Leave lobby request from sam for lobby lobby_1742240065
+2025-03-17 19:35:27,329 - INFO - Removed empty lobby lobby_1742240065
+2025-03-17 19:35:27,329 - INFO - Player sam left lobby lobby_1742240065
+2025-03-17 19:35:41,674 - INFO - Created lobby lobby_1742240141 with players ['neil', 'sam']
+2025-03-17 19:35:41,690 - INFO - Join lobby request from sam for lobby lobby_1742240141 (rejoin: True)
+2025-03-17 19:35:41,715 - INFO - Join lobby request from neil for lobby lobby_1742240141 (rejoin: True)
+2025-03-17 19:35:51,714 - INFO - Teams assigned in lobby lobby_1742240141: {'team1': ['sam'], 'team2': ['neil']}
+2025-03-17 19:35:51,715 - INFO - Starting map voting countdown for lobby lobby_1742240141
+2025-03-17 19:36:00,086 - INFO - Received vote request - Lobby: lobby_1742240141, Map: Map 4
+2025-03-17 19:36:00,086 - INFO - Found username neil for SID 3NE3fdIHRHOimCPYAAAN
+2025-03-17 19:36:00,086 - INFO - Processing vote for neil in lobby lobby_1742240141
+2025-03-17 19:36:00,086 - INFO - Current votes in lobby lobby_1742240141:
+2025-03-17 19:36:00,086 - INFO - Map votes: {'neil': 'Map 4'}
+2025-03-17 19:36:00,086 - INFO - Vote counts: {'Map 4': 1}
+2025-03-17 19:36:02,230 - INFO - Received vote request - Lobby: lobby_1742240141, Map: Map 5
+2025-03-17 19:36:02,230 - INFO - Found username sam for SID TfWyfLn5yrc_-Zu4AAAJ
+2025-03-17 19:36:02,230 - INFO - Processing vote for sam in lobby lobby_1742240141
+2025-03-17 19:36:02,230 - INFO - Current votes in lobby lobby_1742240141:
+2025-03-17 19:36:02,230 - INFO - Map votes: {'neil': 'Map 4', 'sam': 'Map 5'}
+2025-03-17 19:36:02,230 - INFO - Vote counts: {'Map 4': 1, 'Map 5': 1}
+2025-03-17 19:36:06,837 - INFO - Final vote counts: {'Map 4': 1, 'Map 5': 1}
+2025-03-17 19:36:06,837 - INFO - Selected map: Map 5 with 1 votes
+2025-03-17 19:36:06,837 - INFO - Map Map 5 selected for lobby lobby_1742240141
+2025-03-17 19:36:34,901 - INFO - Found username sam for SID TfWyfLn5yrc_-Zu4AAAJ
+2025-03-17 19:36:34,901 - INFO - Leave lobby request from sam for lobby lobby_1742240141
+2025-03-17 19:36:34,901 - INFO - Player sam left lobby lobby_1742240141
+2025-03-17 19:36:36,469 - INFO - Found username neil for SID 3NE3fdIHRHOimCPYAAAN
+2025-03-17 19:36:36,469 - INFO - Leave lobby request from neil for lobby lobby_1742240141
+2025-03-17 19:36:36,469 - INFO - Removed empty lobby lobby_1742240141
+2025-03-17 19:36:36,469 - INFO - Player neil left lobby lobby_1742240141
+2025-03-17 19:36:49,447 - INFO - Created lobby lobby_1742240209 with players ['sam', 'neil']
+2025-03-17 19:36:49,477 - INFO - Join lobby request from sam for lobby lobby_1742240209 (rejoin: True)
+2025-03-17 19:36:49,493 - INFO - Join lobby request from neil for lobby lobby_1742240209 (rejoin: True)
+2025-03-17 19:36:59,484 - INFO - Teams assigned in lobby lobby_1742240209: {'team1': ['neil'], 'team2': ['sam']}
+2025-03-17 19:36:59,485 - INFO - Starting map voting countdown for lobby lobby_1742240209
+2025-03-17 19:37:06,985 - INFO - Received vote request - Lobby: lobby_1742240209, Map: Map 5
+2025-03-17 19:37:06,985 - INFO - Found username neil for SID 3NE3fdIHRHOimCPYAAAN
+2025-03-17 19:37:06,986 - INFO - Processing vote for neil in lobby lobby_1742240209
+2025-03-17 19:37:06,986 - INFO - Current votes in lobby lobby_1742240209:
+2025-03-17 19:37:06,986 - INFO - Map votes: {'neil': 'Map 5'}
+2025-03-17 19:37:06,986 - INFO - Vote counts: {'Map 5': 1}
+2025-03-17 19:37:10,472 - INFO - Received vote request - Lobby: lobby_1742240209, Map: Map 3
+2025-03-17 19:37:10,472 - INFO - Found username sam for SID TfWyfLn5yrc_-Zu4AAAJ
+2025-03-17 19:37:10,472 - INFO - Processing vote for sam in lobby lobby_1742240209
+2025-03-17 19:37:10,472 - INFO - Current votes in lobby lobby_1742240209:
+2025-03-17 19:37:10,472 - INFO - Map votes: {'neil': 'Map 5', 'sam': 'Map 3'}
+2025-03-17 19:37:10,472 - INFO - Vote counts: {'Map 5': 1, 'Map 3': 1}
+2025-03-17 19:37:14,627 - INFO - Final vote counts: {'Map 5': 1, 'Map 3': 1}
+2025-03-17 19:37:14,628 - INFO - Selected map: Map 5 with 1 votes
+2025-03-17 19:37:14,628 - INFO - Map Map 5 selected for lobby lobby_1742240209
+2025-03-17 19:38:30,296 - INFO - Found username sam for SID TfWyfLn5yrc_-Zu4AAAJ
+2025-03-17 19:38:30,297 - INFO - Leave lobby request from sam for lobby lobby_1742240209
+2025-03-17 19:38:30,297 - INFO - Player sam left lobby lobby_1742240209
+2025-03-17 19:38:34,585 - INFO - Found username neil for SID 3NE3fdIHRHOimCPYAAAN
+2025-03-17 19:38:34,585 - INFO - Leave lobby request from neil for lobby lobby_1742240209
+2025-03-17 19:38:34,585 - INFO - Removed empty lobby lobby_1742240209
+2025-03-17 19:38:34,585 - INFO - Player neil left lobby lobby_1742240209
+2025-03-17 19:38:43,188 - INFO - === Leave queue handler START ===
+2025-03-17 19:38:43,191 - INFO - Removed sam from queue
+2025-03-17 19:38:43,191 - INFO - Sending leave queue response: {'success': True, 'inQueue': False, 'playersInQueue': 0, 'queue': []}
+2025-03-17 19:38:56,807 - INFO - Created lobby lobby_1742240336 with players ['neil', 'sam']
+2025-03-17 19:38:56,819 - INFO - Join lobby request from sam for lobby lobby_1742240336 (rejoin: True)
+2025-03-17 19:38:56,838 - INFO - Join lobby request from neil for lobby lobby_1742240336 (rejoin: True)
+2025-03-17 19:39:06,842 - INFO - Teams assigned in lobby lobby_1742240336: {'team1': ['sam'], 'team2': ['neil']}
+2025-03-17 19:39:06,844 - INFO - Starting map voting countdown for lobby lobby_1742240336
+2025-03-17 19:39:15,264 - INFO - Received vote request - Lobby: lobby_1742240336, Map: Map 5
+2025-03-17 19:39:15,264 - INFO - Found username neil for SID 3NE3fdIHRHOimCPYAAAN
+2025-03-17 19:39:15,264 - INFO - Processing vote for neil in lobby lobby_1742240336
+2025-03-17 19:39:15,264 - INFO - Current votes in lobby lobby_1742240336:
+2025-03-17 19:39:15,264 - INFO - Map votes: {'neil': 'Map 5'}
+2025-03-17 19:39:15,264 - INFO - Vote counts: {'Map 5': 1}
+2025-03-17 19:39:21,957 - INFO - Final vote counts: {'Map 5': 1}
+2025-03-17 19:39:21,957 - INFO - Selected map: Map 5 with 1 votes
+2025-03-17 19:39:21,959 - INFO - Map Map 5 selected for lobby lobby_1742240336
+2025-03-17 19:41:30,862 - INFO - Join lobby request from sam for lobby lobby_1742240336 (rejoin: True)
+2025-03-17 19:41:30,877 - INFO - Join lobby request from neil for lobby lobby_1742240336 (rejoin: True)
+2025-03-17 19:45:55,139 - INFO - User sam disconnected. Reason: transport close
+2025-03-17 19:45:55,139 - INFO - Added sam to disconnected players in lobby lobby_1742240336
+2025-03-17 19:45:55,139 - INFO - User neil disconnected. Reason: transport close
+2025-03-17 19:45:55,139 - INFO - Added neil to disconnected players in lobby lobby_1742240336
+2025-03-17 19:45:55,139 - INFO - Server stopped

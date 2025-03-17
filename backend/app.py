@@ -150,7 +150,10 @@ SOCKET_EVENTS =  {
         'MAP_SELECTED': 'map_selected',
         'START': 'start-lobby',
         'READY': 'lobby_ready',
-        'COUNTDOWN': 'lobby_countdown',
+        'COUNTDOWN': {
+            'TEAMS': 'lobby_countdown_teams',
+            'VOTING': 'lobby_countdown_voting'
+        },
         'TEAMS_ASSIGNED': 'teams_assigned',
     },
 
@@ -226,9 +229,15 @@ def with_retry(max_attempts=3):
 
 def get_username_by_sid(sid):
     """Helper function to get username from socket ID"""
-    for sid_key, username in player_activity.items():
-        if sid_key == sid:
+    logger.debug(f"Looking up username for SID: {sid}")
+    logger.debug(f"Current player activity: {player_activity}")
+    
+    for username, data in player_activity.items():
+        if data.get('sid') == sid:
+            logger.info(f"Found username {username} for SID {sid}")
             return username
+            
+    logger.warning(f"No username found for SID: {sid}")
     return None
 
 def signal_handler(sig, frame):
@@ -376,25 +385,41 @@ def start_map_voting(lobby_id):
         if 'map_votes' not in lobby:
             lobby['map_votes'] = {}
             
+        # Store the countdown in the lobby state
+        lobby['voting_countdown'] = countdown
+            
         while countdown > 0:
-            # Emit countdown update
-            socketio.emit('lobby_update', {
-                'votingCountdown': countdown,
+            # Emit countdown update with specific event
+            socketio.emit('lobby_countdown_voting', {
+                'countdown': countdown,
                 'lobby_id': lobby_id,
-                'map_votes': lobby['map_votes']
+                'type': 'voting',
+                'map_votes': lobby['map_votes'],
+                'vote_counts': {vote: sum(1 for v in lobby['map_votes'].values() if v == vote) 
+                              for vote in set(lobby['map_votes'].values())}
             }, room=lobby_id)
             
             logger.debug(f"Map voting countdown: {countdown}, Votes: {lobby['map_votes']}")
             eventlet.sleep(1)
             countdown -= 1
+            lobby['voting_countdown'] = countdown
         
         # After countdown ends, tally votes
         if lobby['map_votes']:
-            vote_counts = Counter(lobby['map_votes'].values())
+            # Count votes for each map
+            vote_counts = {}
+            for username, map_choice in lobby['map_votes'].items():
+                vote_counts[map_choice] = vote_counts.get(map_choice, 0) + 1
+            
+            logger.info(f"Final vote counts: {vote_counts}")
+            
+            # Find map(s) with most votes
             max_votes = max(vote_counts.values())
-            tied_maps = [m for m, v in vote_counts.items() if v == max_votes]
-            selected_map = random.choice(tied_maps) if len(tied_maps) > 1 else tied_maps[0]
-            logger.info(f"Map voting complete. Votes: {vote_counts}, Selected: {selected_map}")
+            winning_maps = [map_name for map_name, votes in vote_counts.items() if votes == max_votes]
+            
+            # Select winning map (randomly if tied)
+            selected_map = random.choice(winning_maps)
+            logger.info(f"Selected map: {selected_map} with {max_votes} votes")
         else:
             # If no votes, randomly select a map
             selected_map = random.choice(AVAILABLE_MAPS)
@@ -408,7 +433,8 @@ def start_map_voting(lobby_id):
         socketio.emit('lobby_update', {
             'step': 3,
             'selected_map': selected_map,
-            'lobby_id': lobby_id
+            'lobby_id': lobby_id,
+            'vote_counts': vote_counts if 'vote_counts' in locals() else {}
         }, room=lobby_id)
         
         logger.info(f"Map {selected_map} selected for lobby {lobby_id}")
@@ -513,10 +539,11 @@ def start_team_assignment_countdown(lobby_id):
         }, room=lobby_id)
             
         while countdown > 0:
-            # Emit countdown update
-            socketio.emit('lobby_update', {
+            # Emit countdown update with specific event
+            socketio.emit('lobby_countdown_teams', {
                 'countdown': countdown,
-                'lobby_id': lobby_id
+                'lobby_id': lobby_id,
+                'type': 'teams'
             }, room=lobby_id)
             
             eventlet.sleep(1)
@@ -1235,17 +1262,24 @@ def vote_map(data):
         lobby_id = data.get('lobby_id')
         map_choice = data.get('map')
         
+        logger.info(f"Received vote request - Lobby: {lobby_id}, Map: {map_choice}")
+        
         if not lobby_id or not map_choice:
+            logger.error("Missing required data for vote")
             return {'success': False, 'message': 'Missing required data'}
             
         lobby = lobbies.get(lobby_id)
         if not lobby:
+            logger.error(f"Lobby {lobby_id} not found")
             return {'success': False, 'message': 'Lobby not found'}
             
         # Get username from request
         username = get_username_by_sid(request.sid)
         if not username:
+            logger.error(f"User not found for SID: {request.sid}")
             return {'success': False, 'message': 'User not found'}
+            
+        logger.info(f"Processing vote for {username} in lobby {lobby_id}")
             
         # Initialize map_votes if not exists
         if 'map_votes' not in lobby:
@@ -1254,12 +1288,25 @@ def vote_map(data):
         # Record the vote
         lobby['map_votes'][username] = map_choice
         
-        logger.info(f"Player {username} voted for map {map_choice} in lobby {lobby_id}")
+        # Count votes for each map
+        vote_counts = {}
+        for user, vote in lobby['map_votes'].items():
+            vote_counts[vote] = vote_counts.get(vote, 0) + 1
+        
+        logger.info(f"Current votes in lobby {lobby_id}:")
+        logger.info(f"Map votes: {lobby['map_votes']}")
+        logger.info(f"Vote counts: {vote_counts}")
+        
+        # Get current countdown from lobby state
+        current_countdown = lobby.get('voting_countdown', 15)
         
         # Broadcast updated votes to all players in lobby
-        socketio.emit('lobby_update', {
+        socketio.emit('lobby_countdown_voting', {
+            'countdown': current_countdown,
+            'lobby_id': lobby_id,
+            'type': 'voting',
             'map_votes': lobby['map_votes'],
-            'lobby_id': lobby_id
+            'vote_counts': vote_counts
         }, room=lobby_id)
         
         return {'success': True}

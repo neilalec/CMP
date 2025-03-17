@@ -52,12 +52,35 @@ onMounted(async () => {
           }
         },
         {
+          event: SOCKET_EVENTS.LOBBY.COUNTDOWN.TEAMS,
+          handler: (data) => {
+            lobbyStore.updateCountdown(data.countdown);
+          }
+        },
+        {
+          event: SOCKET_EVENTS.LOBBY.COUNTDOWN.VOTING,
+          handler: (data) => {
+            console.log('Received voting countdown update:', data);
+            if (data.countdown !== undefined) {
+              lobbyStore.updateVotingCountdown(data.countdown);
+            }
+            if (data.map_votes) {
+              lobbyStore.updateMapVotes(data.map_votes);
+            }
+            if (data.vote_counts) {
+              lobbyStore.updateVoteCounts(data.vote_counts);
+            }
+          }
+        },
+        {
           event: SOCKET_EVENTS.LOBBY.MAP_SELECTED,
           handler: async (data) => {
+            console.log('Map selected:', data);
             await socketStore.emit(SOCKET_EVENTS.LOBBY.GET_DATA, { lobby_id: lobbyId });
             lobbyStore.updateLobbyState({
               selectedMap: data.map,
-              step: 3
+              step: 3,
+              votingCountdown: null  // Reset countdown when map is selected
             });
           }
         },
@@ -148,11 +171,16 @@ onBeforeUnmount(() => {
 // METHODS
 const handleVoteMap = async (map) => {
   try {
-    await socketStore.emit(SOCKET_EVENTS.LOBBY.VOTE_MAP, {
+    console.log('Voting for map:', map);
+    const response = await socketStore.emit(SOCKET_EVENTS.LOBBY.VOTE_MAP, {
       lobby_id: lobbyStore.lobbyId,
       map
     });
+    console.log('Vote response:', response);
+    // Update local state immediately for better UX
+    lobbyStore.mapVotes[authStore.username] = map;
   } catch (error) {
+    console.error('Error voting for map:', error);
     rootStore.setError({
       message: 'Failed to vote for map',
       details: error.message,
@@ -202,8 +230,6 @@ const handleLeaveLobby = async () => {
     
     <!-- Step 1: Waiting with Countdown -->
     <div v-if="lobbyStore.step === 1" class="lobby-section">
-      <h2>Waiting for Players</h2>
-      
       <!-- Show countdown if active -->
       <div v-if="lobbyStore.countdown !== null" class="countdown">
         <h3>Teams will be assigned in:</h3>
@@ -262,10 +288,10 @@ const handleLeaveLobby = async () => {
           :key="map"
           @click="handleVoteMap(map)"
           :class="['map-button', { 'voted': lobbyStore.mapVotes[authStore.username] === map }]"
-          :disabled="lobbyStore.mapVotes[authStore.username]"
+          :disabled="lobbyStore.mapVotes[authStore.username] && lobbyStore.mapVotes[authStore.username] !== map"
         >
           {{ map }}
-          <span class="vote-count" v-if="lobbyStore.mapVotes[map]">
+          <span class="vote-count" v-if="lobbyStore.getVotesForMap(map) > 0">
             ({{ lobbyStore.getVotesForMap(map) }})
           </span>
         </button>

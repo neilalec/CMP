@@ -81,7 +81,7 @@ onBeforeUnmount(() => {
   <div class="app">
     <nav v-if="authStore.isLoggedIn">
       <RouterLink to="/">Home</RouterLink>
-      <span class="username">{{ authStore.username }}</span>
+      <span class="username">User: {{ authStore.username }}</span>
       <button @click="handleLogout">Logout</button>
     </nav>
 

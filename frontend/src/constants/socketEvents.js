@@ -42,7 +42,10 @@ export const SOCKET_EVENTS = {
     MAP_SELECTED: 'map_selected',
     START: 'start-lobby',
     READY: 'lobby_ready',
-    COUNTDOWN: 'lobby_countdown',
+    COUNTDOWN: {
+      TEAMS: 'lobby_countdown_teams',
+      VOTING: 'lobby_countdown_voting'
+    },
     TEAMS_ASSIGNED: 'teams_assigned',
   },
 

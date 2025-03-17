@@ -22,7 +22,8 @@ export const useLobbyStore = defineStore('lobby', {
     isAssigningTeams: false,
     showingTeams: false,
     mapVotes: {},
-    votingCountdown: null
+    votingCountdown: null,
+    voteCounts: {}
   }),
 
   actions: {
@@ -113,6 +114,7 @@ export const useLobbyStore = defineStore('lobby', {
       this.showingTeams = false;
       this.mapVotes = {};
       this.votingCountdown = null;
+      this.voteCounts = {};
     },
 
     updateCountdown(count) {
@@ -143,6 +145,10 @@ export const useLobbyStore = defineStore('lobby', {
       this.mapVotes = votes;
     },
 
+    updateVoteCounts(counts) {
+      this.voteCounts = counts;
+    },
+
     updateVotingCountdown(count) {
       this.votingCountdown = count;
     },
@@ -170,7 +176,7 @@ export const useLobbyStore = defineStore('lobby', {
     },
 
     getVotesForMap: (state) => (map) => {
-      return Object.values(state.mapVotes).filter(vote => vote === map).length;
+      return state.voteCounts[map] || 0;
     }
   }
 });
