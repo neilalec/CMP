@@ -1,4 +1,3 @@
-// No need to import jest - it's already global
 // Mock environment variables
 Object.defineProperty(window, '__ENV__', {
     value: {
@@ -6,13 +5,24 @@ Object.defineProperty(window, '__ENV__', {
     }
 });
 
-// Mock localStorage
-const localStorageMock = {
-    getItem: jest.fn(),
-    setItem: jest.fn(),
-    clear: jest.fn(),
-    removeItem: jest.fn()
-};
+// Mock localStorage with state management
+const localStorageMock = (() => {
+    let store = {};
+    return {
+        getItem: jest.fn(key => store[key] || null),
+        setItem: jest.fn((key, value) => {
+            store[key] = value.toString();  // Ensure string storage
+        }),
+        removeItem: jest.fn(key => {
+            delete store[key];
+        }),
+        clear: jest.fn(() => {
+            store = {};
+        }),
+        _store: store  // For testing purposes
+    };
+})();
+
 Object.defineProperty(window, 'localStorage', {
     value: localStorageMock
 });
@@ -28,5 +38,4 @@ Object.defineProperty(window, 'WebSocket', {
     value: mockWebSocket
 });
 
-// Add to existing setup.js
 process.env.VITE_SOCKET_URL = 'http://localhost:5000'; 

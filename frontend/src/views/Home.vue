@@ -108,24 +108,54 @@ const leaveQueue = async () => {
 .queue-container {
   max-width: 400px;
   margin: 2rem auto;
-  padding: 1rem;
+  padding: 2rem;
+  background: #2d2d2d;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.queue-container h1 {
+  text-align: center;
+  margin-bottom: 2rem;
+  color: #ffffff;
+}
+
+.queue-status {
+  text-align: center;
+  margin-bottom: 2rem;
+  color: #cccccc;
+}
+
+.queue-status p {
+  margin: 0.5rem 0;
+}
+
+.countdown {
+  font-size: 1.2em;
+  color: #4CAF50;
+  font-weight: bold;
+  margin-top: 1rem;
 }
 
 button {
   display: block;
   width: 200px;
   margin: 1rem auto;
-  padding: 0.5rem;
+  padding: 0.8rem;
+  background: #3d3d3d;
+  color: white;
+  border: none;
+  border-radius: 4px;
   cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+button:hover {
+  background: #4d4d4d;
 }
 
 button:disabled {
   opacity: 0.5;
-}
-.countdown {
-  font-size: 1.2em;
-  color: #4CAF50;
-  font-weight: bold;
-  margin-top: 1rem;
+  cursor: not-allowed;
 }
 </style>

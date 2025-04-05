@@ -96,29 +96,60 @@ onBeforeUnmount(() => {
 <style scoped>
 .app {
   font-family: Arial, sans-serif;
-  background: white;
-  color: black;
+  background: #1a1a1a;
+  color: #ffffff;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
 nav {
-  background: #f0f0f0;
+  background: #2d2d2d;
   padding: 1rem;
   display: flex;
   justify-content: center;
   gap: 1rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+nav a {
+  color: #ffffff;
+  text-decoration: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+nav a:hover {
+  background: #3d3d3d;
 }
 
 .error-message {
   position: fixed;
   bottom: 20px;
   right: 20px;
-  background: #ff0000;
+  background: #ff4444;
   color: white;
   padding: 1rem;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 button {
   padding: 0.5rem 1rem;
   cursor: pointer;
+  background: #3d3d3d;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+button:hover {
+  background: #4d4d4d;
+}
+
+.username {
+  color: #888;
 }
 </style>

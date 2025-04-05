@@ -14,7 +14,6 @@ jest.mock('@/services/socketService', () => ({
 describe('AuthStore', () => {
     beforeEach(() => {
         setActivePinia(createPinia());
-        // Clear localStorage before each test
         localStorage.clear();
     });
 
@@ -25,28 +24,37 @@ describe('AuthStore', () => {
         expect(store.username).toBeNull();
     });
 
-    test('login sets auth state', () => {
+    test('setAuth sets auth state', async () => {
         const store = useAuthStore();
-        const testData = {
-            token: 'test-token',
-            username: 'testuser'
-        };
+        const testToken = 'test-token';
+        const testUsername = 'testuser';
         
-        store.login(testData);
+        await store.setAuth(testToken, testUsername);
         
         expect(store.isLoggedIn).toBe(true);
-        expect(store.token).toBe('test-token');
-        expect(store.username).toBe('testuser');
-        expect(localStorage.getItem('token')).toBe('test-token');
-        expect(localStorage.getItem('username')).toBe('testuser');
+        expect(store.token).toBe(testToken);
+        expect(store.username).toBe(testUsername);
+        expect(localStorage.getItem('token')).toBe(testToken);
+        expect(localStorage.getItem('username')).toBe(testUsername);
     });
 
-    test('logout clears auth state', () => {
+    test('login sets auth state', async () => {
         const store = useAuthStore();
-        store.login({
-            token: 'test-token',
-            username: 'testuser'
-        });
+        const testToken = 'test-token';
+        const testUsername = 'testuser';
+        
+        await store.login(testToken, testUsername);
+        
+        expect(store.isLoggedIn).toBe(true);
+        expect(store.token).toBe(testToken);
+        expect(store.username).toBe(testUsername);
+        expect(localStorage.getItem('token')).toBe(testToken);
+        expect(localStorage.getItem('username')).toBe(testUsername);
+    });
+
+    test('logout clears auth state', async () => {
+        const store = useAuthStore();
+        await store.setAuth('test-token', 'testuser');
         
         store.logout();
         
@@ -76,17 +84,5 @@ describe('AuthStore', () => {
         
         expect(result).toBe(false);
         expect(store.isLoggedIn).toBe(false);
-    });
-
-    test('login and logout', () => {
-        const store = useAuthStore();
-        
-        store.login({ token: 'test-token', username: 'test' });
-        expect(store.isLoggedIn).toBe(true);
-        expect(store.token).toBe('test-token');
-        
-        store.logout();
-        expect(store.isLoggedIn).toBe(false);
-        expect(store.token).toBeNull();
     });
 }); 

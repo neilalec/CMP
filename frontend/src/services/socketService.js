@@ -1,5 +1,4 @@
 import { io } from 'socket.io-client';
-import { getEnvConfig } from '../config/env';
 import { SOCKET_EVENTS } from '../constants/socketEvents';
 
 export class SocketService {

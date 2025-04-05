@@ -1,18 +1,43 @@
 import pytest
-from app import app, socketio
+from app import app, socketio, load_users, users
 from flask_jwt_extended import create_access_token
+import json
+import os
 
-@pytest.fixture(scope='function')
+@pytest.fixture(scope='session')
 def flask_app():
     app.config.update({
         'TESTING': True,
         'JWT_SECRET_KEY': 'test-secret',
-        'SECRET_KEY': 'test-secret'
+        'SECRET_KEY': 'test-secret',
+        'USERS_FILE': 'test_users.json'
     })
     return app
 
 @pytest.fixture(scope='function')
-def socket_client(flask_app):
+def test_users():
+    """Fixture to manage test users"""
+    # Setup test users file
+    test_users = {
+        'neil': '123'  # Persistent test user
+    }
+    with open('test_users.json', 'w') as f:
+        json.dump(test_users, f)
+    
+    # Configure app to use test file
+    app.config['USERS_FILE'] = 'test_users.json'
+    users.clear()
+    users.update(test_users)
+    
+    yield users
+    
+    # Cleanup
+    users.clear()
+    if os.path.exists('test_users.json'):
+        os.remove('test_users.json')
+
+@pytest.fixture(scope='function')
+def socket_client(flask_app, test_users):
     return socketio.test_client(app)
 
 @pytest.fixture(scope='function')

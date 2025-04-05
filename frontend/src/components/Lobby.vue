@@ -230,7 +230,7 @@ const handleLeaveLobby = async () => {
     
     <!-- Step 1: Waiting with Countdown -->
     <div v-if="lobbyStore.step === 1" class="lobby-section">
-      <!-- Show countdown if active -->
+      <!-- Countdown Display -->
       <div v-if="lobbyStore.countdown !== null" class="countdown">
         <h3>Teams will be assigned in:</h3>
         <div class="countdown-timer">{{ lobbyStore.countdown }}</div>
@@ -276,10 +276,11 @@ const handleLeaveLobby = async () => {
 
     <!-- Step 2: Map Voting -->
     <div v-else-if="lobbyStore.step === 2" class="lobby-section">
-      <h2>Vote for a Map</h2>
+      <!-- Countdown Display -->
       <div v-if="lobbyStore.votingCountdown" class="countdown">
+        <h3>Vote for a Map:</h3>
         <div class="countdown-timer">{{ lobbyStore.votingCountdown }}</div>
-        <p>seconds remaining to vote</p>
+        <p>seconds remaining</p>
       </div>
       
       <div class="map-list">
@@ -300,19 +301,45 @@ const handleLeaveLobby = async () => {
 
     <!-- Step 3: Map Selected -->
     <div v-else-if="lobbyStore.step === 3" class="lobby-section">
-      <h2>Map Selected</h2>
-      <p class="selected-map">{{ lobbyStore.selectedMap }}</p>
-      <p>Waiting for server allocation...</p>
+      <h2>Match Ready</h2>
+      <div class="match-details">
+        <div class="match-info">
+          <p>Selected Map: <span class="highlight">{{ lobbyStore.selectedMap }}</span></p>
+          <p>Server IP: <span class="highlight">{{ lobbyStore.serverDetails?.ip || '192.168.1.100' }}</span></p>
+        </div>
+        
+        <div class="teams-container">
+          <div class="team">
+            <h3>Team 1</h3>
+            <ul>
+              <li v-for="player in lobbyStore.teams.team1" :key="player">
+                {{ player }}
+              </li>
+            </ul>
+          </div>
+          
+          <div class="team">
+            <h3>Team 2</h3>
+            <ul>
+              <li v-for="player in lobbyStore.teams.team2" :key="player">
+                {{ player }}
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Step 4: Server Details -->
     <div v-else-if="lobbyStore.step === 4" class="lobby-section">
       <h2>Match Ready</h2>
       <div class="match-details">
-        <p>Map: {{ lobbyStore.selectedMap }}</p>
-        <p>Server: {{ lobbyStore.serverDetails?.ip }}</p>
+        <div class="match-info">
+          <p>Map: <span class="highlight">{{ lobbyStore.selectedMap }}</span></p>
+          <p>Server: <span class="highlight">{{ lobbyStore.serverDetails?.ip }}</span></p>
+        </div>
         
-        <div class="teams">
+        <div class="teams-container">
           <div class="team">
             <h3>Team 1</h3>
             <ul>
@@ -341,6 +368,7 @@ const handleLeaveLobby = async () => {
   max-width: 800px;
   margin: 0 auto;
   padding: 20px;
+  min-height: 600px;
 }
 
 .lobby-header {
@@ -350,35 +378,135 @@ const handleLeaveLobby = async () => {
   margin-bottom: 20px;
 }
 
+.lobby-header h1 {
+  color: #ffffff;
+  margin: 0;
+}
+
 .lobby-section {
-  background: #f5f5f5;
-  padding: 20px;
-  border-radius: 4px;
+  background: #2d2d2d;
+  padding: 30px;
+  border-radius: 8px;
   margin-bottom: 20px;
+  min-height: 500px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.countdown {
+  text-align: center;
+  margin: 20px 0;
+  width: 100%;
+}
+
+.countdown h3 {
+  color: #cccccc;
+  margin-bottom: 10px;
+}
+
+.countdown-timer {
+  font-size: 48px;
+  font-weight: bold;
+  color: #4CAF50;
+  margin: 20px 0;
+}
+
+.players-list {
+  width: 100%;
+  max-width: 400px;
+  margin: 20px auto;
+}
+
+.players-list h3 {
+  color: #cccccc;
+  text-align: center;
+  margin-bottom: 15px;
+}
+
+.players-list ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.players-list li {
+  padding: 10px;
+  margin: 5px 0;
+  background: #3d3d3d;
+  border-radius: 4px;
+  text-align: center;
+  color: #ffffff;
+}
+
+.teams-container {
+  display: flex;
+  justify-content: space-around;
+  margin: 20px 0;
+  width: 100%;
+  max-width: 600px;
+}
+
+.team {
+  flex: 1;
+  margin: 0 10px;
+  padding: 20px;
+  background: #3d3d3d;
+  border-radius: 4px;
+  min-width: 200px;
+}
+
+.team h3 {
+  text-align: center;
+  margin-bottom: 15px;
+  color: #cccccc;
+}
+
+.team ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.team li {
+  padding: 8px;
+  margin: 5px 0;
+  background: #2d2d2d;
+  border-radius: 4px;
+  text-align: center;
+  color: #ffffff;
 }
 
 .map-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 15px;
+  justify-content: center;
   margin-top: 20px;
+  width: 100%;
+  max-width: 600px;
 }
 
 .map-button {
   position: relative;
   padding: 15px 25px;
-  margin: 10px;
-  background: #4CAF50;
+  background: #3d3d3d;
   color: white;
   border: none;
   border-radius: 4px;
   cursor: pointer;
   transition: all 0.3s ease;
+  min-width: 120px;
+}
+
+.map-button:hover {
+  background: #4d4d4d;
 }
 
 .map-button:disabled {
-  opacity: 0.7;
-  cursor: default;
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .map-button.voted {
@@ -390,7 +518,7 @@ const handleLeaveLobby = async () => {
   position: absolute;
   top: -8px;
   right: -8px;
-  background: #FFF;
+  background: #2d2d2d;
   color: #4CAF50;
   border-radius: 50%;
   padding: 2px 6px;
@@ -399,66 +527,86 @@ const handleLeaveLobby = async () => {
 
 .leave-button {
   padding: 8px 16px;
-  background: #f44336;
+  background: #ff4444;
   color: white;
   border: none;
   border-radius: 4px;
   cursor: pointer;
+  transition: background-color 0.2s;
 }
 
-.teams {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 20px;
-}
-
-.team {
-  flex: 1;
-  margin: 0 10px;
-  padding: 15px;
-  background: white;
-  border-radius: 4px;
+.leave-button:hover {
+  background: #ff5555;
 }
 
 .loading {
   text-align: center;
   padding: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 500px;
+  color: #cccccc;
 }
 
 .selected-map {
   font-size: 1.2em;
   font-weight: bold;
   color: #4CAF50;
-}
-
-.countdown {
   text-align: center;
-  margin: 20px 0;
-}
-
-.countdown-timer {
-  font-size: 48px;
-  font-weight: bold;
-  color: #4CAF50;
-}
-
-.teams-container {
-  display: flex;
-  justify-content: space-around;
   margin: 20px 0;
 }
 
 .transition-message {
   text-align: center;
   margin-top: 20px;
-  color: #666;
+  color: #888888;
   font-style: italic;
 }
 
 .teams-display h3 {
   text-align: center;
-  color: #2c3e50;
+  color: #cccccc;
   margin-bottom: 20px;
+}
+
+.match-details {
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.match-details p {
+  margin: 10px 0;
+  font-size: 1.1em;
+  color: #cccccc;
+}
+
+.match-details h2 {
+  color: #ffffff;
+  margin-bottom: 20px;
+}
+
+.match-info {
+  background: #3d3d3d;
+  padding: 20px;
+  border-radius: 4px;
+  margin-bottom: 20px;
+  width: 100%;
+  max-width: 400px;
+}
+
+.match-info p {
+  margin: 10px 0;
+  font-size: 1.1em;
+  color: #cccccc;
+  text-align: center;
+}
+
+.highlight {
+  color: #4CAF50;
+  font-weight: bold;
 }
 </style>
   
