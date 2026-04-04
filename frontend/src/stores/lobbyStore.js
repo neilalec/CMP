@@ -21,6 +21,7 @@ export const useLobbyStore = defineStore('lobby', {
     countdown: null,
     isAssigningTeams: false,
     showingTeams: false,
+    teamCountdown: null,
     mapVotes: {},
     votingCountdown: null,
     voteCounts: {}
@@ -112,6 +113,7 @@ export const useLobbyStore = defineStore('lobby', {
       this.countdown = null;
       this.isAssigningTeams = false;
       this.showingTeams = false;
+      this.teamCountdown = null;
       this.mapVotes = {};
       this.votingCountdown = null;
       this.voteCounts = {};
@@ -139,6 +141,11 @@ export const useLobbyStore = defineStore('lobby', {
         player: this.username,
         map: map
       });
+    },
+
+    updateTeamCountdown(count) {
+      console.log('[Pinia] Setting teamCountdown to:', count);
+      this.teamCountdown = count;
     },
 
     updateMapVotes(votes) {

@@ -160,7 +160,7 @@ SOCKET_EVENTS =  {
     'MESSAGE': 'message',
 }; 
 
-# At the top of your file, after SOCKET_EVENTS definition
+#after SOCKET_EVENTS definition
 logger.info("=== Socket Events Configuration ===")
 logger.info(f"Queue Leave Event: {SOCKET_EVENTS['QUEUE']['LEAVE']}")
 logger.info(f"Queue Join Event: {SOCKET_EVENTS['QUEUE']['JOIN']}")
@@ -693,7 +693,7 @@ def periodic_queue_management():
 
 
 
-@socketio.on('*')  # Add this at the top of your socket handlers
+@socketio.on('*')  
 @handle_socket_data
 def catch_all(event, *args):
     """Debug handler to catch all events"""

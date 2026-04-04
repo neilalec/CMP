@@ -135,7 +135,7 @@ onMounted(async () => {
     const joinResponse = await socketStore.emit(SOCKET_EVENTS.LOBBY.JOIN, { 
       lobby_id: lobbyId,
       username: authStore.username,
-      rejoin: true  // Add this flag to indicate possible reconnection
+      rejoin: true  // flag to indicate possible reconnection
     });
     
     console.log('Join lobby response:', joinResponse);
@@ -249,6 +249,12 @@ const handleLeaveLobby = async () => {
       <!-- Show teams after assignment -->
       <div v-else-if="lobbyStore.showingTeams" class="teams-display">
         <h3>Teams have been assigned!</h3>
+          <!-- Countdown Display -->
+          <div v-if="lobbyStore.teamCountdown" class="countdown">
+          <h3>Map voting will begin in:</h3>
+          <div class="countdown-timer">{{ lobbyStore.teamCountdown }}</div>
+          <p>seconds remaining</p>
+        </div>
         <div class="teams-container">
           <div class="team">
             <h3>Team 1</h3>
@@ -268,9 +274,6 @@ const handleLeaveLobby = async () => {
             </ul>
           </div>
         </div>
-        <div class="transition-message">
-          Map voting will begin in a few seconds...
-        </div>
       </div>
     </div>
 
@@ -282,7 +285,7 @@ const handleLeaveLobby = async () => {
         <div class="countdown-timer">{{ lobbyStore.votingCountdown }}</div>
         <p>seconds remaining</p>
       </div>
-      
+
       <div class="map-list">
         <button
           v-for="map in AVAILABLE_MAPS"

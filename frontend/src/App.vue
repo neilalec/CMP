@@ -56,12 +56,7 @@ watch(() => authStore.isLoggedIn, async (isLoggedIn) => {
       // Cleanup existing socket and create new authenticated connection
       await socketStore.cleanupSocket();
       await socketStore.initSocket(authStore.token, authStore.username);
-      
-      // Remove automatic navigation - let Auth.vue handle it
-      // const storedLobbyId = localStorage.getItem('currentLobby');
-      // if (storedLobbyId) {
-      //   router.push(`/lobby/${storedLobbyId}`);
-      // }
+   
     } catch (error) {
       rootStore.setError('Failed to connect to server');
       authStore.logout();
@@ -151,5 +146,8 @@ button:hover {
 
 .username {
   color: #888;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
 }
 </style>

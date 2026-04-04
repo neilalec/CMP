@@ -74,10 +74,6 @@ export const useAuthStore = defineStore('auth', {
       // Clear localStorage auth data only
       localStorage.removeItem('token');
       localStorage.removeItem('username');
-      
-      // Don't cleanup socket or lobby state
-      // const socketStore = useSocketStore();
-      // socketStore.cleanupSocket();
 
       // Clear any errors
       const rootStore = useRootStore();
