@@ -49,5 +49,10 @@ export const SOCKET_EVENTS = {
     TEAMS_ASSIGNED: 'teams_assigned',
   },
 
+  COUNTDOWN: {
+    TOGGLE_PAUSE: 'pause-countdown',
+    PAUSE_STATE: 'countdown_pause_state'
+  },
+
   MESSAGE: 'message',
 }; 

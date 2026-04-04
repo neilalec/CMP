@@ -19,6 +19,8 @@ QUEUE_CHECK_INTERVAL = 5
 CLEANUP_INTERVAL = 30
 SYNC_INTERVAL = 10
 countdown_active = False
+countdown_paused = False
+countdown_pause_lock = RLock()
 AVAILABLE_MAPS = ['Map 1', 'Map 2', 'Map 3', 'Map 4', 'Map 5']
 
 load_dotenv()
@@ -157,6 +159,11 @@ SOCKET_EVENTS =  {
         'TEAMS_ASSIGNED': 'teams_assigned',
     },
 
+    'COUNTDOWN': {
+        'TOGGLE_PAUSE': 'pause-countdown',
+        'PAUSE_STATE': 'countdown_pause_state'
+    },
+
     'MESSAGE': 'message',
 }; 
 
@@ -208,6 +215,26 @@ def log_event(event_type, data):
         'data': data,
         'timestamp': time.time()
     }))
+
+def is_countdown_paused():
+    with countdown_pause_lock:
+        return countdown_paused
+
+def set_countdown_paused(value):
+    global countdown_paused
+    with countdown_pause_lock:
+        countdown_paused = bool(value)
+        return countdown_paused
+
+def pause_aware_sleep(seconds):
+    remaining = seconds
+    while remaining > 0:
+        if is_countdown_paused():
+            eventlet.sleep(0.2)
+            continue
+        step = 0.2 if remaining > 0.2 else remaining
+        eventlet.sleep(step)
+        remaining -= step
 
 def with_retry(max_attempts=3):
     def decorator(func):
@@ -329,11 +356,16 @@ def check_queue_and_start_countdown():
                             broadcast_queue_update()  # Send update without countdown
                             return
                         
-                        # Only broadcast countdown updates from here
-                        broadcast_queue_update(countdown_start)
-                    
+                        if not is_countdown_paused():
+                            # Only broadcast countdown updates from here
+                            broadcast_queue_update(countdown_start)
+
+                    if is_countdown_paused():
+                        eventlet.sleep(0.2)
+                        continue
+
+                    pause_aware_sleep(1)
                     countdown_start -= 1
-                    eventlet.sleep(1)
                 except Exception as e:
                     logger.error(f"Error in countdown: {e}")
                     countdown_active = False
@@ -389,6 +421,10 @@ def start_map_voting(lobby_id):
         lobby['voting_countdown'] = countdown
             
         while countdown > 0:
+            if is_countdown_paused():
+                eventlet.sleep(0.2)
+                continue
+
             # Emit countdown update with specific event
             socketio.emit('lobby_countdown_voting', {
                 'countdown': countdown,
@@ -400,7 +436,7 @@ def start_map_voting(lobby_id):
             }, room=lobby_id)
             
             logger.debug(f"Map voting countdown: {countdown}, Votes: {lobby['map_votes']}")
-            eventlet.sleep(1)
+            pause_aware_sleep(1)
             countdown -= 1
             lobby['voting_countdown'] = countdown
         
@@ -539,6 +575,10 @@ def start_team_assignment_countdown(lobby_id):
         }, room=lobby_id)
             
         while countdown > 0:
+            if is_countdown_paused():
+                eventlet.sleep(0.2)
+                continue
+
             # Emit countdown update with specific event
             socketio.emit('lobby_countdown_teams', {
                 'countdown': countdown,
@@ -546,7 +586,7 @@ def start_team_assignment_countdown(lobby_id):
                 'type': 'teams'
             }, room=lobby_id)
             
-            eventlet.sleep(1)
+            pause_aware_sleep(1)
             countdown -= 1
         
         # Assign teams
@@ -572,7 +612,7 @@ def start_team_assignment_countdown(lobby_id):
         }, room=lobby_id)
         
         # Wait 5 seconds to show teams
-        eventlet.sleep(5)
+        pause_aware_sleep(5)
         
         # Then move to map voting (step 2) and start voting countdown
         lobby['step'] = 2
@@ -1073,6 +1113,29 @@ def handle_queue_status(data=None):
             'success': False,
             'message': 'Failed to get queue status'
         })
+
+@socketio.on(SOCKET_EVENTS['COUNTDOWN']['TOGGLE_PAUSE'])
+@handle_socket_data
+def handle_toggle_countdown_pause(data=None):
+    """Toggle or set countdown pause state"""
+    try:
+        desired_state = None
+        if isinstance(data, dict) and 'paused' in data:
+            desired_state = bool(data.get('paused'))
+
+        if desired_state is None:
+            new_state = set_countdown_paused(not is_countdown_paused())
+        else:
+            new_state = set_countdown_paused(desired_state)
+
+        socketio.emit(SOCKET_EVENTS['COUNTDOWN']['PAUSE_STATE'], {
+            'paused': new_state
+        }, broadcast=True)
+
+        return {'success': True, 'paused': new_state}
+    except Exception as e:
+        logger.error(f"Error in handle_toggle_countdown_pause: {str(e)}")
+        return {'success': False, 'message': 'Failed to toggle countdown pause'}
 
 #LOBBY MANAGEMENT
 @socketio.on(SOCKET_EVENTS['LOBBY']['JOIN'])

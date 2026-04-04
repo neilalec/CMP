@@ -1,15 +1,22 @@
 <script setup>
-import { onMounted, onBeforeUnmount, watch } from 'vue';
+import { onMounted, onBeforeUnmount, watch, ref } from 'vue';
 import { RouterLink, RouterView } from 'vue-router';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from './stores/authStore';
 import { useSocketStore } from './stores/socketStore';
 import { useRootStore } from './stores/rootStore';
+import { SOCKET_EVENTS } from './constants/socketEvents';
 
 const router = useRouter();
 const authStore = useAuthStore();
 const socketStore = useSocketStore();
 const rootStore = useRootStore();
+const isCountdownPaused = ref(false);
+const handleCountdownPauseState = (data) => {
+  if (data && typeof data.paused === 'boolean') {
+    isCountdownPaused.value = data.paused;
+  }
+};
 
 // Initialize socket and auth state on mount
 onMounted(async () => {
@@ -25,6 +32,8 @@ onMounted(async () => {
       await socketStore.initSocket();
     }
     
+    socketStore.on(SOCKET_EVENTS.COUNTDOWN.PAUSE_STATE, handleCountdownPauseState);
+
     // Redirect if not authenticated
     if (!isAuthenticated) {
       router.push('/auth');
@@ -48,6 +57,19 @@ const handleLogout = async () => {
   }
 };
 
+const toggleCountdownPause = async () => {
+  try {
+    const response = await socketStore.emit(SOCKET_EVENTS.COUNTDOWN.TOGGLE_PAUSE, {
+      paused: !isCountdownPaused.value
+    });
+    if (response && typeof response.paused === 'boolean') {
+      isCountdownPaused.value = response.paused;
+    }
+  } catch (error) {
+    rootStore.setError('Failed to toggle countdown pause');
+  }
+};
+
 // Watch for auth state changes to update socket connection
 watch(() => authStore.isLoggedIn, async (isLoggedIn) => {
   if (isLoggedIn && authStore.token) {
@@ -56,6 +78,7 @@ watch(() => authStore.isLoggedIn, async (isLoggedIn) => {
       // Cleanup existing socket and create new authenticated connection
       await socketStore.cleanupSocket();
       await socketStore.initSocket(authStore.token, authStore.username);
+      socketStore.on(SOCKET_EVENTS.COUNTDOWN.PAUSE_STATE, handleCountdownPauseState);
    
     } catch (error) {
       rootStore.setError('Failed to connect to server');
@@ -68,6 +91,7 @@ watch(() => authStore.isLoggedIn, async (isLoggedIn) => {
 
 // Cleanup on component unmount
 onBeforeUnmount(() => {
+  socketStore.off(SOCKET_EVENTS.COUNTDOWN.PAUSE_STATE, handleCountdownPauseState);
   socketStore.cleanupSocket();
 });
 </script>
@@ -77,6 +101,9 @@ onBeforeUnmount(() => {
     <nav v-if="authStore.isLoggedIn">
       <RouterLink to="/">Home</RouterLink>
       <span class="username">User: {{ authStore.username }}</span>
+      <button @click="toggleCountdownPause">
+        {{ isCountdownPaused ? 'Resume Countdown' : 'Pause Countdown' }}
+      </button>
       <button @click="handleLogout">Logout</button>
     </nav>
 
