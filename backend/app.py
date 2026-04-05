@@ -21,6 +21,7 @@ SYNC_INTERVAL = 10
 countdown_active = False
 countdown_paused = False
 countdown_pause_lock = RLock()
+MAX_LOBBY_PLAYERS = 2
 AVAILABLE_MAPS = ['Map 1', 'Map 2', 'Map 3', 'Map 4', 'Map 5']
 
 load_dotenv()
@@ -161,7 +162,8 @@ SOCKET_EVENTS =  {
 
     'COUNTDOWN': {
         'TOGGLE_PAUSE': 'pause-countdown',
-        'PAUSE_STATE': 'countdown_pause_state'
+        'PAUSE_STATE': 'countdown_pause_state',
+        'STATUS': 'countdown_status'
     },
 
     'MESSAGE': 'message',
@@ -215,6 +217,19 @@ def log_event(event_type, data):
         'data': data,
         'timestamp': time.time()
     }))
+
+def get_open_lobbies():
+    open_lobbies = []
+    for lobby_id, lobby in lobbies.items():
+        players = lobby.get('players', [])
+        if len(players) < MAX_LOBBY_PLAYERS:
+            open_lobbies.append({
+                'lobby_id': lobby_id,
+                'players': players,
+                'open_slots': MAX_LOBBY_PLAYERS - len(players),
+                'step': lobby.get('step', 1)
+            })
+    return open_lobbies
 
 def is_countdown_paused():
     with countdown_pause_lock:
@@ -477,7 +492,7 @@ def start_map_voting(lobby_id):
         
     except Exception as e:
         logger.error(f"Error in map voting countdown: {str(e)}")
-
+    
 @with_retry(max_attempts=3)
 def broadcast_queue_update(countdown=None):
     """Broadcast queue status to all connected clients"""
@@ -488,7 +503,8 @@ def broadcast_queue_update(countdown=None):
         queue_status = {
             'success': True,
             'playersInQueue': len(matchmaking_queue),
-            'queue': list(matchmaking_queue)
+            'queue': list(matchmaking_queue),
+            'openLobbies': get_open_lobbies()
         }
         # Only add countdown if it's provided and greater than 0
         if countdown is not None and countdown > 0:
@@ -611,8 +627,21 @@ def start_team_assignment_countdown(lobby_id):
             'step': 1  # Keep at step 1 to show teams
         }, room=lobby_id)
         
-        # Wait 5 seconds to show teams
-        pause_aware_sleep(5)
+        # Wait 5 seconds to show teams (with countdown updates)
+        display_countdown = 5
+        while display_countdown > 0:
+            if is_countdown_paused():
+                eventlet.sleep(0.2)
+                continue
+
+            socketio.emit('lobby_countdown_teams', {
+                'countdown': display_countdown,
+                'lobby_id': lobby_id,
+                'type': 'teams_display'
+            }, room=lobby_id)
+
+            pause_aware_sleep(1)
+            display_countdown -= 1
         
         # Then move to map voting (step 2) and start voting countdown
         lobby['step'] = 2
@@ -763,6 +792,9 @@ def handle_connect(auth):
         # Allow unauthenticated connections initially
         if not token:
             logger.debug(f"Allowing unauthenticated connection for initial auth")
+            emit(SOCKET_EVENTS['COUNTDOWN']['PAUSE_STATE'], {
+                'paused': is_countdown_paused()
+            })
             return True
             
         # For authenticated connections, verify token
@@ -784,6 +816,9 @@ def handle_connect(auth):
                 }
             
             logger.info(f"Authenticated connection successful for {username}")
+            emit(SOCKET_EVENTS['COUNTDOWN']['PAUSE_STATE'], {
+                'paused': is_countdown_paused()
+            })
             return True
             
         except Exception as e:
@@ -1100,7 +1135,8 @@ def handle_queue_status(data=None):
             'success': True,  # Add success flag
             'inQueue': username in matchmaking_queue if username else False,
             'playersInQueue': len(matchmaking_queue),
-            'queue': list(matchmaking_queue)
+            'queue': list(matchmaking_queue),
+            'openLobbies': get_open_lobbies()
         }
         
         logger.debug(f"Queue status for {username}: {queue_status}")
@@ -1130,12 +1166,22 @@ def handle_toggle_countdown_pause(data=None):
 
         socketio.emit(SOCKET_EVENTS['COUNTDOWN']['PAUSE_STATE'], {
             'paused': new_state
-        }, broadcast=True)
+        })
 
         return {'success': True, 'paused': new_state}
     except Exception as e:
         logger.error(f"Error in handle_toggle_countdown_pause: {str(e)}")
         return {'success': False, 'message': 'Failed to toggle countdown pause'}
+
+@socketio.on(SOCKET_EVENTS['COUNTDOWN']['STATUS'])
+@handle_socket_data
+def handle_countdown_status(data=None):
+    """Return current countdown pause state"""
+    try:
+        return {'success': True, 'paused': is_countdown_paused()}
+    except Exception as e:
+        logger.error(f"Error in handle_countdown_status: {str(e)}")
+        return {'success': False, 'message': 'Failed to get countdown status'}
 
 #LOBBY MANAGEMENT
 @socketio.on(SOCKET_EVENTS['LOBBY']['JOIN'])
@@ -1146,6 +1192,7 @@ def handle_join_lobby(data):
         lobby_id = data.get('lobby_id')
         username = data.get('username')
         is_rejoin = data.get('rejoin', False)
+        allow_new = data.get('allow_new', False)
         
         logger.info(f"Join lobby request from {username} for lobby {lobby_id} (rejoin: {is_rejoin})")
         
@@ -1155,8 +1202,9 @@ def handle_join_lobby(data):
             # Check if player is in lobby or was disconnected
             is_lobby_member = username in lobby['players']
             was_disconnected = username in lobby.get('disconnected_players', set())
+            has_open_slot = len(lobby['players']) < MAX_LOBBY_PLAYERS
             
-            if not is_lobby_member and not (is_rejoin and was_disconnected):
+            if not is_lobby_member and not (is_rejoin and was_disconnected) and not (allow_new and has_open_slot):
                 logger.warning(f"Unauthorized lobby join attempt by {username}")
                 return {
                     'success': False,
@@ -1167,6 +1215,37 @@ def handle_join_lobby(data):
             if was_disconnected:
                 lobby['disconnected_players'].remove(username)
                 logger.info(f"Player {username} reconnected to lobby {lobby_id}")
+
+            # Allow new player to fill an open lobby
+            if allow_new and not is_lobby_member and not was_disconnected:
+                lobby['players'].append(username)
+                if username in matchmaking_queue:
+                    matchmaking_queue.remove(username)
+                    save_queue()
+                    broadcast_queue_update()
+
+                if lobby['teams'].get('team1') or lobby['teams'].get('team2'):
+                    # Add to the smaller team
+                    if len(lobby['teams']['team1']) <= len(lobby['teams']['team2']):
+                        lobby['teams']['team1'].append(username)
+                    else:
+                        lobby['teams']['team2'].append(username)
+                elif lobby.get('step', 1) >= 2 and len(lobby['players']) >= 2:
+                    lobby['teams'] = assign_teams(lobby['players'])
+
+                socketio.emit('lobby_update', {
+                    'lobby_id': lobby_id,
+                    'players': lobby['players'],
+                    'teams': lobby['teams'],
+                    'step': lobby['step']
+                }, room=lobby_id)
+
+                broadcast_queue_update()
+
+                if len(lobby['players']) >= MAX_LOBBY_PLAYERS and lobby.get('step', 1) == 1:
+                    if not lobby.get('countdown_active'):
+                        lobby['countdown_active'] = True
+                        eventlet.spawn(start_team_assignment_countdown, lobby_id)
             
             # Join the socket room
             join_room(lobby_id)
@@ -1264,6 +1343,7 @@ def handle_leave_lobby(data):
                 if not lobby['players']:
                     del lobbies[lobby_id]
                     logger.info(f"Removed empty lobby {lobby_id}")
+                broadcast_queue_update()
                 
                 logger.info(f"Player {username} left lobby {lobby_id}")
                 return {

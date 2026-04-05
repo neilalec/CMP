@@ -54,13 +54,14 @@ export const useLobbyStore = defineStore('lobby', {
         if (data.teams) this.teams = data.teams;
         if (data.server_details) this.serverDetails = data.server_details;
         if (data.step) {
+          this.step = data.step;
           if (data.step === 2) {
-            setTimeout(() => {
-              this.step = data.step;
-              this.showingTeams = false;
-            }, 5000);
-          } else {
-            this.step = data.step;
+            this.showingTeams = false;
+            this.isAssigningTeams = false;
+          }
+          if (data.step >= 3) {
+            this.countdown = null;
+            this.votingCountdown = null;
           }
         }
         if (data.countdown !== undefined) {
@@ -120,7 +121,7 @@ export const useLobbyStore = defineStore('lobby', {
     },
 
     updateCountdown(count) {
-      this.countdown = count;
+      this.countdown = count > 0 ? count : null;
     },
 
     startTeamAssignment() {
@@ -145,7 +146,7 @@ export const useLobbyStore = defineStore('lobby', {
 
     updateTeamCountdown(count) {
       console.log('[Pinia] Setting teamCountdown to:', count);
-      this.teamCountdown = count;
+      this.teamCountdown = count > 0 ? count : null;
     },
 
     updateMapVotes(votes) {
@@ -157,7 +158,7 @@ export const useLobbyStore = defineStore('lobby', {
     },
 
     updateVotingCountdown(count) {
-      this.votingCountdown = count;
+      this.votingCountdown = count > 0 ? count : null;
     },
 
     setSelectedMap(map) {

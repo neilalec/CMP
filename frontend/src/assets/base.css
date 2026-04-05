@@ -67,17 +67,9 @@ body {
     background-color 0.5s;
   line-height: 1.6;
   font-family:
-    Inter,
-    -apple-system,
-    BlinkMacSystemFont,
-    'Segoe UI',
-    Roboto,
-    Oxygen,
-    Ubuntu,
-    Cantarell,
-    'Fira Sans',
-    'Droid Sans',
-    'Helvetica Neue',
+    "Calibri",
+    "Segoe UI",
+    Arial,
     sans-serif;
   font-size: 15px;
   text-rendering: optimizeLegibility;

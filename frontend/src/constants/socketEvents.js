@@ -51,7 +51,8 @@ export const SOCKET_EVENTS = {
 
   COUNTDOWN: {
     TOGGLE_PAUSE: 'pause-countdown',
-    PAUSE_STATE: 'countdown_pause_state'
+    PAUSE_STATE: 'countdown_pause_state',
+    STATUS: 'countdown_status'
   },
 
   MESSAGE: 'message',

@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, onBeforeUnmount, ref } from 'vue';
+import { onMounted, onBeforeUnmount, ref, computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useLobbyStore } from '../stores/lobbyStore';
 import { useSocketStore } from '../stores/socketStore';
@@ -18,6 +18,36 @@ const authStore = useAuthStore();
 const AVAILABLE_MAPS = ['Map 1', 'Map 2', 'Map 3', 'Map 4', 'Map 5'];
 
 const listeners = ref([]);
+const activeCountdown = computed(() => {
+  if (lobbyStore.step >= 3) {
+    return null;
+  }
+  if (lobbyStore.step === 2) {
+    return lobbyStore.votingCountdown;
+  }
+  return lobbyStore.countdown;
+});
+const activeCountdownLabel = computed(() => {
+  if (lobbyStore.step === 1) {
+    return lobbyStore.showingTeams
+      ? 'Map voting starting in:'
+      : 'Team assignment starting in:';
+  }
+  if (lobbyStore.step === 2) {
+    return 'Map selected in:';
+  }
+  return 'Match starting in:';
+});
+const phaseTitle = computed(() => {
+  if (lobbyStore.loading) return 'Loading Lobby...';
+  if (lobbyStore.step === 1) {
+    return lobbyStore.showingTeams ? 'Teams Assigned' : 'Lobby';
+  }
+  if (lobbyStore.step === 2) return 'Map Voting';
+  if (lobbyStore.step === 3) return 'Match Ready';
+  if (lobbyStore.step === 4) return 'Server Details';
+  return 'Lobby';
+});
 
 // LIFECYCLE HOOKS
 onMounted(async () => {
@@ -189,53 +219,23 @@ const handleVoteMap = async (map) => {
   }
 };
 
-const handleLeaveLobby = async () => {
-  try {
-    const response = await socketStore.emit(SOCKET_EVENTS.LOBBY.LEAVE, {
-      lobby_id: lobbyStore.lobbyId,
-      username: authStore.username
-    });
-    
-    if (response.success) {
-      // Clear lobby state
-      lobbyStore.leaveLobby();
-      // Remove from localStorage to prevent auto-rejoin
-      localStorage.removeItem('currentLobby');
-      router.push('/');
-    } else {
-      throw new Error(response.message || 'Failed to leave lobby');
-    }
-  } catch (error) {
-    rootStore.setError({
-      message: 'Failed to leave lobby',
-      details: error.message,
-      context: 'lobby-leave'
-    });
-  }
-};
+ 
 </script>
 
 <template>
-  <div class="lobby">
-    <div class="lobby-header">
-      <h1>Game Lobby</h1>
-      <button @click="handleLeaveLobby" class="leave-button">
-        Leave Lobby
-      </button>
-    </div>
+  <div class="lobby-page">
+    <h1 class="lobby-title">{{ phaseTitle }}</h1>
+    <p v-if="activeCountdown !== null" class="countdown">
+      {{ activeCountdownLabel }} {{ activeCountdown }}s
+    </p>
 
-    <div v-if="lobbyStore.loading" class="loading">
-      Loading lobby...
-    </div>
-    
-    <!-- Step 1: Waiting with Countdown -->
-    <div v-if="lobbyStore.step === 1" class="lobby-section">
-      <!-- Countdown Display -->
-      <div v-if="lobbyStore.countdown !== null" class="countdown">
-        <h3>Teams will be assigned in:</h3>
-        <div class="countdown-timer">{{ lobbyStore.countdown }}</div>
+    <div class="lobby-panel">
+      <div v-if="lobbyStore.loading" class="loading">
+        Loading lobby...
       </div>
-      
+    
+      <!-- Step 1: Waiting with Countdown -->
+      <div v-else-if="lobbyStore.step === 1" class="lobby-section content-panel">
       <!-- Show players list if not assigning teams and not showing teams -->
       <div v-if="!lobbyStore.isAssigningTeams && !lobbyStore.showingTeams" class="players-list">
         <h3>Players in Lobby:</h3>
@@ -249,12 +249,6 @@ const handleLeaveLobby = async () => {
       <!-- Show teams after assignment -->
       <div v-else-if="lobbyStore.showingTeams" class="teams-display">
         <h3>Teams have been assigned!</h3>
-          <!-- Countdown Display -->
-          <div v-if="lobbyStore.teamCountdown" class="countdown">
-          <h3>Map voting will begin in:</h3>
-          <div class="countdown-timer">{{ lobbyStore.teamCountdown }}</div>
-          <p>seconds remaining</p>
-        </div>
         <div class="teams-container">
           <div class="team">
             <h3>Team 1</h3>
@@ -277,15 +271,8 @@ const handleLeaveLobby = async () => {
       </div>
     </div>
 
-    <!-- Step 2: Map Voting -->
-    <div v-else-if="lobbyStore.step === 2" class="lobby-section">
-      <!-- Countdown Display -->
-      <div v-if="lobbyStore.votingCountdown" class="countdown">
-        <h3>Vote for a Map:</h3>
-        <div class="countdown-timer">{{ lobbyStore.votingCountdown }}</div>
-        <p>seconds remaining</p>
-      </div>
-
+      <!-- Step 2: Map Voting -->
+      <div v-else-if="lobbyStore.step === 2" class="lobby-section content-panel">
       <div class="map-list">
         <button
           v-for="map in AVAILABLE_MAPS"
@@ -302,16 +289,9 @@ const handleLeaveLobby = async () => {
       </div>
     </div>
 
-    <!-- Step 3: Map Selected -->
-    <div v-else-if="lobbyStore.step === 3" class="lobby-section">
-      <h2>Match Ready</h2>
-      <div class="match-details">
-        <div class="match-info">
-          <p>Selected Map: <span class="highlight">{{ lobbyStore.selectedMap }}</span></p>
-          <p>Server IP: <span class="highlight">{{ lobbyStore.serverDetails?.ip || '192.168.1.100' }}</span></p>
-        </div>
-        
-        <div class="teams-container">
+      <!-- Step 3: Map Selected -->
+      <div v-else-if="lobbyStore.step === 3" class="lobby-section content-panel">
+        <div class="teams-three">
           <div class="team">
             <h3>Team 1</h3>
             <ul>
@@ -320,7 +300,12 @@ const handleLeaveLobby = async () => {
               </li>
             </ul>
           </div>
-          
+
+          <div class="match-info">
+            <p>Selected Map: <span class="highlight">{{ lobbyStore.selectedMap }}</span></p>
+            <p>Server IP: <span class="highlight">{{ lobbyStore.serverDetails?.ip || '192.168.1.100' }}</span></p>
+          </div>
+
           <div class="team">
             <h3>Team 2</h3>
             <ul>
@@ -330,12 +315,10 @@ const handleLeaveLobby = async () => {
             </ul>
           </div>
         </div>
-      </div>
     </div>
 
-    <!-- Step 4: Server Details -->
-    <div v-else-if="lobbyStore.step === 4" class="lobby-section">
-      <h2>Match Ready</h2>
+      <!-- Step 4: Server Details -->
+      <div v-else-if="lobbyStore.step === 4" class="lobby-section content-panel">
       <div class="match-details">
         <div class="match-info">
           <p>Map: <span class="highlight">{{ lobbyStore.selectedMap }}</span></p>
@@ -362,58 +345,51 @@ const handleLeaveLobby = async () => {
           </div>
         </div>
       </div>
+      </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-.lobby {
-  max-width: 800px;
-  margin: 0 auto;
+.lobby-page {
+  width: 100%;
+  min-height: calc(100vh - 80px);
   padding: 20px;
-  min-height: 600px;
-}
-
-.lobby-header {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
   align-items: center;
-  margin-bottom: 20px;
 }
 
-.lobby-header h1 {
+.lobby-title {
   color: #ffffff;
-  margin: 0;
+  margin: 10px 0 6px;
+  text-align: center;
+}
+
+.lobby-panel {
+  width: 100%;
+  max-width: 900px;
+  min-height: 520px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .lobby-section {
-  background: #2d2d2d;
   padding: 30px;
-  border-radius: 8px;
-  margin-bottom: 20px;
+  width: 100%;
   min-height: 500px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
   display: flex;
   flex-direction: column;
   align-items: center;
 }
 
 .countdown {
-  text-align: center;
-  margin: 20px 0;
-  width: 100%;
-}
-
-.countdown h3 {
-  color: #cccccc;
-  margin-bottom: 10px;
-}
-
-.countdown-timer {
-  font-size: 48px;
-  font-weight: bold;
+  font-size: 1.2em;
   color: #4CAF50;
-  margin: 20px 0;
+  font-weight: bold;
+  margin-top: 1rem;
+  text-align: center;
 }
 
 .players-list {
@@ -528,20 +504,6 @@ const handleLeaveLobby = async () => {
   font-size: 0.8em;
 }
 
-.leave-button {
-  padding: 8px 16px;
-  background: #ff4444;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-
-.leave-button:hover {
-  background: #ff5555;
-}
-
 .loading {
   text-align: center;
   padding: 20px;
@@ -549,6 +511,7 @@ const handleLeaveLobby = async () => {
   align-items: center;
   justify-content: center;
   min-height: 500px;
+  width: 100%;
   color: #cccccc;
 }
 
@@ -573,31 +536,13 @@ const handleLeaveLobby = async () => {
   margin-bottom: 20px;
 }
 
-.match-details {
-  width: 100%;
-  max-width: 600px;
-  margin: 0 auto;
-  text-align: center;
-}
-
-.match-details p {
-  margin: 10px 0;
-  font-size: 1.1em;
-  color: #cccccc;
-}
-
-.match-details h2 {
-  color: #ffffff;
-  margin-bottom: 20px;
-}
-
 .match-info {
   background: #3d3d3d;
   padding: 20px;
   border-radius: 4px;
-  margin-bottom: 20px;
   width: 100%;
-  max-width: 400px;
+  max-width: 320px;
+  text-align: center;
 }
 
 .match-info p {
@@ -610,6 +555,15 @@ const handleLeaveLobby = async () => {
 .highlight {
   color: #4CAF50;
   font-weight: bold;
+}
+
+.teams-three {
+  display: grid;
+  grid-template-columns: 1fr 0.9fr 1fr;
+  gap: 16px;
+  width: 100%;
+  max-width: 900px;
+  align-items: start;
 }
 </style>
   
