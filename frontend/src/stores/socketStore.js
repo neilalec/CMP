@@ -36,6 +36,10 @@ export const useSocketStore = defineStore('socket', {
 
         this.isConnected = true;
         console.log('Socket connection established');
+
+        if (import.meta.env.DEV) {
+          window.socket = socketService.socket;
+        }
         
         return true;
       } catch (error) {

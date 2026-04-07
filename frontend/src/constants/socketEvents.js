@@ -28,6 +28,7 @@ export const SOCKET_EVENTS = {
     LEFT: 'queue_left',
     UPDATE: 'queue_update',
     STATUS: 'queue_status',
+    SEED: 'queue_seed',
   },
 
   // Lobby events
@@ -42,6 +43,7 @@ export const SOCKET_EVENTS = {
     MAP_SELECTED: 'map_selected',
     START: 'start-lobby',
     READY: 'lobby_ready',
+    SKIP_PHASE: 'skip-phase',
     COUNTDOWN: {
       TEAMS: 'lobby_countdown_teams',
       VOTING: 'lobby_countdown_voting'

@@ -15,8 +15,14 @@ const rootStore = useRootStore();
 const authStore = useAuthStore();
 const isCountdownPaused = ref(false);
 
-// Constants
-const AVAILABLE_MAPS = ['Map 1', 'Map 2', 'Map 3', 'Map 4', 'Map 5'];
+// Fallback only; real map pool comes from server per lobby
+const AVAILABLE_MAPS = [
+  'Al Basrah Skirmish v1',
+  'Belaya Skirmish v1',
+  'Chora Skirmish v1',
+  "Fool's Road Skirmish v1",
+  'Narva Skirmish v1'
+];
 
 const listeners = ref([]);
 const activeCountdown = computed(() => {
@@ -50,6 +56,9 @@ const phaseTitle = computed(() => {
   return 'Lobby';
 });
 const showPauseButton = computed(() => activeCountdown.value !== null);
+const mapOptions = computed(() => {
+  return lobbyStore.mapPool?.length ? lobbyStore.mapPool : AVAILABLE_MAPS;
+});
 
 // LIFECYCLE HOOKS
 onMounted(async () => {
@@ -95,6 +104,9 @@ onMounted(async () => {
             console.log('Received voting countdown update:', data);
             if (data.countdown !== undefined) {
               lobbyStore.updateVotingCountdown(data.countdown);
+            }
+            if (data.map_pool) {
+              lobbyStore.updateMapPool(data.map_pool);
             }
             if (data.map_votes) {
               lobbyStore.updateMapVotes(data.map_votes);
@@ -281,6 +293,20 @@ const toggleCountdownPause = async () => {
   }
 };
 
+const skipPhase = async () => {
+  try {
+    await socketStore.emit(SOCKET_EVENTS.LOBBY.SKIP_PHASE, {
+      lobby_id: lobbyStore.lobbyId
+    });
+  } catch (error) {
+    rootStore.setError({
+      message: 'Failed to skip phase',
+      details: error.message,
+      context: 'lobby-skip'
+    });
+  }
+};
+
 const isCaptain = (player, teamKey) => {
   return lobbyStore.captains?.[teamKey] === player;
 };
@@ -311,13 +337,18 @@ const matchSizeLabel = computed(() => {
     <div class="lobby-shell content-panel">
       <h1 class="lobby-title">{{ phaseTitle }}</h1>
       <div class="countdown-slot">
-        <p v-if="activeCountdown !== null" class="countdown">
-          {{ activeCountdownLabel }} {{ activeCountdown }}s
-        </p>
+      <p v-if="activeCountdown !== null" class="countdown">
+        {{ activeCountdownLabel }} {{ activeCountdown }}s
+      </p>
+      <div class="countdown-actions">
         <button v-if="showPauseButton" class="pause-button" @click="toggleCountdownPause">
           {{ isCountdownPaused ? 'Unpause Countdown' : 'Pause Countdown' }}
         </button>
+        <button v-if="showPauseButton" class="skip-button" @click="skipPhase">
+          Skip Phase
+        </button>
       </div>
+    </div>
 
       <div class="lobby-panel">
         <div v-if="lobbyStore.loading" class="loading">
@@ -339,7 +370,7 @@ const matchSizeLabel = computed(() => {
       <!-- Show teams after assignment -->
       <div v-else-if="lobbyStore.showingTeams" class="teams-display">
         <h3>Teams have been assigned!</h3>
-        <div class="teams-container">
+        <div class="teams-container teams-assigned">
           <div class="team">
             <h3>{{ getTeamLabel('team1') }}</h3>
             <ul>
@@ -367,11 +398,11 @@ const matchSizeLabel = computed(() => {
       <div v-else-if="lobbyStore.step === 2" class="lobby-section">
       <div class="map-list">
         <button
-          v-for="map in AVAILABLE_MAPS"
+          v-for="map in mapOptions"
           :key="map"
           @click="handleVoteMap(map)"
           :class="['map-button', { 'voted': lobbyStore.mapVotes[authStore.username] === map }]"
-          :disabled="lobbyStore.mapVotes[authStore.username] && lobbyStore.mapVotes[authStore.username] !== map"
+          :disabled="false"
         >
           {{ map }}
           <span class="vote-count" v-if="lobbyStore.getVotesForMap(map) > 0">
@@ -530,6 +561,26 @@ const matchSizeLabel = computed(() => {
   background: #4d4d4d;
 }
 
+.countdown-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.skip-button {
+  margin-top: 0.5rem;
+  padding: 0.6rem 1.2rem;
+  background: #3d3d3d;
+  color: inherit;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.skip-button:hover {
+  background: #4d4d4d;
+}
+
 .players-list {
   width: 100%;
   max-width: 400px;
@@ -546,15 +597,20 @@ const matchSizeLabel = computed(() => {
   list-style: none;
   padding: 0;
   margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 12px;
+  row-gap: 6px;
 }
 
 .players-list li {
-  padding: 10px;
-  margin: 5px 0;
+  padding: 6px 8px;
+  margin: 0;
   background: #3d3d3d;
   border-radius: 4px;
   text-align: center;
   color: inherit;
+  font-size: 0.8rem;
 }
 
 .teams-container {
@@ -563,11 +619,21 @@ const matchSizeLabel = computed(() => {
   margin: 20px 0;
   width: 100%;
   max-width: 600px;
+  gap: 20px;
+}
+
+.teams-container.teams-assigned {
+  max-width: 100%;
+  justify-content: space-between;
+}
+
+.teams-container.teams-assigned .team {
+  max-width: 45%;
 }
 
 .team {
   flex: 1;
-  margin: 0 10px;
+  margin: 0;
   padding: 20px;
   background: #3d3d3d;
   border-radius: 4px;
@@ -597,6 +663,7 @@ const matchSizeLabel = computed(() => {
   align-items: center;
   justify-content: center;
   gap: 6px;
+  font-size: 0.8rem;
 }
 
 .map-list {

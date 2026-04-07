@@ -184,10 +184,8 @@ onBeforeUnmount(() => {
         </RouterLink>
         <div v-if="activeLobbyId" class="lobby-dropdown">
           <button class="lobby-id-button" type="button" @click="handleLobbyIdClick">
-            <span class="lobby-label-row">
-              <span class="nav-icon lobby-icon">◈</span>
-              <span class="lobby-label nav-label">{{ lobbyLabel }}</span>
-            </span>
+            <span class="nav-icon lobby-icon">◈</span>
+            <span class="lobby-label nav-label">{{ lobbyLabel }}</span>
           </button>
         </div>
       </aside>
@@ -238,19 +236,21 @@ onBeforeUnmount(() => {
   min-height: 100vh;
   --nav-icon-box: 36px;
   --nav-collapsed: 77px;
+  --nav-collapsed-right: 64px;
   --nav-offset: calc((var(--nav-collapsed) - var(--nav-icon-box)) / 2);
+  --nav-right-offset: calc((var(--nav-collapsed-right) - var(--nav-icon-box)) / 2);
   background: var(--surface);
   border-radius: 0;
   box-shadow: none;
   display: grid;
-  grid-template-columns: 144px minmax(0, 1fr) 120px;
+  grid-template-columns: 144px minmax(0, 1fr) var(--nav-collapsed-right);
   transition: grid-template-columns 0.7s ease;
   gap: 0;
   padding: 0;
 }
 
 .app-shell.in-lobby {
-  grid-template-columns: 77px minmax(0, 1fr) 64px;
+  grid-template-columns: 77px minmax(0, 1fr) var(--nav-collapsed-right);
 }
 
 .auth-shell {
@@ -300,19 +300,9 @@ button:hover {
   border-right: 1px solid var(--surface-border);
 }
 
-.app-shell:not(.in-lobby) .app-left {
-  padding-left: var(--nav-offset);
-}
-
-.app-shell.in-lobby .app-left {
-  padding-left: 0;
-  padding-right: 0;
-  align-items: center;
-}
-
 .side-link {
   display: grid;
-  grid-template-columns: var(--nav-icon-box) 1fr;
+  grid-template-columns: var(--nav-collapsed) 1fr;
   column-gap: 8px;
   align-items: center;
   justify-content: flex-start;
@@ -325,13 +315,21 @@ button:hover {
   transition: background-color 0.2s, border-color 0.2s;
 }
 
-.app-left .side-link {
-  padding-left: 0;
-}
-
 .side-link:hover {
   background: #4d4d4d;
   border-color: #4d4d4d;
+}
+
+.app-left .side-link,
+.app-left .lobby-id-button {
+  display: grid;
+  grid-template-columns: var(--nav-collapsed) 1fr;
+  column-gap: 8px;
+  align-items: center;
+}
+
+.app-left .nav-icon {
+  justify-self: center;
 }
 
 .nav-label {
@@ -342,27 +340,28 @@ button:hover {
   opacity: 1;
 }
 
+.app-right .nav-label {
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: #2d2d2d;
+  border: 1px solid #3d3d3d;
+  border-radius: 4px;
+  padding: 2px 5px;
+  max-width: none;
+  right: calc(100% + 6px);
+}
+
+.app-right .profile-button:hover .nav-label {
+  opacity: 1;
+}
+
 .in-lobby .side-link,
 .in-lobby .profile-button,
 .in-lobby .lobby-id-button {
   position: relative;
-}
-
-.in-lobby .app-left .side-link {
-  display: flex;
-  width: var(--nav-icon-box);
-  height: var(--nav-icon-box);
-  padding: 0;
-  justify-content: center;
-  align-items: center;
-}
-
-.in-lobby .app-left .lobby-id-button {
-  width: var(--nav-icon-box);
-  height: var(--nav-icon-box);
-  padding: 0;
-  justify-content: center;
-  align-items: center;
 }
 
 .in-lobby .nav-label {
@@ -393,6 +392,28 @@ button:hover {
   opacity: 1;
 }
 
+.in-lobby .app-right .profile-button:hover {
+  background: transparent;
+  border-color: transparent;
+}
+
+.in-lobby .app-right .profile-button:hover .nav-icon {
+  background: #4d4d4d;
+  border-radius: 4px;
+}
+
+.in-lobby .app-left .side-link:hover,
+.in-lobby .app-left .lobby-id-button:hover {
+  background: transparent;
+  border-color: transparent;
+}
+
+.in-lobby .app-left .side-link:hover .nav-icon,
+.in-lobby .app-left .lobby-id-button:hover .nav-icon {
+  background: #4d4d4d;
+  border-radius: 4px;
+}
+
 .app-main {
   display: flex;
   flex: 1;
@@ -413,11 +434,27 @@ button:hover {
 .app-right {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
+  align-items: stretch;
   justify-content: flex-start;
   gap: 16px;
   padding: 16px 12px;
   border-left: 1px solid var(--surface-border);
+  position: relative;
+}
+
+.app-right .profile-button {
+  position: relative;
+  width: 100%;
+  padding-right: 0;
+  box-sizing: border-box;
+  text-align: right;
+}
+
+.app-right .profile-button .nav-icon {
+  position: absolute;
+  right: var(--nav-right-offset);
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 .lobby-dropdown {
@@ -443,16 +480,6 @@ button:hover {
 }
 
 .app-left .lobby-id-button {
-  width: 100%;
-}
-
-.lobby-label-row {
-  display: grid;
-  grid-template-columns: var(--nav-icon-box) 1fr;
-  column-gap: 8px;
-  align-items: center;
-  max-width: 100%;
-  line-height: 1;
   width: 100%;
 }
 
@@ -494,10 +521,6 @@ button:hover {
 
 .profile-button {
   font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 8px;
   padding: 0 0.3rem;
   height: 36px;
 }

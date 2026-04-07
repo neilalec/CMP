@@ -29,6 +29,8 @@ export const useLobbyStore = defineStore('lobby', {
     mapVotes: {},
     votingCountdown: null,
     voteCounts: {}
+    ,
+    mapPool: []
   }),
 
   actions: {
@@ -55,6 +57,8 @@ export const useLobbyStore = defineStore('lobby', {
           });
         }
         if (data.selected_map) this.selectedMap = data.selected_map;
+        if (data.map_pool) this.mapPool = data.map_pool;
+        if (data.mapPool) this.mapPool = data.mapPool;
         if (data.teams) this.teams = data.teams;
         if (data.captains) {
           this.captains = data.captains;
@@ -129,6 +133,7 @@ export const useLobbyStore = defineStore('lobby', {
       this.mapVotes = {};
       this.votingCountdown = null;
       this.voteCounts = {};
+      this.mapPool = [];
     },
 
     updateCountdown(count) {
@@ -166,6 +171,10 @@ export const useLobbyStore = defineStore('lobby', {
 
     updateVoteCounts(counts) {
       this.voteCounts = counts;
+    },
+
+    updateMapPool(pool) {
+      this.mapPool = Array.isArray(pool) ? pool : [];
     },
 
     updateVotingCountdown(count) {

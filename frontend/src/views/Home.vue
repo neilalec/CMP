@@ -16,6 +16,8 @@ const authStore = useAuthStore();
 const lobbyStore = useLobbyStore();
 const rootStore = useRootStore();
 const loading = ref(false);
+const isDev = import.meta.env.DEV;
+const MAX_PLAYERS = 40;
 const isInLobby = computed(() => {
   return !!lobbyStore.lobbyId || !!localStorage.getItem('currentLobby');
 });
@@ -132,6 +134,20 @@ const leaveQueue = async () => {
   }
 };
 
+const seedQueue = async (count = 20) => {
+  loading.value = true;
+  try {
+    const response = await socketStore.emit(SOCKET_EVENTS.QUEUE.SEED, { count });
+    if (!response?.success) {
+      throw new Error(response?.message || 'Failed to seed queue');
+    }
+  } catch (error) {
+    rootStore.setError(error.message || 'Failed to seed queue');
+  } finally {
+    loading.value = false;
+  }
+};
+
 const getLobbyLabel = (lobby) => {
   const captains = lobby?.captains;
   if (captains?.team1 && captains?.team2) {
@@ -149,7 +165,7 @@ const getLobbyLabel = (lobby) => {
 
         <div class="queue-status">
           <p>
-            Players in queue {{ queueStore.playersInQueue }}/2
+            Players in queue {{ queueStore.playersInQueue }}/{{ MAX_PLAYERS }}
           </p>
           <p v-if="queueStore.countdown" class="countdown">
             Lobby created in: {{ queueStore.countdown }}s
@@ -161,7 +177,7 @@ const getLobbyLabel = (lobby) => {
           @click="joinQueue" 
           :disabled="loading || isInLobby"
         >
-          {{ isInLobby ? 'In Lobby' : (loading ? 'Processing...' : 'Join Queue') }}
+          {{ isInLobby ? "You're in a lobby" : (loading ? 'Processing...' : 'Join Queue') }}
         </button>
 
         <button 
@@ -170,6 +186,14 @@ const getLobbyLabel = (lobby) => {
           :disabled="loading"
         >
           Leave Queue
+        </button>
+
+        <button
+          v-if="isDev"
+          @click="seedQueue(MAX_PLAYERS - 1)"
+          :disabled="loading"
+        >
+          Seed Queue ({{ MAX_PLAYERS - 1 }})
         </button>
       </section>
 
@@ -186,13 +210,13 @@ const getLobbyLabel = (lobby) => {
               >
             <div class="open-lobby-info">
               <div>{{ getLobbyLabel(lobby) }}</div>
-              <div>Players {{ lobby.players.length }}/2</div>
+              <div>Players {{ lobby.players.length }}/{{ MAX_PLAYERS }}</div>
             </div>
                 <button
                   @click="joinOpenLobby(lobby.lobby_id)"
                   :disabled="loading || isInLobby"
                 >
-                  {{ isInLobby ? 'In Lobby' : 'Join Lobby' }}
+                  {{ isInLobby ? "You're in a Lobby" : 'Join Lobby' }}
                 </button>
               </div>
             </div>
@@ -200,7 +224,7 @@ const getLobbyLabel = (lobby) => {
           </div>
 
           <div class="lobbies-column">
-            <h3>Ongoing</h3>
+            <h3>Full and ongoing</h3>
             <div v-if="queueStore.activeLobbies.length" class="open-lobbies">
               <div
                 v-for="lobby in queueStore.activeLobbies"
@@ -209,7 +233,7 @@ const getLobbyLabel = (lobby) => {
               >
             <div class="open-lobby-info">
               <div>{{ getLobbyLabel(lobby) }}</div>
-              <div>Players {{ lobby.players.length }}/2</div>
+              <div>Players {{ lobby.players.length }}/{{ MAX_PLAYERS }}</div>
             </div>
               </div>
             </div>
@@ -221,7 +245,11 @@ const getLobbyLabel = (lobby) => {
       <section v-else class="home-about">
         <h1>Competitive Matchmaking Platform</h1>
         <p>
-          The purpose of this web app is to allow players to queue for a competitive Squad match in a straightforward manner
+          The purpose of this web app is to allow players to queue for a competitive Squad match.
+        </p><p>
+          Once a queue is filled, a countdown begins, different steps are then fulfilled to setup a completed match.
+        </p><p>
+          Once a match is ready, you will be given the server info.
         </p>
       </section>
   </div>

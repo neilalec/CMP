@@ -21,10 +21,31 @@ SYNC_INTERVAL = 10
 countdown_active = False
 countdown_paused = False
 countdown_pause_lock = RLock()
-MAX_LOBBY_PLAYERS = 2
-AVAILABLE_MAPS = ['Map 1', 'Map 2', 'Map 3', 'Map 4', 'Map 5']
+MAX_LOBBY_PLAYERS = 40
+ALL_SKIRMISH_MAPS = [
+    'Al Basrah Skirmish v1',
+    'Al Basrah Skirmish v2',
+    'Belaya Skirmish v1',
+    'Chora Skirmish v1',
+    "Fool's Road Skirmish v1",
+    "Fool's Road Skirmish v2",
+    'Gorodok Skirmish v1',
+    'Kamdesh Skirmish v1',
+    'Kohat Skirmish v1',
+    'Kokan Skirmish v1',
+    'Logar Valley Skirmish v1',
+    'Mestia Skirmish v1',
+    'Narva Skirmish v1',
+    'Skorpo Skirmish v1',
+    'Sumari Skirmish v1',
+    'Tallil Outskirts Skirmish v1',
+    'Tallil Outskirts Skirmish v2',
+    'Yehorivka Skirmish v1',
+    'Yehorivka Skirmish v2'
+]
 
 load_dotenv()
+DEV_MODE = os.getenv('CMP_DEV_MODE', '0') == '1'
 
 def load_users():
     """Load users from file"""
@@ -138,7 +159,8 @@ SOCKET_EVENTS =  {
         'UPDATE': 'queue_update',
         'STATUS': 'queue_status',
         'FIND_MATCH': 'find-match',
-        'MATCH_FOUND': 'match_found'
+        'MATCH_FOUND': 'match_found',
+        'SEED': 'queue_seed'
     },
 
   
@@ -158,6 +180,7 @@ SOCKET_EVENTS =  {
             'VOTING': 'lobby_countdown_voting'
         },
         'TEAMS_ASSIGNED': 'teams_assigned',
+        'SKIP_PHASE': 'skip-phase',
     },
 
     'COUNTDOWN': {
@@ -241,6 +264,8 @@ def get_active_lobbies():
     active = []
     for lobby_id, lobby in lobbies.items():
         players = lobby.get('players', [])
+        if len(players) < MAX_LOBBY_PLAYERS:
+            continue
         active.append({
             'lobby_id': lobby_id,
             'players': players,
@@ -383,7 +408,7 @@ def check_queue_and_start_countdown():
     
     # Only hold the lock while checking queue size
     with queue_lock:
-        if len(matchmaking_queue) >= 2:
+        if len(matchmaking_queue) >= MAX_LOBBY_PLAYERS:
             should_start_countdown = True
     
     if should_start_countdown:
@@ -398,7 +423,7 @@ def check_queue_and_start_countdown():
             while countdown_start > 0 and countdown_active:
                 try:
                     with queue_lock:
-                        if len(matchmaking_queue) < 2:
+                        if len(matchmaking_queue) < MAX_LOBBY_PLAYERS:
                             logger.info("Canceling countdown - not enough players")
                             countdown_active = False
                             broadcast_queue_update()  # Send update without countdown
@@ -452,7 +477,7 @@ def save_queue():
 def start_map_voting(lobby_id):
     """Handle map voting countdown and selection"""
     try:
-        countdown = 15  # 15 second countdown
+        countdown = 30  # 30 second countdown
         lobby = lobbies.get(lobby_id)
         
         if not lobby:
@@ -464,11 +489,17 @@ def start_map_voting(lobby_id):
         # Initialize map_votes if not exists
         if 'map_votes' not in lobby:
             lobby['map_votes'] = {}
+
+        # Pick a random 5-map pool for this lobby
+        if 'map_pool' not in lobby or not lobby['map_pool']:
+            lobby['map_pool'] = random.sample(ALL_SKIRMISH_MAPS, k=min(5, len(ALL_SKIRMISH_MAPS)))
             
         # Store the countdown in the lobby state
         lobby['voting_countdown'] = countdown
             
         while countdown > 0:
+            if lobby.get('step') != 2 or lobby.get('skip_phase'):
+                return
             if is_countdown_paused():
                 eventlet.sleep(0.2)
                 continue
@@ -478,6 +509,7 @@ def start_map_voting(lobby_id):
                 'countdown': countdown,
                 'lobby_id': lobby_id,
                 'type': 'voting',
+                'map_pool': lobby.get('map_pool', []),
                 'map_votes': lobby['map_votes'],
                 'vote_counts': {vote: sum(1 for v in lobby['map_votes'].values() if v == vote) 
                               for vote in set(lobby['map_votes'].values())}
@@ -488,6 +520,9 @@ def start_map_voting(lobby_id):
             countdown -= 1
             lobby['voting_countdown'] = countdown
         
+        if lobby.get('step') != 2 or lobby.get('skip_phase'):
+            return
+
         # After countdown ends, tally votes
         if lobby['map_votes']:
             # Count votes for each map
@@ -557,10 +592,10 @@ def broadcast_queue_update(countdown=None):
 def create_lobby():
     """Create a lobby when enough players are in queue"""
     with queue_lock:
-        if len(matchmaking_queue) >= 2:
+        if len(matchmaking_queue) >= MAX_LOBBY_PLAYERS:
             try:
                 # Get first two players
-                players = matchmaking_queue[:2]
+                players = matchmaking_queue[:MAX_LOBBY_PLAYERS]
                 
                 logger.debug(f"Creating lobby for players: {players}")
                 
@@ -611,7 +646,7 @@ def create_lobby():
 def start_team_assignment_countdown(lobby_id):
     """Handle countdown and team assignment for a lobby"""
     try:
-        countdown = 5  # 5 second countdown
+        countdown = 30  # 30 second countdown
         lobby = lobbies.get(lobby_id)
         
         if not lobby:
@@ -624,6 +659,8 @@ def start_team_assignment_countdown(lobby_id):
         }, room=lobby_id)
             
         while countdown > 0:
+            if lobby.get('step') != 1 or lobby.get('skip_phase'):
+                return
             if is_countdown_paused():
                 eventlet.sleep(0.2)
                 continue
@@ -638,6 +675,9 @@ def start_team_assignment_countdown(lobby_id):
             pause_aware_sleep(1)
             countdown -= 1
         
+        if lobby.get('step') != 1 or lobby.get('skip_phase'):
+            return
+
         # Assign teams
         players = lobby['players']
         random.shuffle(players)
@@ -650,6 +690,7 @@ def start_team_assignment_countdown(lobby_id):
         
         # Update lobby with teams
         lobby['teams'] = teams
+        lobby['teams_assigned'] = True
         lobby['captains'] = captains
         lobby['countdown_active'] = False
         
@@ -663,9 +704,11 @@ def start_team_assignment_countdown(lobby_id):
             'step': 1  # Keep at step 1 to show teams
         }, room=lobby_id)
         
-        # Wait 5 seconds to show teams (with countdown updates)
-        display_countdown = 5
+        # Wait 30 seconds to show teams (with countdown updates)
+        display_countdown = 30
         while display_countdown > 0:
+            if lobby.get('step') != 1 or lobby.get('skip_phase'):
+                return
             if is_countdown_paused():
                 eventlet.sleep(0.2)
                 continue
@@ -679,6 +722,9 @@ def start_team_assignment_countdown(lobby_id):
             pause_aware_sleep(1)
             display_countdown -= 1
         
+        if lobby.get('step') != 1 or lobby.get('skip_phase'):
+            return
+
         # Then move to map voting (step 2) and start voting countdown
         lobby['step'] = 2
         socketio.emit('lobby_update', {
@@ -694,6 +740,38 @@ def start_team_assignment_countdown(lobby_id):
     except Exception as e:
         logger.error(f"Error in team assignment countdown: {str(e)}")
 
+def start_teams_display_countdown(lobby_id):
+    """Show assigned teams for a period, then advance to map voting."""
+    try:
+        lobby = lobbies.get(lobby_id)
+        if not lobby:
+            return
+        display_countdown = 30
+        while display_countdown > 0:
+            if lobby.get('step') != 1 or lobby.get('skip_phase'):
+                return
+            if is_countdown_paused():
+                eventlet.sleep(0.2)
+                continue
+            socketio.emit('lobby_countdown_teams', {
+                'countdown': display_countdown,
+                'lobby_id': lobby_id,
+                'type': 'teams_display'
+            }, room=lobby_id)
+            pause_aware_sleep(1)
+            display_countdown -= 1
+
+        if lobby.get('step') != 1 or lobby.get('skip_phase'):
+            return
+        lobby['step'] = 2
+        socketio.emit('lobby_update', {
+            'step': 2,
+            'lobby_id': lobby_id
+        }, room=lobby_id)
+        eventlet.spawn(start_map_voting, lobby_id)
+    except Exception as e:
+        logger.error(f"Error in teams display countdown: {str(e)}")
+
 def assign_teams(players):
     random.shuffle(players)
     mid = len(players) // 2
@@ -705,6 +783,18 @@ def select_captains(teams):
         team = teams.get(team_key, [])
         captains[team_key] = random.choice(team) if team else None
     return captains
+
+def select_map_from_votes(lobby):
+    if lobby.get('map_votes'):
+        vote_counts = {}
+        for username, map_choice in lobby['map_votes'].items():
+            vote_counts[map_choice] = vote_counts.get(map_choice, 0) + 1
+        max_votes = max(vote_counts.values())
+        winning_maps = [map_name for map_name, votes in vote_counts.items() if votes == max_votes]
+        selected_map = random.choice(winning_maps)
+        return selected_map, vote_counts
+    pool = lobby.get('map_pool') or ALL_SKIRMISH_MAPS
+    return random.choice(pool), {}
 
 #PERIODIC FUNCTIONS
 def cleanup_player(username):
@@ -1063,6 +1153,15 @@ def handle_join_queue(data):
         username = data.get('username')
         
         with queue_lock:
+            if len(matchmaking_queue) >= MAX_LOBBY_PLAYERS:
+                emit(f"{SOCKET_EVENTS['QUEUE']['JOIN']}_response", {
+                    'success': False,
+                    'message': 'Queue is full',
+                    'inQueue': False,
+                    'playersInQueue': len(matchmaking_queue),
+                    'queue': list(matchmaking_queue)
+                })
+                return
             if username not in matchmaking_queue:
                 # Add to queue
                 matchmaking_queue.append(username)
@@ -1192,6 +1291,61 @@ def handle_queue_status(data=None):
             'message': 'Failed to get queue status'
         })
 
+@socketio.on(SOCKET_EVENTS['QUEUE']['SEED'])
+@handle_socket_data
+def handle_seed_queue(data=None):
+    """Dev-only: seed queue with fake players for testing."""
+    if not DEV_MODE:
+        return {'success': False, 'message': 'Dev mode disabled'}
+
+    try:
+        count = 0
+        if isinstance(data, dict):
+            count = int(data.get('count', 0))
+        if count <= 0:
+            return {'success': False, 'message': 'Provide a positive count'}
+
+        bot_names = [
+            'Alex', 'Avery', 'Bailey', 'Blake', 'Casey', 'Cameron', 'Drew', 'Eden',
+            'Elliot', 'Emerson', 'Finley', 'Finn', 'Frankie', 'Gabe', 'Gray', 'Hayden',
+            'Jesse', 'Jordan', 'Kai', 'Lane', 'Logan', 'Luca', 'Morgan', 'Noah',
+            'Parker', 'Payton', 'Quinn', 'Reese', 'Riley', 'River', 'Rowan', 'Sam',
+            'Sawyer', 'Skyler', 'Spencer', 'Sydney', 'Taylor', 'Toby', 'Wren', 'Zane'
+        ]
+        added = []
+        with queue_lock:
+            available = MAX_LOBBY_PLAYERS - len(matchmaking_queue)
+            if available <= 0:
+                return {'success': False, 'message': 'Queue is full'}
+            count = min(count, available)
+            existing_bot_names = set()
+            for username in matchmaking_queue:
+                if username.lower().startswith('bot '):
+                    existing_bot_names.add(username[4:].strip())
+            available_names = [name for name in bot_names if name not in existing_bot_names]
+            if not available_names:
+                return {'success': False, 'message': 'No available bot names'}
+            random.shuffle(available_names)
+            count = min(count, len(available_names))
+            for i in range(count):
+                name = available_names[i]
+                username = f"bot {name}"
+                if username in matchmaking_queue:
+                    continue
+                matchmaking_queue.append(username)
+                player_activity[username] = {'status': 'queued'}
+                added.append(username)
+            save_queue()
+
+        broadcast_queue_update()
+        check_queue_and_start_countdown()
+
+        logger.info(f"Seeded queue with {len(added)} fake players")
+        return {'success': True, 'added': len(added), 'players': added}
+    except Exception as e:
+        logger.error(f"Error seeding queue: {str(e)}")
+        return {'success': False, 'message': 'Failed to seed queue'}
+
 @socketio.on(SOCKET_EVENTS['COUNTDOWN']['TOGGLE_PAUSE'])
 @handle_socket_data
 def handle_toggle_countdown_pause(data=None):
@@ -1288,9 +1442,11 @@ def handle_join_lobby(data):
                         lobby['teams']['team2'].append(username)
                     if not lobby.get('captains'):
                         lobby['captains'] = select_captains(lobby['teams'])
+                    lobby['teams_assigned'] = True
                 elif lobby.get('step', 1) >= 2 and len(lobby['players']) >= 2:
                     lobby['teams'] = assign_teams(lobby['players'])
                     lobby['captains'] = select_captains(lobby['teams'])
+                    lobby['teams_assigned'] = True
 
             # Ensure captains exist when teams are present
             if lobby.get('teams'):
@@ -1450,6 +1606,70 @@ def handle_leave_lobby(data):
             'message': 'Failed to leave lobby'
         }
 
+@socketio.on(SOCKET_EVENTS['LOBBY']['SKIP_PHASE'])
+@handle_socket_data
+def handle_skip_phase(data):
+    """Skip current lobby phase and advance to the next one."""
+    try:
+        lobby_id = data.get('lobby_id')
+        lobby = lobbies.get(lobby_id)
+        if not lobby:
+            return {'success': False, 'message': 'Lobby not found'}
+
+        lobby['skip_phase'] = True
+        step = lobby.get('step', 1)
+
+        if step == 1:
+            teams_assigned = lobby.get('teams_assigned') or (
+                lobby.get('teams') and lobby['teams'].get('team1') and lobby['teams'].get('team2')
+            )
+            if not teams_assigned:
+                lobby['teams'] = assign_teams(lobby['players'])
+                lobby['captains'] = select_captains(lobby['teams'])
+                lobby['teams_assigned'] = True
+                socketio.emit('lobby_update', {
+                    'lobby_id': lobby_id,
+                    'teams': lobby['teams'],
+                    'captains': lobby.get('captains'),
+                    'countdown': None,
+                    'isAssigningTeams': False,
+                    'step': 1
+                }, room=lobby_id)
+                lobby['skip_phase'] = False
+                eventlet.spawn(start_teams_display_countdown, lobby_id)
+                return {'success': True, 'step': 1}
+
+            lobby['step'] = 2
+            socketio.emit('lobby_update', {
+                'lobby_id': lobby_id,
+                'teams': lobby['teams'],
+                'captains': lobby.get('captains'),
+                'step': 2
+            }, room=lobby_id)
+            lobby['skip_phase'] = False
+            eventlet.spawn(start_map_voting, lobby_id)
+            return {'success': True, 'step': 2}
+
+        if step == 2:
+            selected_map, vote_counts = select_map_from_votes(lobby)
+            lobby['selected_map'] = selected_map
+            lobby['step'] = 3
+            socketio.emit('lobby_update', {
+                'lobby_id': lobby_id,
+                'selected_map': selected_map,
+                'step': 3,
+                'vote_counts': vote_counts
+            }, room=lobby_id)
+            lobby['skip_phase'] = False
+            return {'success': True, 'step': 3}
+
+        lobby['skip_phase'] = False
+        return {'success': False, 'message': 'No skippable phase'}
+
+    except Exception as e:
+        logger.error(f"Error in handle_skip_phase: {str(e)}")
+        return {'success': False, 'message': 'Failed to skip phase'}
+
 @socketio.on(SOCKET_EVENTS['LOBBY']['START'])
 @handle_socket_data
 def start_lobby(data):
@@ -1479,6 +1699,7 @@ def get_lobby_data(data):
             'players': lobby['players'],
             'teams': lobby['teams'],  # Expecting 'team1' and 'team2'
             'captains': lobby.get('captains'),
+            'map_pool': lobby.get('map_pool', []),
             'selected_map': lobby.get('selected_map'),
             'server_ip': lobby.get('server_ip')
         })
