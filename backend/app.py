@@ -166,6 +166,11 @@ SOCKET_EVENTS =  {
         'STATUS': 'countdown_status'
     },
 
+    'OPEN_LOBBIES': {
+        'STATUS': 'open_lobbies_status',
+        'UPDATE': 'open_lobbies_update'
+    },
+
     'MESSAGE': 'message',
 }; 
 
@@ -227,9 +232,37 @@ def get_open_lobbies():
                 'lobby_id': lobby_id,
                 'players': players,
                 'open_slots': MAX_LOBBY_PLAYERS - len(players),
-                'step': lobby.get('step', 1)
+                'step': lobby.get('step', 1),
+                'captains': lobby.get('captains')
             })
     return open_lobbies
+
+def get_active_lobbies():
+    active = []
+    for lobby_id, lobby in lobbies.items():
+        players = lobby.get('players', [])
+        active.append({
+            'lobby_id': lobby_id,
+            'players': players,
+            'open_slots': max(0, MAX_LOBBY_PLAYERS - len(players)),
+            'step': lobby.get('step', 1),
+            'captains': lobby.get('captains')
+        })
+    return active
+
+def broadcast_open_lobbies_update():
+    """Broadcast open lobbies to all connected clients"""
+    try:
+        socketio.emit(
+            SOCKET_EVENTS['OPEN_LOBBIES']['UPDATE'],
+            {
+                'openLobbies': get_open_lobbies(),
+                'activeLobbies': get_active_lobbies()
+            },
+            room=None
+        )
+    except Exception as e:
+        logger.error(f"Error in broadcast_open_lobbies_update: {str(e)}")
 
 def is_countdown_paused():
     with countdown_pause_lock:
@@ -503,8 +536,7 @@ def broadcast_queue_update(countdown=None):
         queue_status = {
             'success': True,
             'playersInQueue': len(matchmaking_queue),
-            'queue': list(matchmaking_queue),
-            'openLobbies': get_open_lobbies()
+            'queue': list(matchmaking_queue)
         }
         # Only add countdown if it's provided and greater than 0
         if countdown is not None and countdown > 0:
@@ -564,6 +596,7 @@ def create_lobby():
                 # Notify players about lobby creation
                 logger.info(f"Created lobby {lobby_id} with players {players}")
                 socketio.emit(SOCKET_EVENTS['LOBBY']['CREATED'], lobby_data)
+                broadcast_open_lobbies_update()
                 
                 return True
 
@@ -613,14 +646,17 @@ def start_team_assignment_countdown(lobby_id):
             'team1': players[:mid],
             'team2': players[mid:]
         }
+        captains = select_captains(teams)
         
         # Update lobby with teams
         lobby['teams'] = teams
+        lobby['captains'] = captains
         lobby['countdown_active'] = False
         
         # First notify about team assignment (step 1)
         socketio.emit('lobby_update', {
             'teams': teams,
+            'captains': captains,
             'lobby_id': lobby_id,
             'countdown': None,
             'isAssigningTeams': False,
@@ -662,6 +698,13 @@ def assign_teams(players):
     random.shuffle(players)
     mid = len(players) // 2
     return {'team1': players[:mid], 'team2': players[mid:]}
+
+def select_captains(teams):
+    captains = {}
+    for team_key in ['team1', 'team2']:
+        team = teams.get(team_key, [])
+        captains[team_key] = random.choice(team) if team else None
+    return captains
 
 #PERIODIC FUNCTIONS
 def cleanup_player(username):
@@ -1135,8 +1178,7 @@ def handle_queue_status(data=None):
             'success': True,  # Add success flag
             'inQueue': username in matchmaking_queue if username else False,
             'playersInQueue': len(matchmaking_queue),
-            'queue': list(matchmaking_queue),
-            'openLobbies': get_open_lobbies()
+            'queue': list(matchmaking_queue)
         }
         
         logger.debug(f"Queue status for {username}: {queue_status}")
@@ -1182,6 +1224,20 @@ def handle_countdown_status(data=None):
     except Exception as e:
         logger.error(f"Error in handle_countdown_status: {str(e)}")
         return {'success': False, 'message': 'Failed to get countdown status'}
+
+@socketio.on(SOCKET_EVENTS['OPEN_LOBBIES']['STATUS'])
+@handle_socket_data
+def handle_open_lobbies_status(data=None):
+    """Return current open lobbies"""
+    try:
+        return {
+            'success': True,
+            'openLobbies': get_open_lobbies(),
+            'activeLobbies': get_active_lobbies()
+        }
+    except Exception as e:
+        logger.error(f"Error in handle_open_lobbies_status: {str(e)}")
+        return {'success': False, 'message': 'Failed to get open lobbies'}
 
 #LOBBY MANAGEMENT
 @socketio.on(SOCKET_EVENTS['LOBBY']['JOIN'])
@@ -1230,17 +1286,32 @@ def handle_join_lobby(data):
                         lobby['teams']['team1'].append(username)
                     else:
                         lobby['teams']['team2'].append(username)
+                    if not lobby.get('captains'):
+                        lobby['captains'] = select_captains(lobby['teams'])
                 elif lobby.get('step', 1) >= 2 and len(lobby['players']) >= 2:
                     lobby['teams'] = assign_teams(lobby['players'])
+                    lobby['captains'] = select_captains(lobby['teams'])
+
+            # Ensure captains exist when teams are present
+            if lobby.get('teams'):
+                if not lobby.get('captains'):
+                    lobby['captains'] = select_captains(lobby['teams'])
+                else:
+                    for team_key in ['team1', 'team2']:
+                        team_players = lobby['teams'].get(team_key, [])
+                        if team_players and not lobby['captains'].get(team_key):
+                            lobby['captains'][team_key] = random.choice(team_players)
 
                 socketio.emit('lobby_update', {
                     'lobby_id': lobby_id,
                     'players': lobby['players'],
                     'teams': lobby['teams'],
+                    'captains': lobby.get('captains'),
                     'step': lobby['step']
                 }, room=lobby_id)
 
                 broadcast_queue_update()
+                broadcast_open_lobbies_update()
 
                 if len(lobby['players']) >= MAX_LOBBY_PLAYERS and lobby.get('step', 1) == 1:
                     if not lobby.get('countdown_active'):
@@ -1263,6 +1334,7 @@ def handle_join_lobby(data):
                 'lobby_id': lobby_id,
                 'players': lobby['players'],
                 'teams': lobby['teams'],
+                'captains': lobby.get('captains'),
                 'step': lobby['step'],
                 'selected_map': lobby.get('selected_map'),
                 'server_details': lobby.get('server_details')
@@ -1320,6 +1392,12 @@ def handle_leave_lobby(data):
                 for team in ['team1', 'team2']:
                     if username in lobby['teams'][team]:
                         lobby['teams'][team].remove(username)
+
+                # Update captains if needed
+                if lobby.get('captains'):
+                    for team in ['team1', 'team2']:
+                        if lobby['captains'].get(team) == username:
+                            lobby['captains'][team] = random.choice(lobby['teams'][team]) if lobby['teams'][team] else None
                 
                 # Remove from disconnected players if present
                 if 'disconnected_players' in lobby and username in lobby['disconnected_players']:
@@ -1338,12 +1416,21 @@ def handle_leave_lobby(data):
                     'username': username,
                     'lobby_id': lobby_id
                 }, room=lobby_id)
+
+                socketio.emit('lobby_update', {
+                    'lobby_id': lobby_id,
+                    'players': lobby['players'],
+                    'teams': lobby['teams'],
+                    'captains': lobby.get('captains'),
+                    'step': lobby.get('step', 1)
+                }, room=lobby_id)
                 
                 # If lobby is empty, remove it
                 if not lobby['players']:
                     del lobbies[lobby_id]
                     logger.info(f"Removed empty lobby {lobby_id}")
                 broadcast_queue_update()
+                broadcast_open_lobbies_update()
                 
                 logger.info(f"Player {username} left lobby {lobby_id}")
                 return {
@@ -1391,6 +1478,7 @@ def get_lobby_data(data):
             'lobby_id': lobby_id,
             'players': lobby['players'],
             'teams': lobby['teams'],  # Expecting 'team1' and 'team2'
+            'captains': lobby.get('captains'),
             'selected_map': lobby.get('selected_map'),
             'server_ip': lobby.get('server_ip')
         })

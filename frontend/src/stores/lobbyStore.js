@@ -14,6 +14,10 @@ export const useLobbyStore = defineStore('lobby', {
       team1: [],
       team2: []
     },
+    captains: {
+      team1: null,
+      team2: null
+    },
     serverDetails: null,
     step: 1,
     loading: false,
@@ -52,6 +56,12 @@ export const useLobbyStore = defineStore('lobby', {
         }
         if (data.selected_map) this.selectedMap = data.selected_map;
         if (data.teams) this.teams = data.teams;
+        if (data.captains) {
+          this.captains = data.captains;
+          if (data.captains.team1 && data.captains.team2) {
+            localStorage.setItem('currentLobbyCaptains', JSON.stringify(data.captains));
+          }
+        }
         if (data.server_details) this.serverDetails = data.server_details;
         if (data.step) {
           this.step = data.step;
@@ -107,6 +117,7 @@ export const useLobbyStore = defineStore('lobby', {
       this.playerStatuses = {};
       this.selectedMap = null;
       this.teams = { team1: [], team2: [] };
+      this.captains = { team1: null, team2: null };
       this.serverDetails = null;
       this.step = 1;
       this.loading = false;

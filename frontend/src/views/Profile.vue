@@ -36,25 +36,45 @@ const handleLogout = async () => {
 <style scoped>
 .profile-page {
   width: 100%;
-  max-width: 520px;
-  margin: 1rem auto;
+  max-width: 900px;
+  margin: 0 auto;
   text-align: center;
 }
 
 .profile-name {
   font-weight: 700;
   font-size: 1.3rem;
-  color: #ffffff;
+  color: inherit;
   margin: 0.5rem 0 0.75rem;
 }
 
 .profile-note {
-  color: #cccccc;
+  color: inherit;
 }
 
 .profile-actions {
   margin-top: 1.5rem;
-  display: flex;
-  justify-content: center;
+}
+
+button {
+  display: block;
+  width: 200px;
+  margin: 1rem auto;
+  padding: 0.8rem;
+  background: #3d3d3d;
+  color: inherit;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+button:hover {
+  background: #4d4d4d;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 </style>

@@ -49,6 +49,11 @@ export const SOCKET_EVENTS = {
     TEAMS_ASSIGNED: 'teams_assigned',
   },
 
+  OPEN_LOBBIES: {
+    STATUS: 'open_lobbies_status',
+    UPDATE: 'open_lobbies_update'
+  },
+
   COUNTDOWN: {
     TOGGLE_PAUSE: 'pause-countdown',
     PAUSE_STATE: 'countdown_pause_state',

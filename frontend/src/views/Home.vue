@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount, computed } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import { useQueueStore } from '../stores/queueStore';
 import { useSocketStore } from '../stores/socketStore';
 import { useAuthStore } from '../stores/authStore';
@@ -9,6 +9,7 @@ import { SOCKET_EVENTS } from '../constants/socketEvents';
 import { useRootStore } from '../stores/rootStore';
 
 const router = useRouter();
+const route = useRoute();
 const queueStore = useQueueStore();
 const socketStore = useSocketStore();
 const authStore = useAuthStore();
@@ -17,6 +18,11 @@ const rootStore = useRootStore();
 const loading = ref(false);
 const isInLobby = computed(() => {
   return !!lobbyStore.lobbyId || !!localStorage.getItem('currentLobby');
+});
+const activeView = computed(() => {
+  if (route.path === '/queue') return 'queue';
+  if (route.path === '/lobbies') return 'lobbies';
+  return null;
 });
 
 onMounted(async () => {
@@ -30,6 +36,17 @@ onMounted(async () => {
 
   // Now safe to sync - pass username to get accurate queue status
   await queueStore.syncWithServer(authStore.username);
+  try {
+    const openLobbies = await socketStore.emit(SOCKET_EVENTS.OPEN_LOBBIES.STATUS);
+    if (openLobbies?.openLobbies) {
+      queueStore.updateOpenLobbies(openLobbies.openLobbies);
+    }
+    if (openLobbies?.activeLobbies) {
+      queueStore.updateActiveLobbies(openLobbies.activeLobbies);
+    }
+  } catch (error) {
+    // ignore
+  }
 
   // Listen for queue updates
   socketStore.on(SOCKET_EVENTS.QUEUE.UPDATE, (data) => {
@@ -38,6 +55,15 @@ onMounted(async () => {
       ...data,
       inQueue: data.queue?.includes(authStore.username)
     });
+  });
+
+  socketStore.on(SOCKET_EVENTS.OPEN_LOBBIES.UPDATE, (data) => {
+    if (data?.openLobbies) {
+      queueStore.updateOpenLobbies(data.openLobbies);
+    }
+    if (data?.activeLobbies) {
+      queueStore.updateActiveLobbies(data.activeLobbies);
+    }
   });
 
   // Listen for lobby creation
@@ -56,6 +82,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   socketStore.off(SOCKET_EVENTS.QUEUE.UPDATE);
   socketStore.off(SOCKET_EVENTS.LOBBY.CREATED);
+  socketStore.off(SOCKET_EVENTS.OPEN_LOBBIES.UPDATE);
 });
 
 const joinQueue = async () => {
@@ -104,76 +131,114 @@ const leaveQueue = async () => {
     loading.value = false;
   }
 };
+
+const getLobbyLabel = (lobby) => {
+  const captains = lobby?.captains;
+  if (captains?.team1 && captains?.team2) {
+    return `Lobby ${captains.team1} vs ${captains.team2}`;
+  }
+  return lobby?.lobby_id || 'Lobby';
+};
+
 </script>
 
 <template>
-  <div class="queue-grid content-panel">
-    <section class="queue-column">
-      <h1>Pickup Game Queue</h1>
-      
-      <div class="queue-status">
-        <p v-if="queueStore.playersInQueue > 0">
-          Players in queue: {{ queueStore.playersInQueue }}/2
-        </p>
-        <p v-else>
-          No players in queue currently.
-        </p>
-        <p v-if="queueStore.countdown" class="countdown">
-          Lobby created in: {{ queueStore.countdown }}s
-        </p>
-      </div>
+  <div class="home-content content-panel">
+      <section v-if="activeView === 'queue'" class="queue-column">
+        <h1>Queue</h1>
 
-      <button 
-        v-if="!queueStore.inQueue"
-        @click="joinQueue" 
-        :disabled="loading || isInLobby"
-      >
-        {{ isInLobby ? 'In Lobby' : (loading ? 'Processing...' : 'Join Queue') }}
-      </button>
-
-      <button 
-        v-if="queueStore.inQueue" 
-        @click="leaveQueue"
-        :disabled="loading"
-      >
-        Leave Queue
-      </button>
-    </section>
-
-    <section class="queue-column">
-      <h1>Lobby's Missing Players</h1>
-      <div v-if="queueStore.openLobbies.length" class="open-lobbies">
-        <div
-          v-for="lobby in queueStore.openLobbies"
-          :key="lobby.lobby_id"
-          class="open-lobby"
-        >
-          <div class="open-lobby-info">
-            <div>Lobby: {{ lobby.lobby_id }}</div>
-            <div>Players: {{ lobby.players.length }}/2</div>
-          </div>
-          <button
-            @click="joinOpenLobby(lobby.lobby_id)"
-            :disabled="loading || isInLobby"
-          >
-            {{ isInLobby ? 'In Lobby' : 'Join Lobby' }}
-          </button>
+        <div class="queue-status">
+          <p>
+            Players in queue {{ queueStore.playersInQueue }}/2
+          </p>
+          <p v-if="queueStore.countdown" class="countdown">
+            Lobby created in: {{ queueStore.countdown }}s
+          </p>
         </div>
-      </div>
-      <p v-else class="none-text">None</p>
-    </section>
+
+        <button 
+          v-if="!queueStore.inQueue"
+          @click="joinQueue" 
+          :disabled="loading || isInLobby"
+        >
+          {{ isInLobby ? 'In Lobby' : (loading ? 'Processing...' : 'Join Queue') }}
+        </button>
+
+        <button 
+          v-if="queueStore.inQueue" 
+          @click="leaveQueue"
+          :disabled="loading"
+        >
+          Leave Queue
+        </button>
+      </section>
+
+      <section v-else-if="activeView === 'lobbies'" class="queue-column">
+        <h1>Lobbies</h1>
+        <div class="lobbies-grid">
+          <div class="lobbies-column">
+            <h3>Players needed</h3>
+            <div v-if="queueStore.openLobbies.length" class="open-lobbies">
+              <div
+                v-for="lobby in queueStore.openLobbies"
+                :key="lobby.lobby_id"
+                class="open-lobby"
+              >
+            <div class="open-lobby-info">
+              <div>{{ getLobbyLabel(lobby) }}</div>
+              <div>Players {{ lobby.players.length }}/2</div>
+            </div>
+                <button
+                  @click="joinOpenLobby(lobby.lobby_id)"
+                  :disabled="loading || isInLobby"
+                >
+                  {{ isInLobby ? 'In Lobby' : 'Join Lobby' }}
+                </button>
+              </div>
+            </div>
+            <p v-else class="none-text">None</p>
+          </div>
+
+          <div class="lobbies-column">
+            <h3>Ongoing</h3>
+            <div v-if="queueStore.activeLobbies.length" class="open-lobbies">
+              <div
+                v-for="lobby in queueStore.activeLobbies"
+                :key="lobby.lobby_id"
+                class="open-lobby"
+              >
+            <div class="open-lobby-info">
+              <div>{{ getLobbyLabel(lobby) }}</div>
+              <div>Players {{ lobby.players.length }}/2</div>
+            </div>
+              </div>
+            </div>
+            <p v-else class="none-text">None</p>
+          </div>
+        </div>
+      </section>
+
+      <section v-else class="home-about">
+        <h1>Competitive Matchmaking Platform</h1>
+        <p>
+          The purpose of this web app is to allow players to queue for a competitive Squad match in a straightforward manner
+        </p>
+      </section>
   </div>
 </template>
 
 <style scoped>
-.queue-grid {
+.home-content {
   width: 100%;
   max-width: 900px;
+  margin: 0 auto;
+}
+
+.home-about {
+  width: 100%;
+  max-width: 700px;
+  text-align: center;
   margin: 1rem auto;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 24px;
-  align-items: start;
 }
 
 .queue-column {
@@ -184,13 +249,13 @@ const leaveQueue = async () => {
 .queue-column h1 {
   text-align: center;
   margin-bottom: 1.5rem;
-  color: #ffffff;
+  color: inherit;
 }
 
 .queue-status {
   text-align: center;
   margin-bottom: 2rem;
-  color: #cccccc;
+  color: inherit;
 }
 
 .queue-status p {
@@ -211,8 +276,25 @@ const leaveQueue = async () => {
 }
 
 .open-lobbies h3 {
-  color: #cccccc;
+  color: inherit;
   margin-bottom: 0.8rem;
+}
+
+.queue-column h3 {
+  color: inherit;
+  margin: 0.8rem 0;
+}
+
+.lobbies-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+  width: 100%;
+  margin-top: 1rem;
+}
+
+.lobbies-column {
+  width: 100%;
 }
 
 .open-lobby {
@@ -221,14 +303,14 @@ const leaveQueue = async () => {
   justify-content: space-between;
   gap: 12px;
   padding: 10px 12px;
-  background: #3d3d3d;
+  background: var(--panel-bg);
   border-radius: 6px;
   margin-bottom: 10px;
 }
 
 .open-lobby-info {
   text-align: left;
-  color: #ffffff;
+  color: inherit;
   font-size: 0.95em;
 }
 
@@ -243,7 +325,7 @@ button {
   margin: 1rem auto;
   padding: 0.8rem;
   background: #3d3d3d;
-  color: white;
+  color: inherit;
   border: none;
   border-radius: 4px;
   cursor: pointer;

@@ -1,10 +1,11 @@
 @import './base.css';
 
 :root {
-  --app-bg: radial-gradient(1200px 600px at 20% -10%, rgba(76, 175, 80, 0.18), transparent 55%),
-    radial-gradient(900px 500px at 90% 10%, rgba(0, 150, 136, 0.15), transparent 50%),
-    #101010;
-  --surface: rgba(24, 24, 24, 0.85);
+  --app-bg: radial-gradient(1200px 600px at 20% -10%, rgba(34, 52, 84, 0.35), transparent 55%),
+    radial-gradient(900px 500px at 90% 10%, rgba(18, 30, 52, 0.35), transparent 50%),
+    #0f1b2b;
+  --surface: transparent;
+  --panel-bg: rgba(255, 255, 255, 0.04);
   --surface-border: rgba(255, 255, 255, 0.08);
   --surface-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
 }
@@ -51,8 +52,7 @@ a,
 }
 
 .content-panel {
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid var(--surface-border);
+  background: var(--panel-bg);
   border-radius: 10px;
   padding: 24px;
   width: 100%;

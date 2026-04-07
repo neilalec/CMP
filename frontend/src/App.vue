@@ -19,7 +19,29 @@ const route = useRoute();
 const isCountdownPaused = ref(false);
 const isInLobby = computed(() => route.path.startsWith('/lobby/'));
 const currentLobbyId = ref(localStorage.getItem('currentLobby'));
+const currentLobbyCaptains = ref(null);
+try {
+  const saved = localStorage.getItem('currentLobbyCaptains');
+  currentLobbyCaptains.value = saved ? JSON.parse(saved) : null;
+} catch (error) {
+  currentLobbyCaptains.value = null;
+}
 const canReturnToLobby = computed(() => !!currentLobbyId.value && !isInLobby.value);
+const activeLobbyId = computed(() => {
+  return route.params.lobbyId || lobbyStore.lobbyId || currentLobbyId.value;
+});
+const activeCaptains = computed(() => {
+  if (lobbyStore.captains?.team1 && lobbyStore.captains?.team2) {
+    return lobbyStore.captains;
+  }
+  return currentLobbyCaptains.value;
+});
+const lobbyLabel = computed(() => {
+  if (activeCaptains.value?.team1 && activeCaptains.value?.team2) {
+    return `Lobby ${activeCaptains.value.team1} vs ${activeCaptains.value.team2}`;
+  }
+  return activeLobbyId.value;
+});
 const showPauseButton = computed(() => {
   return !!queueStore.countdown || lobbyStore.countdown !== null || lobbyStore.votingCountdown !== null || lobbyStore.teamCountdown !== null;
 });
@@ -74,7 +96,9 @@ const handleLogout = async () => {
     await socketStore.cleanupSocket();
     authStore.logout();
     localStorage.removeItem('currentLobby');
+    localStorage.removeItem('currentLobbyCaptains');
     currentLobbyId.value = null;
+    currentLobbyCaptains.value = null;
     // Reinitialize unauthenticated socket after logout
     await socketStore.initSocket();
     router.push('/auth');
@@ -93,7 +117,9 @@ const handleLeaveLobby = async () => {
     if (response?.success) {
       lobbyStore.leaveLobby();
       localStorage.removeItem('currentLobby');
+      localStorage.removeItem('currentLobbyCaptains');
       currentLobbyId.value = null;
+      currentLobbyCaptains.value = null;
       router.push('/');
     } else {
       throw new Error(response?.message || 'Failed to leave lobby');
@@ -110,6 +136,13 @@ const handleReturnToLobby = async () => {
 
 const handleProfile = () => {
   router.push('/profile');
+};
+
+const handleLobbyIdClick = () => {
+  if (!activeLobbyId.value) return;
+  if (!isInLobby.value) {
+    router.push(`/lobby/${activeLobbyId.value}`);
+  }
 };
 
 const toggleCountdownPause = async () => {
@@ -156,6 +189,13 @@ watch(() => lobbyStore.lobbyId, (id) => {
   }
 });
 
+watch(() => lobbyStore.captains, (captains) => {
+  if (captains?.team1 && captains?.team2) {
+    currentLobbyCaptains.value = captains;
+    localStorage.setItem('currentLobbyCaptains', JSON.stringify(captains));
+  }
+}, { deep: true });
+
 // Cleanup on component unmount
 onBeforeUnmount(() => {
   socketStore.off(SOCKET_EVENTS.COUNTDOWN.PAUSE_STATE, handleCountdownPauseState);
@@ -166,32 +206,52 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="app">
-    <div class="app-shell">
-      <nav v-if="authStore.isLoggedIn">
-        <div class="nav-left">
-          <RouterLink to="/">Home</RouterLink>
-        </div>
-        <div class="nav-center">
-          <button v-if="showPauseButton" @click="toggleCountdownPause">
-            {{ isCountdownPaused ? 'Unpause Countdown' : 'Pause Countdown' }}
-          </button>
-          <button v-if="isInLobby" @click="handleLeaveLobby">
-            Permanently Leave Lobby
-          </button>
-          <button v-if="canReturnToLobby" @click="handleReturnToLobby">
-            Currently in Lobby 
-          </button>
-        </div>
-        <div class="nav-right">
-          <button class="profile-button" type="button" title="Profile page coming soon" @click="handleProfile">
-            {{ authStore.username }}
-          </button>
-        </div>
-    </nav>
+    <div v-if="authStore.isLoggedIn" class="app-shell" :class="{ 'in-lobby': isInLobby }">
+      <aside class="app-left">
+        <RouterLink class="side-link" to="/">
+          <span class="nav-icon">⌂</span>
+          <span class="nav-label">Home</span>
+        </RouterLink>
+        <RouterLink class="side-link" to="/queue">
+          <span class="nav-icon">≡</span>
+          <span class="nav-label">Queue</span>
+        </RouterLink>
+        <RouterLink class="side-link" to="/lobbies">
+          <span class="nav-icon">◉</span>
+          <span class="nav-label">Lobbies</span>
+        </RouterLink>
+      </aside>
 
-      <div class="app-body">
+      <main class="app-main">
         <RouterView />
-      </div>
+      </main>
+
+      <aside class="app-right">
+        <button class="profile-button" type="button" title="Profile page coming soon" @click="handleProfile">
+          <span class="nav-icon">◎</span>
+          <span class="nav-label">{{ authStore.username }}</span>
+        </button>
+        <div v-if="activeLobbyId" class="lobby-dropdown">
+          <button class="lobby-id-button" type="button" @click="handleLobbyIdClick">
+            <span class="lobby-label-row">
+              <span class="nav-icon">◈</span>
+              <span class="lobby-label nav-label">{{ lobbyLabel }}</span>
+            </span>
+          </button>
+          <div v-if="isInLobby || showPauseButton" class="lobby-menu">
+            <button @click="handleLeaveLobby">
+              Permanently Leave Lobby
+            </button>
+            <button v-if="showPauseButton" @click="toggleCountdownPause">
+              {{ isCountdownPaused ? 'Unpause Countdown' : 'Pause Countdown' }}
+            </button>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <div v-else class="auth-shell">
+      <RouterView />
     </div>
 
     <div v-if="rootStore.globalError" class="error-message">
@@ -203,7 +263,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .app {
   font-family: Arial, sans-serif;
-  color: #ffffff;
+  color: inherit;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -215,46 +275,30 @@ onBeforeUnmount(() => {
 
 .app-shell {
   width: 100%;
-  max-width: 1100px;
+  max-width: 100%;
+  min-height: calc(100vh - 48px);
+  background: var(--surface);
+  border-radius: 14px;
+  box-shadow: var(--surface-shadow);
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr) 120px;
+  gap: 16px;
+  padding: 0;
+}
+
+.app-shell.in-lobby {
+  grid-template-columns: 64px minmax(0, 1fr) 64px;
+}
+
+.auth-shell {
+  width: 100%;
+  max-width: 800px;
   min-height: calc(100vh - 48px);
   background: var(--surface);
   border: 1px solid var(--surface-border);
   border-radius: 14px;
   box-shadow: var(--surface-shadow);
-  display: flex;
-  flex-direction: column;
-}
-
-.app-body {
-  flex: 1;
   padding: 24px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
-}
-
-nav {
-  background: transparent;
-  padding: 1rem 1.5rem;
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  border-bottom: 1px solid var(--surface-border);
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-nav a {
-  color: #ffffff;
-  text-decoration: none;
-  padding: 0.5rem 1rem;
-  border-radius: 4px;
-  transition: background-color 0.2s;
-}
-
-nav a:hover {
-  background: #3d3d3d;
 }
 
 .error-message {
@@ -272,7 +316,7 @@ button {
   padding: 0.5rem 1rem;
   cursor: pointer;
   background: transparent;
-  color: white;
+  color: inherit;
   border: 1px solid transparent;
   border-radius: 4px;
   transition: background-color 0.2s, border-color 0.2s;
@@ -283,32 +327,175 @@ button:hover {
   border-color: #3d3d3d;
 }
 
-.nav-left {
+.app-left {
   display: flex;
-  align-items: center;
-  gap: 1rem;
-  min-width: 120px;
+  flex-direction: column;
+  gap: 12px;
+  align-items: stretch;
+  justify-content: flex-start;
+  padding: 16px 12px;
+  border-right: 1px solid var(--surface-border);
 }
 
-.nav-center {
+.side-link {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 0.8rem;
+  color: inherit;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  text-decoration: none;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+
+.side-link:hover {
+  background: #4d4d4d;
+  border-color: #4d4d4d;
+}
+
+.nav-label {
+  display: inline-block;
+  white-space: nowrap;
+  transition: opacity 0.2s ease, max-width 0.2s ease;
+  max-width: 140px;
+  opacity: 1;
+}
+
+.in-lobby .side-link,
+.in-lobby .profile-button,
+.in-lobby .lobby-id-button {
+  justify-content: flex-start;
+  position: relative;
+}
+
+.in-lobby .nav-label {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: #2d2d2d;
+  border: 1px solid #3d3d3d;
+  border-radius: 4px;
+  padding: 4px 8px;
+  opacity: 0;
+  pointer-events: none;
+  max-width: none;
+  transition: opacity 0.2s ease;
+}
+
+.in-lobby .app-left .nav-label {
+  left: calc(100% + 8px);
+}
+
+.in-lobby .app-right .nav-label {
+  right: calc(100% + 8px);
+}
+
+.in-lobby .side-link:hover .nav-label,
+.in-lobby .profile-button:hover .nav-label,
+.in-lobby .lobby-id-button:hover .nav-label {
+  opacity: 1;
+}
+
+.app-main {
+  display: flex;
   flex: 1;
-  justify-content: center;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 16px;
+  padding: 16px;
+  min-width: 0;
 }
 
-.nav-right {
+.app-actions {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.app-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 16px 12px;
+  border-left: 1px solid var(--surface-border);
+}
+
+.lobby-dropdown {
+  position: relative;
+  display: inline-flex;
+}
+
+.lobby-id-button {
+  font-weight: 700;
   display: flex;
   align-items: center;
-  gap: 1rem;
-  min-width: 120px;
-  justify-content: flex-end;
+  justify-content: flex-start;
+  gap: 4px;
+  flex-direction: column;
+  align-items: flex-start;
+  max-width: 100%;
+}
+
+.lobby-label-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+}
+
+.lobby-label {
+  font-weight: 700;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lobby-menu {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  transform: none;
+  margin-top: 0;
+  background: #2d2d2d;
+  border: 1px solid #3d3d3d;
+  border-radius: 6px;
+  padding: 8px;
+  z-index: 10;
+  min-width: 200px;
+}
+
+.app-right .lobby-menu {
+  left: auto;
+  right: 0;
+}
+
+.lobby-dropdown:hover .lobby-menu {
+  display: block;
+}
+
+.lobby-menu button {
+  width: 100%;
 }
 
 .profile-button {
   font-weight: 700;
-  background: #2f2f2f;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
 }
+
+.nav-icon {
+  margin-right: 0;
+  opacity: 0.8;
+  font-size: 1.5em;
+}
+
 </style>

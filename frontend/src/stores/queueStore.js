@@ -8,6 +8,7 @@ export const useQueueStore = defineStore('queue', {
     playersInQueue: 0,
     queueList: [],
     openLobbies: [],
+    activeLobbies: [],
     loading: false,
     error: null,
     lastSync: null,
@@ -22,9 +23,16 @@ export const useQueueStore = defineStore('queue', {
       this.playersInQueue = data.playersInQueue || 0;
       this.queueList = Array.isArray(data.queue) ? data.queue : [];
       this.countdown = data.countdown || null;
-      this.openLobbies = Array.isArray(data.openLobbies) ? data.openLobbies : [];
       this.error = null;
       this.lastSync = Date.now();
+    },
+
+    updateOpenLobbies(list) {
+      this.openLobbies = Array.isArray(list) ? list : [];
+    },
+
+    updateActiveLobbies(list) {
+      this.activeLobbies = Array.isArray(list) ? list : [];
     },
 
     async joinQueue(username) {
@@ -70,6 +78,7 @@ export const useQueueStore = defineStore('queue', {
       this.playersInQueue = 0;
       this.queueList = [];
       this.openLobbies = [];
+      this.activeLobbies = [];
       this.loading = false;
       this.error = null;
       this.lastSync = null;

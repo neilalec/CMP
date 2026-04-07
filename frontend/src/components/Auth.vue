@@ -4,12 +4,14 @@ import { useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/authStore';
 import { useRootStore } from '../stores/rootStore';
 import { useSocketStore } from '../stores/socketStore';
+import { useLobbyStore } from '../stores/lobbyStore';
 import { SOCKET_EVENTS } from '../constants/socketEvents';
 
 const router = useRouter();
 const authStore = useAuthStore();
 const rootStore = useRootStore();
 const socketStore = useSocketStore();
+const lobbyStore = useLobbyStore();
 
 const formType = ref('login');
 const username = ref('');
@@ -36,8 +38,10 @@ const handleSubmit = async () => {
       // Check for active lobby in response
       if (response.active_lobby) {
         console.log('Active lobby found:', response.active_lobby);
+        localStorage.setItem('currentLobby', response.active_lobby);
         router.push(`/lobby/${response.active_lobby}`);
       } else {
+        lobbyStore.leaveLobby();
         router.push('/');
       }
     } else {

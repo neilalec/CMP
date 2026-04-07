@@ -219,6 +219,10 @@ const handleVoteMap = async (map) => {
   }
 };
 
+const isCaptain = (player, teamKey) => {
+  return lobbyStore.captains?.[teamKey] === player;
+};
+
  
 </script>
 
@@ -255,6 +259,7 @@ const handleVoteMap = async (map) => {
             <ul>
               <li v-for="player in lobbyStore.teams.team1" :key="player">
                 {{ player }}
+                <span v-if="isCaptain(player, 'team1')" class="captain-tag">Captain</span>
               </li>
             </ul>
           </div>
@@ -264,6 +269,7 @@ const handleVoteMap = async (map) => {
             <ul>
               <li v-for="player in lobbyStore.teams.team2" :key="player">
                 {{ player }}
+                <span v-if="isCaptain(player, 'team2')" class="captain-tag">Captain</span>
               </li>
             </ul>
           </div>
@@ -297,6 +303,7 @@ const handleVoteMap = async (map) => {
             <ul>
               <li v-for="player in lobbyStore.teams.team1" :key="player">
                 {{ player }}
+                <span v-if="isCaptain(player, 'team1')" class="captain-tag">Captain</span>
               </li>
             </ul>
           </div>
@@ -311,6 +318,7 @@ const handleVoteMap = async (map) => {
             <ul>
               <li v-for="player in lobbyStore.teams.team2" :key="player">
                 {{ player }}
+                <span v-if="isCaptain(player, 'team2')" class="captain-tag">Captain</span>
               </li>
             </ul>
           </div>
@@ -331,6 +339,7 @@ const handleVoteMap = async (map) => {
             <ul>
               <li v-for="player in lobbyStore.teams.team1" :key="player">
                 {{ player }}
+                <span v-if="isCaptain(player, 'team1')" class="captain-tag">Captain</span>
               </li>
             </ul>
           </div>
@@ -340,6 +349,7 @@ const handleVoteMap = async (map) => {
             <ul>
               <li v-for="player in lobbyStore.teams.team2" :key="player">
                 {{ player }}
+                <span v-if="isCaptain(player, 'team2')" class="captain-tag">Captain</span>
               </li>
             </ul>
           </div>
@@ -361,7 +371,7 @@ const handleVoteMap = async (map) => {
 }
 
 .lobby-title {
-  color: #ffffff;
+  color: inherit;
   margin: 10px 0 6px;
   text-align: center;
 }
@@ -399,7 +409,7 @@ const handleVoteMap = async (map) => {
 }
 
 .players-list h3 {
-  color: #cccccc;
+  color: inherit;
   text-align: center;
   margin-bottom: 15px;
 }
@@ -416,7 +426,7 @@ const handleVoteMap = async (map) => {
   background: #3d3d3d;
   border-radius: 4px;
   text-align: center;
-  color: #ffffff;
+  color: inherit;
 }
 
 .teams-container {
@@ -439,7 +449,7 @@ const handleVoteMap = async (map) => {
 .team h3 {
   text-align: center;
   margin-bottom: 15px;
-  color: #cccccc;
+  color: inherit;
 }
 
 .team ul {
@@ -454,7 +464,11 @@ const handleVoteMap = async (map) => {
   background: #2d2d2d;
   border-radius: 4px;
   text-align: center;
-  color: #ffffff;
+  color: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
 
 .map-list {
@@ -471,7 +485,7 @@ const handleVoteMap = async (map) => {
   position: relative;
   padding: 15px 25px;
   background: #3d3d3d;
-  color: white;
+  color: inherit;
   border: none;
   border-radius: 4px;
   cursor: pointer;
@@ -512,7 +526,7 @@ const handleVoteMap = async (map) => {
   justify-content: center;
   min-height: 500px;
   width: 100%;
-  color: #cccccc;
+  color: inherit;
 }
 
 .selected-map {
@@ -532,7 +546,7 @@ const handleVoteMap = async (map) => {
 
 .teams-display h3 {
   text-align: center;
-  color: #cccccc;
+  color: inherit;
   margin-bottom: 20px;
 }
 
@@ -548,13 +562,23 @@ const handleVoteMap = async (map) => {
 .match-info p {
   margin: 10px 0;
   font-size: 1.1em;
-  color: #cccccc;
+  color: inherit;
   text-align: center;
 }
 
 .highlight {
   color: #4CAF50;
   font-weight: bold;
+}
+
+.captain-tag {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: #1f1f1f;
+  color: inherit;
+  padding: 2px 6px;
+  border-radius: 999px;
 }
 
 .teams-three {

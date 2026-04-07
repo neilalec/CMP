@@ -14,6 +14,18 @@ const routes = [
     meta: { requiresAuth: true } 
   },
   { 
+    path: '/queue', 
+    name: 'queue', 
+    component: Home, 
+    meta: { requiresAuth: true } 
+  },
+  { 
+    path: '/lobbies', 
+    name: 'lobbies', 
+    component: Home, 
+    meta: { requiresAuth: true } 
+  },
+  { 
     path: '/auth', 
     name: 'auth', 
     component: Auth, 
