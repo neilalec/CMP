@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 import Home from '../views/Home.vue';
 import Auth from '../components/Auth.vue';
 import Lobby from '../components/Lobby.vue';
+import Profile from '../views/Profile.vue';
 import { useAuthStore } from '@/stores/authStore';
 import { useRootStore } from '@/stores/rootStore';
 
@@ -24,7 +25,13 @@ const routes = [
     component: Lobby, 
     props: true, 
     meta: { requiresAuth: true } 
-  }
+  },
+  { 
+    path: '/profile', 
+    name: 'profile', 
+    component: Profile, 
+    meta: { requiresAuth: true } 
+  },
 ];
 
 const router = createRouter({

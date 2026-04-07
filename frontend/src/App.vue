@@ -7,17 +7,22 @@ import { useSocketStore } from './stores/socketStore';
 import { useRootStore } from './stores/rootStore';
 import { SOCKET_EVENTS } from './constants/socketEvents';
 import { useLobbyStore } from './stores/lobbyStore';
+import { useQueueStore } from './stores/queueStore';
 
 const router = useRouter();
 const authStore = useAuthStore();
 const socketStore = useSocketStore();
 const rootStore = useRootStore();
 const lobbyStore = useLobbyStore();
+const queueStore = useQueueStore();
 const route = useRoute();
 const isCountdownPaused = ref(false);
 const isInLobby = computed(() => route.path.startsWith('/lobby/'));
 const currentLobbyId = ref(localStorage.getItem('currentLobby'));
 const canReturnToLobby = computed(() => !!currentLobbyId.value && !isInLobby.value);
+const showPauseButton = computed(() => {
+  return !!queueStore.countdown || lobbyStore.countdown !== null || lobbyStore.votingCountdown !== null || lobbyStore.teamCountdown !== null;
+});
 const handleCountdownPauseState = (data) => {
   if (data && typeof data.paused === 'boolean') {
     isCountdownPaused.value = data.paused;
@@ -103,6 +108,10 @@ const handleReturnToLobby = async () => {
   router.push(`/lobby/${currentLobbyId.value}`);
 };
 
+const handleProfile = () => {
+  router.push('/profile');
+};
+
 const toggleCountdownPause = async () => {
   const nextPaused = !isCountdownPaused.value;
   isCountdownPaused.value = nextPaused;
@@ -159,18 +168,25 @@ onBeforeUnmount(() => {
   <div class="app">
     <div class="app-shell">
       <nav v-if="authStore.isLoggedIn">
-        <RouterLink to="/">Home</RouterLink>
-        <span class="username">User: {{ authStore.username }}</span>
-        <button @click="toggleCountdownPause">
-          {{ isCountdownPaused ? 'Unpause Countdown' : 'Pause Countdown' }}
-        </button>
-      <button v-if="isInLobby" @click="handleLeaveLobby">
-        Permanently leave lobby
-      </button>
-      <button v-if="canReturnToLobby" @click="handleReturnToLobby">
-        Return to Lobby
-      </button>
-      <button @click="handleLogout">Logout</button>
+        <div class="nav-left">
+          <RouterLink to="/">Home</RouterLink>
+        </div>
+        <div class="nav-center">
+          <button v-if="showPauseButton" @click="toggleCountdownPause">
+            {{ isCountdownPaused ? 'Unpause Countdown' : 'Pause Countdown' }}
+          </button>
+          <button v-if="isInLobby" @click="handleLeaveLobby">
+            Permanently Leave Lobby
+          </button>
+          <button v-if="canReturnToLobby" @click="handleReturnToLobby">
+            Currently in Lobby 
+          </button>
+        </div>
+        <div class="nav-right">
+          <button class="profile-button" type="button" title="Profile page coming soon" @click="handleProfile">
+            {{ authStore.username }}
+          </button>
+        </div>
     </nav>
 
       <div class="app-body">
@@ -222,10 +238,11 @@ nav {
   background: transparent;
   padding: 1rem 1.5rem;
   display: flex;
-  justify-content: center;
+  justify-content: space-between;
   gap: 1rem;
   border-bottom: 1px solid var(--surface-border);
   flex-wrap: wrap;
+  align-items: center;
 }
 
 nav a {
@@ -254,21 +271,44 @@ nav a:hover {
 button {
   padding: 0.5rem 1rem;
   cursor: pointer;
-  background: #3d3d3d;
+  background: transparent;
   color: white;
-  border: none;
+  border: 1px solid transparent;
   border-radius: 4px;
-  transition: background-color 0.2s;
+  transition: background-color 0.2s, border-color 0.2s;
 }
 
 button:hover {
-  background: #4d4d4d;
+  background: #3d3d3d;
+  border-color: #3d3d3d;
 }
 
-.username {
-  color: #888;
-  line-height: 1;
-  display: inline-flex;
+.nav-left {
+  display: flex;
   align-items: center;
+  gap: 1rem;
+  min-width: 120px;
+}
+
+.nav-center {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex: 1;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-width: 120px;
+  justify-content: flex-end;
+}
+
+.profile-button {
+  font-weight: 700;
+  background: #2f2f2f;
 }
 </style>
