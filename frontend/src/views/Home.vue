@@ -135,7 +135,7 @@ const leaveQueue = async () => {
 const getLobbyLabel = (lobby) => {
   const captains = lobby?.captains;
   if (captains?.team1 && captains?.team2) {
-    return `Lobby ${captains.team1} vs ${captains.team2}`;
+    return `Team ${captains.team1} vs Team ${captains.team2}`;
   }
   return lobby?.lobby_id || 'Lobby';
 };
@@ -230,15 +230,15 @@ const getLobbyLabel = (lobby) => {
 <style scoped>
 .home-content {
   width: 100%;
-  max-width: 900px;
-  margin: 0 auto;
+  max-width: 100%;
+  margin: 0;
 }
 
 .home-about {
   width: 100%;
-  max-width: 700px;
+  max-width: 100%;
   text-align: center;
-  margin: 1rem auto;
+  margin: 1rem 0;
 }
 
 .queue-column {

@@ -16,7 +16,6 @@ const rootStore = useRootStore();
 const lobbyStore = useLobbyStore();
 const queueStore = useQueueStore();
 const route = useRoute();
-const isCountdownPaused = ref(false);
 const isInLobby = computed(() => route.path.startsWith('/lobby/'));
 const currentLobbyId = ref(localStorage.getItem('currentLobby'));
 const currentLobbyCaptains = ref(null);
@@ -38,30 +37,10 @@ const activeCaptains = computed(() => {
 });
 const lobbyLabel = computed(() => {
   if (activeCaptains.value?.team1 && activeCaptains.value?.team2) {
-    return `Lobby ${activeCaptains.value.team1} vs ${activeCaptains.value.team2}`;
+    return `Team ${activeCaptains.value.team1} vs Team ${activeCaptains.value.team2}`;
   }
   return activeLobbyId.value;
 });
-const showPauseButton = computed(() => {
-  return !!queueStore.countdown || lobbyStore.countdown !== null || lobbyStore.votingCountdown !== null || lobbyStore.teamCountdown !== null;
-});
-const handleCountdownPauseState = (data) => {
-  if (data && typeof data.paused === 'boolean') {
-    isCountdownPaused.value = data.paused;
-  }
-};
-const syncCountdownPauseState = async () => {
-  if (!socketStore.isConnected) return;
-  try {
-    const response = await socketStore.emit(SOCKET_EVENTS.COUNTDOWN.STATUS);
-    if (response && typeof response.paused === 'boolean') {
-      isCountdownPaused.value = response.paused;
-    }
-  } catch (error) {
-    // Avoid noisy errors during reconnects
-  }
-};
-
 // Initialize socket and auth state on mount
 onMounted(async () => {
   console.log('App mounted, initializing base socket connection...');
@@ -76,10 +55,6 @@ onMounted(async () => {
       await socketStore.initSocket();
     }
     
-    socketStore.on(SOCKET_EVENTS.COUNTDOWN.PAUSE_STATE, handleCountdownPauseState);
-    socketStore.on(SOCKET_EVENTS.CONNECTION.CONNECT, syncCountdownPauseState);
-    await syncCountdownPauseState();
-
     // Redirect if not authenticated
     if (!isAuthenticated) {
       router.push('/auth');
@@ -145,22 +120,6 @@ const handleLobbyIdClick = () => {
   }
 };
 
-const toggleCountdownPause = async () => {
-  const nextPaused = !isCountdownPaused.value;
-  isCountdownPaused.value = nextPaused;
-  try {
-    const response = await socketStore.emit(SOCKET_EVENTS.COUNTDOWN.TOGGLE_PAUSE, {
-      paused: nextPaused
-    });
-    if (response && typeof response.paused === 'boolean') {
-      isCountdownPaused.value = response.paused;
-    }
-  } catch (error) {
-    isCountdownPaused.value = !nextPaused;
-    rootStore.setError('Failed to toggle countdown pause');
-  }
-};
-
 // Watch for auth state changes to update socket connection
 watch(() => authStore.isLoggedIn, async (isLoggedIn) => {
   if (isLoggedIn && authStore.token) {
@@ -169,10 +128,6 @@ watch(() => authStore.isLoggedIn, async (isLoggedIn) => {
       // Cleanup existing socket and create new authenticated connection
       await socketStore.cleanupSocket();
       await socketStore.initSocket(authStore.token, authStore.username);
-      socketStore.on(SOCKET_EVENTS.COUNTDOWN.PAUSE_STATE, handleCountdownPauseState);
-      socketStore.on(SOCKET_EVENTS.CONNECTION.CONNECT, syncCountdownPauseState);
-      await syncCountdownPauseState();
-   
     } catch (error) {
       rootStore.setError('Failed to connect to server');
       authStore.logout();
@@ -198,8 +153,6 @@ watch(() => lobbyStore.captains, (captains) => {
 
 // Cleanup on component unmount
 onBeforeUnmount(() => {
-  socketStore.off(SOCKET_EVENTS.COUNTDOWN.PAUSE_STATE, handleCountdownPauseState);
-  socketStore.off(SOCKET_EVENTS.CONNECTION.CONNECT, syncCountdownPauseState);
   socketStore.cleanupSocket();
 });
 </script>
@@ -213,13 +166,30 @@ onBeforeUnmount(() => {
           <span class="nav-label">Home</span>
         </RouterLink>
         <RouterLink class="side-link" to="/queue">
-          <span class="nav-icon">≡</span>
+          <span class="nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 32 24" role="img">
+              <circle cx="8" cy="7" r="3" fill="currentColor" />
+              <circle cx="16" cy="7" r="3" fill="currentColor" />
+              <circle cx="24" cy="7" r="3" fill="currentColor" />
+              <path d="M2 22c0-3 3-5 6-5s6 2 6 5" fill="currentColor" />
+              <path d="M10 22c0-3 3-5 6-5s6 2 6 5" fill="currentColor" />
+              <path d="M18 22c0-3 3-5 6-5s6 2 6 5" fill="currentColor" />
+            </svg>
+          </span>
           <span class="nav-label">Queue</span>
         </RouterLink>
         <RouterLink class="side-link" to="/lobbies">
           <span class="nav-icon">◉</span>
           <span class="nav-label">Lobbies</span>
         </RouterLink>
+        <div v-if="activeLobbyId" class="lobby-dropdown">
+          <button class="lobby-id-button" type="button" @click="handleLobbyIdClick">
+            <span class="lobby-label-row">
+              <span class="nav-icon lobby-icon">◈</span>
+              <span class="lobby-label nav-label">{{ lobbyLabel }}</span>
+            </span>
+          </button>
+        </div>
       </aside>
 
       <main class="app-main">
@@ -228,25 +198,14 @@ onBeforeUnmount(() => {
 
       <aside class="app-right">
         <button class="profile-button" type="button" title="Profile page coming soon" @click="handleProfile">
-          <span class="nav-icon">◎</span>
+          <span class="nav-icon profile-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" role="img">
+              <circle cx="12" cy="8" r="4" fill="currentColor" />
+              <path d="M4 20c0-4 4-6 8-6s8 2 8 6" fill="currentColor" />
+            </svg>
+          </span>
           <span class="nav-label">{{ authStore.username }}</span>
         </button>
-        <div v-if="activeLobbyId" class="lobby-dropdown">
-          <button class="lobby-id-button" type="button" @click="handleLobbyIdClick">
-            <span class="lobby-label-row">
-              <span class="nav-icon">◈</span>
-              <span class="lobby-label nav-label">{{ lobbyLabel }}</span>
-            </span>
-          </button>
-          <div v-if="isInLobby || showPauseButton" class="lobby-menu">
-            <button @click="handleLeaveLobby">
-              Permanently Leave Lobby
-            </button>
-            <button v-if="showPauseButton" @click="toggleCountdownPause">
-              {{ isCountdownPaused ? 'Unpause Countdown' : 'Pause Countdown' }}
-            </button>
-          </div>
-        </div>
       </aside>
     </div>
 
@@ -269,25 +228,29 @@ onBeforeUnmount(() => {
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-  padding: 24px;
+  padding: 0;
   width: 100%;
 }
 
 .app-shell {
   width: 100%;
   max-width: 100%;
-  min-height: calc(100vh - 48px);
+  min-height: 100vh;
+  --nav-icon-box: 36px;
+  --nav-collapsed: 77px;
+  --nav-offset: calc((var(--nav-collapsed) - var(--nav-icon-box)) / 2);
   background: var(--surface);
-  border-radius: 14px;
-  box-shadow: var(--surface-shadow);
+  border-radius: 0;
+  box-shadow: none;
   display: grid;
-  grid-template-columns: 120px minmax(0, 1fr) 120px;
-  gap: 16px;
+  grid-template-columns: 144px minmax(0, 1fr) 120px;
+  transition: grid-template-columns 0.7s ease;
+  gap: 0;
   padding: 0;
 }
 
 .app-shell.in-lobby {
-  grid-template-columns: 64px minmax(0, 1fr) 64px;
+  grid-template-columns: 77px minmax(0, 1fr) 64px;
 }
 
 .auth-shell {
@@ -330,24 +293,40 @@ button:hover {
 .app-left {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
   align-items: stretch;
   justify-content: flex-start;
   padding: 16px 12px;
   border-right: 1px solid var(--surface-border);
 }
 
+.app-shell:not(.in-lobby) .app-left {
+  padding-left: var(--nav-offset);
+}
+
+.app-shell.in-lobby .app-left {
+  padding-left: 0;
+  padding-right: 0;
+  align-items: center;
+}
+
 .side-link {
-  display: flex;
+  display: grid;
+  grid-template-columns: var(--nav-icon-box) 1fr;
+  column-gap: 8px;
   align-items: center;
   justify-content: flex-start;
-  gap: 8px;
-  padding: 0.8rem;
+  padding: 0 0.3rem;
+  height: 36px;
   color: inherit;
   border-radius: 4px;
   border: 1px solid transparent;
   text-decoration: none;
   transition: background-color 0.2s, border-color 0.2s;
+}
+
+.app-left .side-link {
+  padding-left: 0;
 }
 
 .side-link:hover {
@@ -366,8 +345,24 @@ button:hover {
 .in-lobby .side-link,
 .in-lobby .profile-button,
 .in-lobby .lobby-id-button {
-  justify-content: flex-start;
   position: relative;
+}
+
+.in-lobby .app-left .side-link {
+  display: flex;
+  width: var(--nav-icon-box);
+  height: var(--nav-icon-box);
+  padding: 0;
+  justify-content: center;
+  align-items: center;
+}
+
+.in-lobby .app-left .lobby-id-button {
+  width: var(--nav-icon-box);
+  height: var(--nav-icon-box);
+  padding: 0;
+  justify-content: center;
+  align-items: center;
 }
 
 .in-lobby .nav-label {
@@ -377,7 +372,7 @@ button:hover {
   background: #2d2d2d;
   border: 1px solid #3d3d3d;
   border-radius: 4px;
-  padding: 4px 8px;
+  padding: 2px 5px;
   opacity: 0;
   pointer-events: none;
   max-width: none;
@@ -385,11 +380,11 @@ button:hover {
 }
 
 .in-lobby .app-left .nav-label {
-  left: calc(100% + 8px);
+  left: calc(100% + 6px);
 }
 
 .in-lobby .app-right .nav-label {
-  right: calc(100% + 8px);
+  right: calc(100% + 6px);
 }
 
 .in-lobby .side-link:hover .nav-label,
@@ -402,10 +397,10 @@ button:hover {
   display: flex;
   flex: 1;
   flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 16px;
-  padding: 16px;
+  align-items: stretch;
+  justify-content: stretch;
+  gap: 0;
+  padding: 0;
   min-width: 0;
 }
 
@@ -420,7 +415,7 @@ button:hover {
   flex-direction: column;
   align-items: flex-end;
   justify-content: flex-start;
-  gap: 12px;
+  gap: 16px;
   padding: 16px 12px;
   border-left: 1px solid var(--surface-border);
 }
@@ -430,22 +425,35 @@ button:hover {
   display: inline-flex;
 }
 
+.app-left .lobby-dropdown {
+  width: 100%;
+}
+
 .lobby-id-button {
   font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 4px;
-  flex-direction: column;
-  align-items: flex-start;
+  gap: 8px;
+  flex-direction: row;
+  align-items: center;
   max-width: 100%;
+  padding: 0 0.3rem;
+  height: 36px;
+}
+
+.app-left .lobby-id-button {
+  width: 100%;
 }
 
 .lobby-label-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: var(--nav-icon-box) 1fr;
+  column-gap: 8px;
   align-items: center;
-  gap: 8px;
   max-width: 100%;
+  line-height: 1;
+  width: 100%;
 }
 
 .lobby-label {
@@ -490,12 +498,29 @@ button:hover {
   align-items: center;
   justify-content: flex-start;
   gap: 8px;
+  padding: 0 0.3rem;
+  height: 36px;
 }
 
 .nav-icon {
   margin-right: 0;
   opacity: 0.8;
   font-size: 1.5em;
+  width: var(--nav-icon-box);
+  height: var(--nav-icon-box);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-icon svg {
+  display: block;
+  width: 1em;
+  height: 1em;
+}
+
+.lobby-icon {
+  font-size: 2em;
 }
 
 </style>

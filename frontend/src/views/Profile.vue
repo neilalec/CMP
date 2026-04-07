@@ -36,8 +36,8 @@ const handleLogout = async () => {
 <style scoped>
 .profile-page {
   width: 100%;
-  max-width: 900px;
-  margin: 0 auto;
+  max-width: 100%;
+  margin: 0;
   text-align: center;
 }
 

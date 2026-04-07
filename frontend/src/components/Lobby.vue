@@ -13,6 +13,7 @@ const lobbyStore = useLobbyStore();
 const socketStore = useSocketStore();
 const rootStore = useRootStore();
 const authStore = useAuthStore();
+const isCountdownPaused = ref(false);
 
 // Constants
 const AVAILABLE_MAPS = ['Map 1', 'Map 2', 'Map 3', 'Map 4', 'Map 5'];
@@ -48,6 +49,7 @@ const phaseTitle = computed(() => {
   if (lobbyStore.step === 4) return 'Server Details';
   return 'Lobby';
 });
+const showPauseButton = computed(() => activeCountdown.value !== null);
 
 // LIFECYCLE HOOKS
 onMounted(async () => {
@@ -160,6 +162,20 @@ onMounted(async () => {
     };
 
     setupListeners();
+
+    socketStore.on(SOCKET_EVENTS.COUNTDOWN.PAUSE_STATE, (data) => {
+      if (data && typeof data.paused === 'boolean') {
+        isCountdownPaused.value = data.paused;
+      }
+    });
+    try {
+      const response = await socketStore.emit(SOCKET_EVENTS.COUNTDOWN.STATUS);
+      if (response && typeof response.paused === 'boolean') {
+        isCountdownPaused.value = response.paused;
+      }
+    } catch (error) {
+      // ignore
+    }
     
     // Try to join/rejoin lobby
     const joinResponse = await socketStore.emit(SOCKET_EVENTS.LOBBY.JOIN, { 
@@ -196,6 +212,7 @@ onBeforeUnmount(() => {
   });
   listeners.value = [];
   lobbyStore.reset();
+  socketStore.off(SOCKET_EVENTS.COUNTDOWN.PAUSE_STATE);
 });
 
 // METHODS
@@ -219,27 +236,96 @@ const handleVoteMap = async (map) => {
   }
 };
 
+const handleLeaveLobby = async () => {
+  try {
+    const lobbyId = lobbyStore.lobbyId || route.params.lobbyId;
+    if (!lobbyId) return;
+    const response = await socketStore.emit(SOCKET_EVENTS.LOBBY.LEAVE, {
+      lobby_id: lobbyId,
+      username: authStore.username
+    });
+    if (response?.success) {
+      lobbyStore.leaveLobby();
+      localStorage.removeItem('currentLobby');
+      localStorage.removeItem('currentLobbyCaptains');
+      router.push('/');
+    } else {
+      throw new Error(response?.message || 'Failed to leave lobby');
+    }
+  } catch (error) {
+    rootStore.setError({
+      message: 'Failed to leave lobby',
+      details: error.message,
+      context: 'lobby-leave'
+    });
+  }
+};
+
+const toggleCountdownPause = async () => {
+  const nextPaused = !isCountdownPaused.value;
+  isCountdownPaused.value = nextPaused;
+  try {
+    const response = await socketStore.emit(SOCKET_EVENTS.COUNTDOWN.TOGGLE_PAUSE, {
+      paused: nextPaused
+    });
+    if (response && typeof response.paused === 'boolean') {
+      isCountdownPaused.value = response.paused;
+    }
+  } catch (error) {
+    isCountdownPaused.value = !nextPaused;
+    rootStore.setError({
+      message: 'Failed to toggle countdown pause',
+      details: error.message,
+      context: 'countdown-pause'
+    });
+  }
+};
+
 const isCaptain = (player, teamKey) => {
   return lobbyStore.captains?.[teamKey] === player;
 };
+
+const getTeamLabel = (teamKey) => {
+  const captain = lobbyStore.captains?.[teamKey];
+  return captain ? `Team ${captain}` : (teamKey === 'team1' ? 'Team 1' : 'Team 2');
+};
+
+const matchSizeLabel = computed(() => {
+  const team1Count = lobbyStore.teams?.team1?.length || 0;
+  const team2Count = lobbyStore.teams?.team2?.length || 0;
+  if (team1Count || team2Count) {
+    return `${team1Count}v${team2Count}`;
+  }
+  const total = lobbyStore.players?.length || 0;
+  if (!total) return '';
+  const left = Math.floor(total / 2);
+  const right = total - left;
+  return `${left}v${right}`;
+});
 
  
 </script>
 
 <template>
   <div class="lobby-page">
-    <h1 class="lobby-title">{{ phaseTitle }}</h1>
-    <p v-if="activeCountdown !== null" class="countdown">
-      {{ activeCountdownLabel }} {{ activeCountdown }}s
-    </p>
-
-    <div class="lobby-panel">
-      <div v-if="lobbyStore.loading" class="loading">
-        Loading lobby...
+    <div class="lobby-shell content-panel">
+      <h1 class="lobby-title">{{ phaseTitle }}</h1>
+      <div class="countdown-slot">
+        <p v-if="activeCountdown !== null" class="countdown">
+          {{ activeCountdownLabel }} {{ activeCountdown }}s
+        </p>
+        <button v-if="showPauseButton" class="pause-button" @click="toggleCountdownPause">
+          {{ isCountdownPaused ? 'Unpause Countdown' : 'Pause Countdown' }}
+        </button>
       </div>
+
+      <div class="lobby-panel">
+        <div v-if="lobbyStore.loading" class="loading">
+          Loading lobby...
+        </div>
     
       <!-- Step 1: Waiting with Countdown -->
-      <div v-else-if="lobbyStore.step === 1" class="lobby-section content-panel">
+      <div v-else-if="lobbyStore.step === 1" class="lobby-section">
       <!-- Show players list if not assigning teams and not showing teams -->
       <div v-if="!lobbyStore.isAssigningTeams && !lobbyStore.showingTeams" class="players-list">
         <h3>Players in Lobby:</h3>
@@ -255,7 +341,7 @@ const isCaptain = (player, teamKey) => {
         <h3>Teams have been assigned!</h3>
         <div class="teams-container">
           <div class="team">
-            <h3>Team 1</h3>
+            <h3>{{ getTeamLabel('team1') }}</h3>
             <ul>
               <li v-for="player in lobbyStore.teams.team1" :key="player">
                 {{ player }}
@@ -265,7 +351,7 @@ const isCaptain = (player, teamKey) => {
           </div>
           
           <div class="team">
-            <h3>Team 2</h3>
+            <h3>{{ getTeamLabel('team2') }}</h3>
             <ul>
               <li v-for="player in lobbyStore.teams.team2" :key="player">
                 {{ player }}
@@ -278,7 +364,7 @@ const isCaptain = (player, teamKey) => {
     </div>
 
       <!-- Step 2: Map Voting -->
-      <div v-else-if="lobbyStore.step === 2" class="lobby-section content-panel">
+      <div v-else-if="lobbyStore.step === 2" class="lobby-section">
       <div class="map-list">
         <button
           v-for="map in AVAILABLE_MAPS"
@@ -296,10 +382,10 @@ const isCaptain = (player, teamKey) => {
     </div>
 
       <!-- Step 3: Map Selected -->
-      <div v-else-if="lobbyStore.step === 3" class="lobby-section content-panel">
+      <div v-else-if="lobbyStore.step === 3" class="lobby-section">
         <div class="teams-three">
           <div class="team">
-            <h3>Team 1</h3>
+            <h3>{{ getTeamLabel('team1') }}</h3>
             <ul>
               <li v-for="player in lobbyStore.teams.team1" :key="player">
                 {{ player }}
@@ -309,12 +395,13 @@ const isCaptain = (player, teamKey) => {
           </div>
 
           <div class="match-info">
+            <p v-if="matchSizeLabel">Match size: <span class="highlight">{{ matchSizeLabel }}</span></p>
             <p>Selected Map: <span class="highlight">{{ lobbyStore.selectedMap }}</span></p>
             <p>Server IP: <span class="highlight">{{ lobbyStore.serverDetails?.ip || '192.168.1.100' }}</span></p>
           </div>
 
           <div class="team">
-            <h3>Team 2</h3>
+            <h3>{{ getTeamLabel('team2') }}</h3>
             <ul>
               <li v-for="player in lobbyStore.teams.team2" :key="player">
                 {{ player }}
@@ -326,7 +413,7 @@ const isCaptain = (player, teamKey) => {
     </div>
 
       <!-- Step 4: Server Details -->
-      <div v-else-if="lobbyStore.step === 4" class="lobby-section content-panel">
+      <div v-else-if="lobbyStore.step === 4" class="lobby-section">
       <div class="match-details">
         <div class="match-info">
           <p>Map: <span class="highlight">{{ lobbyStore.selectedMap }}</span></p>
@@ -335,7 +422,7 @@ const isCaptain = (player, teamKey) => {
         
         <div class="teams-container">
           <div class="team">
-            <h3>Team 1</h3>
+            <h3>{{ getTeamLabel('team1') }}</h3>
             <ul>
               <li v-for="player in lobbyStore.teams.team1" :key="player">
                 {{ player }}
@@ -345,7 +432,7 @@ const isCaptain = (player, teamKey) => {
           </div>
           
           <div class="team">
-            <h3>Team 2</h3>
+            <h3>{{ getTeamLabel('team2') }}</h3>
             <ul>
               <li v-for="player in lobbyStore.teams.team2" :key="player">
                 {{ player }}
@@ -356,6 +443,10 @@ const isCaptain = (player, teamKey) => {
         </div>
       </div>
       </div>
+      </div>
+      <button class="leave-lobby-button" @click="handleLeaveLobby">
+        Leave Lobby
+      </button>
     </div>
   </div>
 </template>
@@ -363,11 +454,22 @@ const isCaptain = (player, teamKey) => {
 <style scoped>
 .lobby-page {
   width: 100%;
-  min-height: calc(100vh - 80px);
-  padding: 20px;
+  min-height: 100%;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.lobby-shell {
+  width: 100%;
+  max-width: 100%;
+  min-height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
+  position: relative;
+  padding: 20px 20px 70px;
 }
 
 .lobby-title {
@@ -378,8 +480,7 @@ const isCaptain = (player, teamKey) => {
 
 .lobby-panel {
   width: 100%;
-  max-width: 900px;
-  min-height: 520px;
+  min-height: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -400,6 +501,33 @@ const isCaptain = (player, teamKey) => {
   font-weight: bold;
   margin-top: 1rem;
   text-align: center;
+}
+
+.countdown-slot {
+  min-height: 80px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.countdown-slot .countdown {
+  margin-top: 0;
+}
+
+.pause-button {
+  margin-top: 0.5rem;
+  padding: 0.6rem 1.2rem;
+  background: #3d3d3d;
+  color: inherit;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.pause-button:hover {
+  background: #4d4d4d;
 }
 
 .players-list {
@@ -588,6 +716,23 @@ const isCaptain = (player, teamKey) => {
   width: 100%;
   max-width: 900px;
   align-items: start;
+}
+
+.leave-lobby-button {
+  position: absolute;
+  right: 20px;
+  bottom: 20px;
+  padding: 0.6rem 1.2rem;
+  background: #3d3d3d;
+  color: inherit;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.leave-lobby-button:hover {
+  background: #4d4d4d;
 }
 </style>
   
