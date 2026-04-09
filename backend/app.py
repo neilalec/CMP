@@ -630,7 +630,10 @@ def create_lobby():
                 
                 # Notify players about lobby creation
                 logger.info(f"Created lobby {lobby_id} with players {players}")
-                socketio.emit(SOCKET_EVENTS['LOBBY']['CREATED'], lobby_data)
+                for player in players:
+                    sid = player_activity.get(player, {}).get('sid')
+                    if sid:
+                        socketio.emit(SOCKET_EVENTS['LOBBY']['CREATED'], lobby_data, room=sid)
                 broadcast_open_lobbies_update()
                 
                 return True
@@ -844,10 +847,14 @@ def cleanup_stale_players():
 def cleanup_on_start():
     global matchmaking_queue
     global player_activity
+    global lobbies
+    global countdown_active
     
     logger.info("Cleaning up stale state...")
     matchmaking_queue = []
     player_activity = {}
+    lobbies = {}
+    countdown_active = False
     save_queue()
     logger.info("Cleanup complete")
 

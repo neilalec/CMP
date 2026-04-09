@@ -72,6 +72,10 @@ onMounted(async () => {
   // Listen for lobby creation
   socketStore.on(SOCKET_EVENTS.LOBBY.CREATED, (data) => {
     console.log('Lobby created event received:', data);
+    const isParticipant = data?.players?.includes(authStore.username);
+    if (!isParticipant) {
+      return;
+    }
     if (data?.lobby_id) {
       queueStore.resetQueue();
       console.log('Redirecting to lobby:', data.lobby_id);

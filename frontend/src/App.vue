@@ -59,6 +59,8 @@ onMounted(async () => {
     if (!isAuthenticated) {
       router.push('/auth');
     }
+    socketStore.on(SOCKET_EVENTS.CONNECTION.CONNECT, syncLobbyPresence);
+    await syncLobbyPresence();
   } catch (error) {
     console.error('Failed to initialize socket:', error);
     rootStore.setError('Failed to connect to server');
@@ -120,6 +122,26 @@ const handleLobbyIdClick = () => {
   }
 };
 
+const syncLobbyPresence = async () => {
+  if (!currentLobbyId.value || !socketStore.isConnected) return;
+  try {
+    const response = await socketStore.emit(SOCKET_EVENTS.OPEN_LOBBIES.STATUS);
+    const openLobbies = response?.openLobbies || [];
+    const activeLobbies = response?.activeLobbies || [];
+    const exists = [...openLobbies, ...activeLobbies].some(
+      lobby => lobby.lobby_id === currentLobbyId.value
+    );
+    if (!exists) {
+      lobbyStore.leaveLobby();
+      localStorage.removeItem('currentLobbyCaptains');
+      currentLobbyId.value = null;
+      currentLobbyCaptains.value = null;
+    }
+  } catch (error) {
+    // Ignore transient errors during reconnects
+  }
+};
+
 // Watch for auth state changes to update socket connection
 watch(() => authStore.isLoggedIn, async (isLoggedIn) => {
   if (isLoggedIn && authStore.token) {
@@ -153,6 +175,7 @@ watch(() => lobbyStore.captains, (captains) => {
 
 // Cleanup on component unmount
 onBeforeUnmount(() => {
+  socketStore.off(SOCKET_EVENTS.CONNECTION.CONNECT, syncLobbyPresence);
   socketStore.cleanupSocket();
 });
 </script>
