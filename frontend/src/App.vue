@@ -162,7 +162,7 @@ onBeforeUnmount(() => {
     <div v-if="authStore.isLoggedIn" class="app-shell" :class="{ 'in-lobby': isInLobby }">
       <aside class="app-left">
         <RouterLink class="side-link" to="/">
-          <span class="nav-icon">⌂</span>
+          <span class="nav-icon">&#8962;</span>
           <span class="nav-label">Home</span>
         </RouterLink>
         <RouterLink class="side-link" to="/queue">
@@ -179,12 +179,12 @@ onBeforeUnmount(() => {
           <span class="nav-label">Queue</span>
         </RouterLink>
         <RouterLink class="side-link" to="/lobbies">
-          <span class="nav-icon">◉</span>
+          <span class="nav-icon">&#9673;</span>
           <span class="nav-label">Lobbies</span>
         </RouterLink>
         <div v-if="activeLobbyId" class="lobby-dropdown">
           <button class="lobby-id-button" type="button" @click="handleLobbyIdClick">
-            <span class="nav-icon lobby-icon">◈</span>
+            <span class="nav-icon lobby-icon">&#9671;</span>
             <span class="lobby-label nav-label">{{ lobbyLabel }}</span>
           </button>
         </div>
@@ -235,22 +235,22 @@ onBeforeUnmount(() => {
   max-width: 100%;
   min-height: 100vh;
   --nav-icon-box: 36px;
-  --nav-collapsed: 77px;
-  --nav-collapsed-right: 64px;
+  --nav-collapsed: 40px;
+  --nav-right-width: 56px;
+  --nav-collapsed-right: var(--nav-right-width);
   --nav-offset: calc((var(--nav-collapsed) - var(--nav-icon-box)) / 2);
-  --nav-right-offset: calc((var(--nav-collapsed-right) - var(--nav-icon-box)) / 2);
   background: var(--surface);
   border-radius: 0;
   box-shadow: none;
   display: grid;
-  grid-template-columns: 144px minmax(0, 1fr) var(--nav-collapsed-right);
+  grid-template-columns: 120px minmax(0, 1fr) var(--nav-right-width);
   transition: grid-template-columns 0.7s ease;
   gap: 0;
   padding: 0;
 }
 
 .app-shell.in-lobby {
-  grid-template-columns: 77px minmax(0, 1fr) var(--nav-collapsed-right);
+  grid-template-columns: 52px minmax(0, 1fr) var(--nav-right-width);
 }
 
 .auth-shell {
@@ -296,7 +296,7 @@ button:hover {
   gap: 16px;
   align-items: stretch;
   justify-content: flex-start;
-  padding: 16px 12px;
+  padding: 20px 0px;
   border-right: 1px solid var(--surface-border);
 }
 
@@ -319,6 +319,7 @@ button:hover {
   background: #4d4d4d;
   border-color: #4d4d4d;
 }
+
 
 .app-left .side-link,
 .app-left .lobby-id-button {
@@ -357,6 +358,7 @@ button:hover {
 .app-right .profile-button:hover .nav-label {
   opacity: 1;
 }
+
 
 .in-lobby .side-link,
 .in-lobby .profile-button,
@@ -437,24 +439,28 @@ button:hover {
   align-items: stretch;
   justify-content: flex-start;
   gap: 16px;
-  padding: 16px 12px;
+  padding: 16px 0px;
   border-left: 1px solid var(--surface-border);
   position: relative;
+  width: var(--nav-right-width);
 }
 
 .app-right .profile-button {
   position: relative;
   width: 100%;
-  padding-right: 0;
+  display: grid;
+  grid-template-columns: var(--nav-collapsed-right) 1fr;
+  column-gap: 8px;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0 0rem;
+  height: 36px;
   box-sizing: border-box;
-  text-align: right;
+  text-align: left;
 }
 
-.app-right .profile-button .nav-icon {
-  position: absolute;
-  right: var(--nav-right-offset);
-  top: 50%;
-  transform: translateY(-50%);
+.app-right .nav-icon {
+  justify-self: center;
 }
 
 .lobby-dropdown {
@@ -473,7 +479,6 @@ button:hover {
   justify-content: flex-start;
   gap: 8px;
   flex-direction: row;
-  align-items: center;
   max-width: 100%;
   padding: 0 0.3rem;
   height: 36px;

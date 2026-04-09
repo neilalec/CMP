@@ -21,6 +21,7 @@ const MAX_PLAYERS = 40;
 const isInLobby = computed(() => {
   return !!lobbyStore.lobbyId || !!localStorage.getItem('currentLobby');
 });
+const isQueueFull = computed(() => queueStore.playersInQueue >= MAX_PLAYERS);
 const activeView = computed(() => {
   if (route.path === '/queue') return 'queue';
   if (route.path === '/lobbies') return 'lobbies';
@@ -166,6 +167,18 @@ const getLobbyLabel = (lobby) => {
         <div class="queue-status">
           <p>
             Players in queue {{ queueStore.playersInQueue }}/{{ MAX_PLAYERS }}
+            <span class="queue-indicator" aria-label="Queue status">
+              <span
+                class="queue-spinner"
+                :class="{ 'is-hidden': !queueStore.inQueue || queueStore.countdown }"
+                aria-hidden="true"
+              ></span>
+              <span
+                class="queue-tick"
+                :class="{ 'is-hidden': !queueStore.countdown }"
+                aria-hidden="true"
+              >&#10003;</span>
+            </span>
           </p>
           <p v-if="queueStore.countdown" class="countdown">
             Lobby created in: {{ queueStore.countdown }}s
@@ -175,9 +188,15 @@ const getLobbyLabel = (lobby) => {
         <button 
           v-if="!queueStore.inQueue"
           @click="joinQueue" 
-          :disabled="loading || isInLobby"
+          :disabled="loading || isInLobby || isQueueFull"
         >
-          {{ isInLobby ? "You're in a lobby" : (loading ? 'Processing...' : 'Join Queue') }}
+          {{
+            isInLobby
+              ? "You're in a lobby"
+              : isQueueFull
+                ? 'Queue is full'
+                : (loading ? 'Processing...' : 'Join Queue')
+          }}
         </button>
 
         <button 
@@ -288,6 +307,50 @@ const getLobbyLabel = (lobby) => {
 
 .queue-status p {
   margin: 0.5rem 0;
+}
+
+.queue-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+  margin-left: 8px;
+  vertical-align: -2px;
+}
+
+.queue-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  flex: 0 0 12px;
+  box-sizing: border-box;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  border-top-color: rgba(255, 255, 255, 0.8);
+  border-radius: 50%;
+  animation: queue-spin 0.9s linear infinite;
+}
+
+.queue-tick {
+  display: inline-block;
+  font-size: 12px;
+  line-height: 12px;
+  color: #7ed957;
+}
+
+.queue-spinner.is-hidden {
+  visibility: hidden;
+  animation: none;
+}
+
+.queue-tick.is-hidden {
+  visibility: hidden;
+}
+
+@keyframes queue-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .countdown {
