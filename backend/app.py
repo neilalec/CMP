@@ -160,7 +160,8 @@ SOCKET_EVENTS =  {
         'STATUS': 'queue_status',
         'FIND_MATCH': 'find-match',
         'MATCH_FOUND': 'match_found',
-        'SEED': 'queue_seed'
+        'SEED': 'queue_seed',
+        'CLEAR': 'queue_clear'
     },
 
   
@@ -181,6 +182,7 @@ SOCKET_EVENTS =  {
         },
         'TEAMS_ASSIGNED': 'teams_assigned',
         'SKIP_PHASE': 'skip-phase',
+        'PREV_PHASE': 'prev-phase',
     },
 
     'COUNTDOWN': {
@@ -483,6 +485,9 @@ def start_map_voting(lobby_id):
         if not lobby:
             logger.error(f"Lobby {lobby_id} not found when starting map vote")
             return
+
+        lobby['countdown_token'] = lobby.get('countdown_token', 0) + 1
+        countdown_token = lobby['countdown_token']
             
         logger.info(f"Starting map voting countdown for lobby {lobby_id}")
         
@@ -499,6 +504,8 @@ def start_map_voting(lobby_id):
             
         while countdown > 0:
             if lobby.get('step') != 2 or lobby.get('skip_phase'):
+                return
+            if lobby.get('countdown_token') != countdown_token:
                 return
             if is_countdown_paused():
                 eventlet.sleep(0.2)
@@ -521,6 +528,8 @@ def start_map_voting(lobby_id):
             lobby['voting_countdown'] = countdown
         
         if lobby.get('step') != 2 or lobby.get('skip_phase'):
+            return
+        if lobby.get('countdown_token') != countdown_token:
             return
 
         # After countdown ends, tally votes
@@ -547,6 +556,7 @@ def start_map_voting(lobby_id):
         # Update lobby with selected map
         lobby['selected_map'] = selected_map
         lobby['step'] = 3
+        lobby['countdown'] = None
         
         # Notify clients about selected map
         socketio.emit('lobby_update', {
@@ -611,6 +621,8 @@ def create_lobby():
                     'server_details': None,
                     'countdown_active': True,  # Add countdown flag
                     'map_votes': {},  # Initialize map_votes
+                    'countdown': 30,
+                    'countdown_token': 0
                 }
                 
                 lobbies[lobby_id] = lobby_data
@@ -654,15 +666,22 @@ def start_team_assignment_countdown(lobby_id):
         
         if not lobby:
             return
+
+        lobby['countdown_token'] = lobby.get('countdown_token', 0) + 1
+        countdown_token = lobby['countdown_token']
             
         # Signal start of team assignment
         socketio.emit('lobby_update', {
             'isAssigningTeams': True,
             'lobby_id': lobby_id
         }, room=lobby_id)
+
+        lobby['countdown'] = countdown
             
         while countdown > 0:
             if lobby.get('step') != 1 or lobby.get('skip_phase'):
+                return
+            if lobby.get('countdown_token') != countdown_token:
                 return
             if is_countdown_paused():
                 eventlet.sleep(0.2)
@@ -677,6 +696,7 @@ def start_team_assignment_countdown(lobby_id):
             
             pause_aware_sleep(1)
             countdown -= 1
+            lobby['countdown'] = countdown
         
         if lobby.get('step') != 1 or lobby.get('skip_phase'):
             return
@@ -709,8 +729,11 @@ def start_team_assignment_countdown(lobby_id):
         
         # Wait 30 seconds to show teams (with countdown updates)
         display_countdown = 30
+        lobby['countdown'] = display_countdown
         while display_countdown > 0:
             if lobby.get('step') != 1 or lobby.get('skip_phase'):
+                return
+            if lobby.get('countdown_token') != countdown_token:
                 return
             if is_countdown_paused():
                 eventlet.sleep(0.2)
@@ -721,9 +744,10 @@ def start_team_assignment_countdown(lobby_id):
                 'lobby_id': lobby_id,
                 'type': 'teams_display'
             }, room=lobby_id)
-
+            
             pause_aware_sleep(1)
             display_countdown -= 1
+            lobby['countdown'] = display_countdown
         
         if lobby.get('step') != 1 or lobby.get('skip_phase'):
             return
@@ -749,9 +773,13 @@ def start_teams_display_countdown(lobby_id):
         lobby = lobbies.get(lobby_id)
         if not lobby:
             return
+        lobby['countdown_token'] = lobby.get('countdown_token', 0) + 1
+        countdown_token = lobby['countdown_token']
         display_countdown = 30
         while display_countdown > 0:
             if lobby.get('step') != 1 or lobby.get('skip_phase'):
+                return
+            if lobby.get('countdown_token') != countdown_token:
                 return
             if is_countdown_paused():
                 eventlet.sleep(0.2)
@@ -765,6 +793,8 @@ def start_teams_display_countdown(lobby_id):
             display_countdown -= 1
 
         if lobby.get('step') != 1 or lobby.get('skip_phase'):
+            return
+        if lobby.get('countdown_token') != countdown_token:
             return
         lobby['step'] = 2
         socketio.emit('lobby_update', {
@@ -1353,6 +1383,51 @@ def handle_seed_queue(data=None):
         logger.error(f"Error seeding queue: {str(e)}")
         return {'success': False, 'message': 'Failed to seed queue'}
 
+@socketio.on(SOCKET_EVENTS['QUEUE']['CLEAR'])
+@handle_socket_data
+def handle_clear_queue(data=None):
+    """Dev-only: clear queue and reset lobby/countdown state for testing."""
+    if not DEV_MODE:
+        return {'success': False, 'message': 'Dev mode disabled'}
+    try:
+        global countdown_active
+
+        logger.info("Dev clear: resetting queue, lobbies, and countdown state")
+
+        # Stop queue countdowns immediately
+        countdown_active = False
+        set_countdown_paused(False)
+
+        # Cancel any lobby countdown loops by bumping tokens
+        lobby_players = set()
+        for lobby in list(lobbies.values()):
+            lobby['countdown_token'] = lobby.get('countdown_token', 0) + 1
+            lobby['countdown'] = None
+            lobby['voting_countdown'] = None
+            lobby_players.update(lobby.get('players', []))
+
+        # Clear lobbies entirely
+        lobbies.clear()
+
+        # Clear queue and reset player statuses
+        with queue_lock:
+            matchmaking_queue.clear()
+            save_queue()
+
+        for username, data in player_activity.items():
+            data['status'] = 'authenticated'
+            data.pop('lobby_id', None)
+
+        broadcast_queue_update()
+        broadcast_open_lobbies_update()
+        socketio.emit(SOCKET_EVENTS['COUNTDOWN']['PAUSE_STATE'], {
+            'paused': False
+        })
+        return {'success': True}
+    except Exception as e:
+        logger.error(f"Error clearing queue: {str(e)}")
+        return {'success': False, 'message': 'Failed to clear queue'}
+
 @socketio.on(SOCKET_EVENTS['COUNTDOWN']['TOGGLE_PAUSE'])
 @handle_socket_data
 def handle_toggle_countdown_pause(data=None):
@@ -1499,6 +1574,7 @@ def handle_join_lobby(data):
                 'teams': lobby['teams'],
                 'captains': lobby.get('captains'),
                 'step': lobby['step'],
+                'countdown': lobby.get('countdown'),
                 'selected_map': lobby.get('selected_map'),
                 'server_details': lobby.get('server_details')
             }
@@ -1624,6 +1700,7 @@ def handle_skip_phase(data):
             return {'success': False, 'message': 'Lobby not found'}
 
         lobby['skip_phase'] = True
+        lobby['countdown_token'] = lobby.get('countdown_token', 0) + 1
         step = lobby.get('step', 1)
 
         if step == 1:
@@ -1676,6 +1753,52 @@ def handle_skip_phase(data):
     except Exception as e:
         logger.error(f"Error in handle_skip_phase: {str(e)}")
         return {'success': False, 'message': 'Failed to skip phase'}
+
+@socketio.on(SOCKET_EVENTS['LOBBY']['PREV_PHASE'])
+@handle_socket_data
+def handle_prev_phase(data):
+    """Dev-only: move lobby back one phase for UI inspection."""
+    if not DEV_MODE:
+        return {'success': False, 'message': 'Dev mode disabled'}
+    try:
+        lobby_id = data.get('lobby_id')
+        lobby = lobbies.get(lobby_id)
+        if not lobby:
+            return {'success': False, 'message': 'Lobby not found'}
+
+        # Stop any running countdown loops
+        lobby['countdown_token'] = lobby.get('countdown_token', 0) + 1
+        lobby['countdown'] = None
+        lobby['voting_countdown'] = None
+        lobby['skip_phase'] = False
+
+        current_step = lobby.get('step', 1)
+        lobby['step'] = max(1, current_step - 1)
+
+        if lobby['step'] <= 1:
+            if lobby.get('teams'):
+                lobby['teams_assigned'] = True
+            lobby['selected_map'] = None
+        elif lobby['step'] == 2:
+            lobby['selected_map'] = None
+            lobby['map_votes'] = {}
+            lobby['vote_counts'] = {}
+
+        socketio.emit('lobby_update', {
+            'lobby_id': lobby_id,
+            'step': lobby['step'],
+            'players': lobby.get('players'),
+            'teams': lobby.get('teams'),
+            'captains': lobby.get('captains'),
+            'selected_map': lobby.get('selected_map'),
+            'server_details': lobby.get('server_details'),
+            'countdown': lobby.get('countdown')
+        }, room=lobby_id)
+
+        return {'success': True, 'step': lobby['step']}
+    except Exception as e:
+        logger.error(f"Error in handle_prev_phase: {str(e)}")
+        return {'success': False, 'message': 'Failed to go back a phase'}
 
 @socketio.on(SOCKET_EVENTS['LOBBY']['START'])
 @handle_socket_data

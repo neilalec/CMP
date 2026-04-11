@@ -163,6 +163,9 @@ watch(() => lobbyStore.lobbyId, (id) => {
   if (id) {
     currentLobbyId.value = id;
     localStorage.setItem('currentLobby', id);
+  } else if (!localStorage.getItem('currentLobby')) {
+    currentLobbyId.value = null;
+    currentLobbyCaptains.value = null;
   }
 });
 
@@ -199,7 +202,7 @@ onBeforeUnmount(() => {
               <path d="M18 22c0-3 3-5 6-5s6 2 6 5" fill="currentColor" />
             </svg>
           </span>
-          <span class="nav-label">Queue</span>
+          <span class="nav-label">Play</span>
         </RouterLink>
         <RouterLink class="side-link" to="/lobbies">
           <span class="nav-icon">&#9673;</span>
@@ -360,9 +363,20 @@ button:hover {
   display: inline-block;
   white-space: nowrap;
   transition: opacity 0.2s ease, max-width 0.2s ease;
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+}
+
+.app-shell:not(.in-lobby) .app-left .nav-label {
   max-width: 140px;
   opacity: 1;
 }
+
+.app-shell.in-lobby .app-left .nav-label {
+  transition-delay: 0s;
+}
+
 
 .app-right .nav-label {
   opacity: 0;
@@ -505,10 +519,17 @@ button:hover {
   max-width: 100%;
   padding: 0 0.3rem;
   height: 36px;
+  background: #16202a;
+  border: 1px solid transparent;
 }
 
 .app-left .lobby-id-button {
   width: 100%;
+}
+
+.lobby-id-button:hover {
+  background: #22303c;
+  border-color: #22303c;
 }
 
 .lobby-label {

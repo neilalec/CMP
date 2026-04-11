@@ -37,13 +37,13 @@ const activeCountdown = computed(() => {
 const activeCountdownLabel = computed(() => {
   if (lobbyStore.step === 1) {
     return lobbyStore.showingTeams
-      ? 'Map voting starting in:'
-      : 'Team assignment starting in:';
+      ? 'Map vote in'
+      : 'Teams assigned in';
   }
   if (lobbyStore.step === 2) {
-    return 'Map selected in:';
+    return 'Map selected in';
   }
-  return 'Match starting in:';
+  return 'Match starting in';
 });
 const phaseTitle = computed(() => {
   if (lobbyStore.loading) return 'Loading Lobby...';
@@ -59,12 +59,14 @@ const showPauseButton = computed(() => activeCountdown.value !== null);
 const mapOptions = computed(() => {
   return lobbyStore.mapPool?.length ? lobbyStore.mapPool : AVAILABLE_MAPS;
 });
+const isDev = import.meta.env.DEV;
 
 // LIFECYCLE HOOKS
 onMounted(async () => {
   const lobbyId = route.params.lobbyId;
   console.log('Lobby component mounted. ID:', lobbyId);
-  lobbyStore.loading = true;
+  const hasCachedLobby = lobbyStore.lobbyId === lobbyId && lobbyStore.players?.length;
+  lobbyStore.loading = !hasCachedLobby;
   
   try {
     // Wait for socket connection
@@ -95,6 +97,9 @@ onMounted(async () => {
         {
           event: SOCKET_EVENTS.LOBBY.COUNTDOWN.TEAMS,
           handler: (data) => {
+            const type = data?.type || 'teams';
+            if (lobbyStore.showingTeams && type !== 'teams_display') return;
+            if (!lobbyStore.showingTeams && type === 'teams_display') return;
             lobbyStore.updateCountdown(data.countdown);
           }
         },
@@ -307,6 +312,20 @@ const skipPhase = async () => {
   }
 };
 
+const prevPhase = async () => {
+  try {
+    await socketStore.emit(SOCKET_EVENTS.LOBBY.PREV_PHASE, {
+      lobby_id: lobbyStore.lobbyId
+    });
+  } catch (error) {
+    rootStore.setError({
+      message: 'Failed to go back a phase',
+      details: error.message,
+      context: 'lobby-prev'
+    });
+  }
+};
+
 const isCaptain = (player, teamKey) => {
   return lobbyStore.captains?.[teamKey] === player;
 };
@@ -336,15 +355,18 @@ const matchSizeLabel = computed(() => {
   <div class="lobby-page">
     <div class="lobby-shell content-panel">
       <h1 class="lobby-title">{{ phaseTitle }}</h1>
-      <div class="countdown-slot">
-      <p v-if="activeCountdown !== null" class="countdown">
-        {{ activeCountdownLabel }} {{ activeCountdown }}s
+    <div class="countdown-slot">
+      <p class="countdown" :class="{ 'is-hidden': activeCountdown === null }">
+        {{ activeCountdownLabel }} {{ activeCountdown ?? 0 }}s
       </p>
       <div class="countdown-actions">
         <button v-if="showPauseButton" class="pause-button" @click="toggleCountdownPause">
           {{ isCountdownPaused ? 'Unpause Countdown' : 'Pause Countdown' }}
         </button>
-        <button v-if="showPauseButton" class="skip-button" @click="skipPhase">
+        <button v-if="isDev" class="skip-button" @click="prevPhase">
+          Previous Phase
+        </button>
+        <button v-if="showPauseButton || isDev" class="skip-button" @click="skipPhase">
           Skip Phase
         </button>
       </div>
@@ -359,7 +381,7 @@ const matchSizeLabel = computed(() => {
       <div v-else-if="lobbyStore.step === 1" class="lobby-section">
       <!-- Show players list if not assigning teams and not showing teams -->
       <div v-if="!lobbyStore.isAssigningTeams && !lobbyStore.showingTeams" class="players-list">
-        <h3>Players in Lobby:</h3>
+        <h3>Players</h3>
         <ul>
           <li v-for="player in lobbyStore.players" :key="player">
             {{ player }}
@@ -369,9 +391,8 @@ const matchSizeLabel = computed(() => {
       
       <!-- Show teams after assignment -->
       <div v-else-if="lobbyStore.showingTeams" class="teams-display">
-        <h3>Teams have been assigned!</h3>
-        <div class="teams-container teams-assigned">
-          <div class="team">
+        <div class="map-vote-layout teams-only-layout">
+          <div class="team map-vote-team">
             <h3>{{ getTeamLabel('team1') }}</h3>
             <ul>
               <li v-for="player in lobbyStore.teams.team1" :key="player">
@@ -380,8 +401,10 @@ const matchSizeLabel = computed(() => {
               </li>
             </ul>
           </div>
-          
-          <div class="team">
+
+          <div class="teams-center-spacer"></div>
+
+          <div class="team map-vote-team">
             <h3>{{ getTeamLabel('team2') }}</h3>
             <ul>
               <li v-for="player in lobbyStore.teams.team2" :key="player">
@@ -396,26 +419,48 @@ const matchSizeLabel = computed(() => {
 
       <!-- Step 2: Map Voting -->
       <div v-else-if="lobbyStore.step === 2" class="lobby-section">
-      <div class="map-list">
-        <button
-          v-for="map in mapOptions"
-          :key="map"
-          @click="handleVoteMap(map)"
-          :class="['map-button', { 'voted': lobbyStore.mapVotes[authStore.username] === map }]"
-          :disabled="false"
-        >
-          {{ map }}
-          <span class="vote-count" v-if="lobbyStore.getVotesForMap(map) > 0">
-            ({{ lobbyStore.getVotesForMap(map) }})
-          </span>
-        </button>
+      <div class="map-vote-layout">
+        <div class="team map-vote-team">
+          <h3>{{ getTeamLabel('team1') }}</h3>
+          <ul>
+            <li v-for="player in lobbyStore.teams.team1" :key="player">
+              {{ player }}
+              <span v-if="isCaptain(player, 'team1')" class="captain-tag">Captain</span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="map-list">
+          <button
+            v-for="map in mapOptions"
+            :key="map"
+            @click="handleVoteMap(map)"
+            :class="['map-button', { 'voted': lobbyStore.mapVotes[authStore.username] === map }]"
+            :disabled="false"
+          >
+            {{ map }}
+            <span class="vote-count" v-if="lobbyStore.getVotesForMap(map) > 0">
+              ({{ lobbyStore.getVotesForMap(map) }})
+            </span>
+          </button>
+        </div>
+
+        <div class="team map-vote-team">
+          <h3>{{ getTeamLabel('team2') }}</h3>
+          <ul>
+            <li v-for="player in lobbyStore.teams.team2" :key="player">
+              {{ player }}
+              <span v-if="isCaptain(player, 'team2')" class="captain-tag">Captain</span>
+            </li>
+          </ul>
+        </div>
       </div>
     </div>
 
       <!-- Step 3: Map Selected -->
       <div v-else-if="lobbyStore.step === 3" class="lobby-section">
-        <div class="teams-three">
-          <div class="team">
+        <div class="map-vote-layout match-ready-layout">
+          <div class="team map-vote-team">
             <h3>{{ getTeamLabel('team1') }}</h3>
             <ul>
               <li v-for="player in lobbyStore.teams.team1" :key="player">
@@ -425,13 +470,13 @@ const matchSizeLabel = computed(() => {
             </ul>
           </div>
 
-          <div class="match-info">
-            <p v-if="matchSizeLabel">Match size: <span class="highlight">{{ matchSizeLabel }}</span></p>
-            <p>Selected Map: <span class="highlight">{{ lobbyStore.selectedMap }}</span></p>
-            <p>Server IP: <span class="highlight">{{ lobbyStore.serverDetails?.ip || '192.168.1.100' }}</span></p>
+          <div class="match-info match-info-center">
+            <p v-if="matchSizeLabel">Format <span class="highlight">{{ matchSizeLabel }}</span></p>
+            <p>Map <span class="highlight">{{ lobbyStore.selectedMap }}</span></p>
+            <p>Server IP <span class="highlight">{{ lobbyStore.serverDetails?.ip || '192.168.1.100' }}</span></p>
           </div>
 
-          <div class="team">
+          <div class="team map-vote-team">
             <h3>{{ getTeamLabel('team2') }}</h3>
             <ul>
               <li v-for="player in lobbyStore.teams.team2" :key="player">
@@ -505,6 +550,7 @@ const matchSizeLabel = computed(() => {
 
 .lobby-title {
   color: inherit;
+  font-weight: 500;
   margin: 10px 0 6px;
   text-align: center;
 }
@@ -524,14 +570,22 @@ const matchSizeLabel = computed(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
+  --teams-offset: -40px;
 }
 
 .countdown {
+  display: block;
   font-size: 1.2em;
   color: #4CAF50;
   font-weight: bold;
-  margin-top: 1rem;
+  margin: 1rem auto 0;
   text-align: center;
+  width: 100%;
+  max-width: 520px;
+}
+
+.countdown.is-hidden {
+  visibility: hidden;
 }
 
 .countdown-slot {
@@ -549,7 +603,7 @@ const matchSizeLabel = computed(() => {
 .pause-button {
   margin-top: 0.5rem;
   padding: 0.6rem 1.2rem;
-  background: #3d3d3d;
+  background: #3b3f45;
   color: inherit;
   border: none;
   border-radius: 4px;
@@ -558,7 +612,7 @@ const matchSizeLabel = computed(() => {
 }
 
 .pause-button:hover {
-  background: #4d4d4d;
+  background: #4a4f56;
 }
 
 .countdown-actions {
@@ -569,7 +623,7 @@ const matchSizeLabel = computed(() => {
 .skip-button {
   margin-top: 0.5rem;
   padding: 0.6rem 1.2rem;
-  background: #3d3d3d;
+  background: #3b3f45;
   color: inherit;
   border: none;
   border-radius: 4px;
@@ -578,12 +632,12 @@ const matchSizeLabel = computed(() => {
 }
 
 .skip-button:hover {
-  background: #4d4d4d;
+  background: #4a4f56;
 }
 
 .players-list {
   width: 100%;
-  max-width: 400px;
+  max-width: 700px;
   margin: 20px auto;
 }
 
@@ -598,15 +652,15 @@ const matchSizeLabel = computed(() => {
   padding: 0;
   margin: 0;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  column-gap: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  column-gap: 16px;
   row-gap: 6px;
 }
 
 .players-list li {
   padding: 6px 8px;
   margin: 0;
-  background: #3d3d3d;
+  background: #243447;
   border-radius: 4px;
   text-align: center;
   color: inherit;
@@ -625,6 +679,7 @@ const matchSizeLabel = computed(() => {
 .teams-container.teams-assigned {
   max-width: 100%;
   justify-content: space-between;
+  gap: 300px;
 }
 
 .teams-container.teams-assigned .team {
@@ -635,9 +690,23 @@ const matchSizeLabel = computed(() => {
   flex: 1;
   margin: 0;
   padding: 20px;
-  background: #3d3d3d;
+  background: transparent;
   border-radius: 4px;
   min-width: 200px;
+}
+
+.teams-assigned .team ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 12px;
+  row-gap: 6px;
+}
+
+.teams-assigned .team li {
+  font-size: 0.8rem;
 }
 
 .team h3 {
@@ -655,7 +724,7 @@ const matchSizeLabel = computed(() => {
 .team li {
   padding: 8px;
   margin: 5px 0;
-  background: #2d2d2d;
+  background: #243447;
   border-radius: 4px;
   text-align: center;
   color: inherit;
@@ -666,30 +735,86 @@ const matchSizeLabel = computed(() => {
   font-size: 0.8rem;
 }
 
+.map-vote-layout {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr 1fr;
+  gap: 32px;
+  width: 100%;
+  max-width: 1100px;
+  align-items: start;
+  min-height: 480px;
+}
+
+.teams-only-layout {
+  min-height: 480px;
+}
+
+.teams-center-spacer {
+  min-height: 1px;
+}
+
+.match-ready-layout {
+  min-height: 480px;
+}
+
+.match-info.match-info-center {
+  align-self: center;
+  justify-self: center;
+}
+
+.map-vote-team {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  margin-top: var(--teams-offset);
+}
+
+.map-vote-layout .map-list {
+  align-self: center;
+  justify-self: center;
+}
+
+.map-vote-team ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 12px;
+  row-gap: 6px;
+}
+
+.map-vote-team li {
+  font-size: 0.8rem;
+}
+
 .map-list {
   display: flex;
-  flex-wrap: wrap;
-  gap: 15px;
-  justify-content: center;
-  margin-top: 20px;
+  flex-direction: column;
+  gap: 12px;
+  align-items: stretch;
+  margin-top: var(--teams-offset);
+  padding-top: 34px;
   width: 100%;
-  max-width: 600px;
+  max-width: 360px;
 }
 
 .map-button {
   position: relative;
   padding: 15px 25px;
-  background: #3d3d3d;
+  background: #3b3f45;
   color: inherit;
   border: none;
   border-radius: 4px;
   cursor: pointer;
   transition: all 0.3s ease;
   min-width: 120px;
+  width: 100%;
+  text-align: center;
 }
 
 .map-button:hover {
-  background: #4d4d4d;
+  background: #4a4f56;
 }
 
 .map-button:disabled {
@@ -746,7 +871,7 @@ const matchSizeLabel = computed(() => {
 }
 
 .match-info {
-  background: #3d3d3d;
+  background: #243447;
   padding: 20px;
   border-radius: 4px;
   width: 100%;
@@ -790,7 +915,7 @@ const matchSizeLabel = computed(() => {
   right: 20px;
   bottom: 20px;
   padding: 0.6rem 1.2rem;
-  background: #3d3d3d;
+  background: #3b3f45;
   color: inherit;
   border: none;
   border-radius: 4px;
@@ -799,7 +924,7 @@ const matchSizeLabel = computed(() => {
 }
 
 .leave-lobby-button:hover {
-  background: #4d4d4d;
+  background: #4a4f56;
 }
 </style>
   

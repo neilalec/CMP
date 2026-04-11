@@ -29,6 +29,7 @@ export const SOCKET_EVENTS = {
     UPDATE: 'queue_update',
     STATUS: 'queue_status',
     SEED: 'queue_seed',
+    CLEAR: 'queue_clear',
   },
 
   // Lobby events
@@ -44,6 +45,7 @@ export const SOCKET_EVENTS = {
     START: 'start-lobby',
     READY: 'lobby_ready',
     SKIP_PHASE: 'skip-phase',
+    PREV_PHASE: 'prev-phase',
     COUNTDOWN: {
       TEAMS: 'lobby_countdown_teams',
       VOTING: 'lobby_countdown_voting'

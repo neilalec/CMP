@@ -77,6 +77,8 @@ onMounted(async () => {
       return;
     }
     if (data?.lobby_id) {
+      lobbyStore.updateLobbyState(data);
+      localStorage.setItem('currentLobby', data.lobby_id);
       queueStore.resetQueue();
       console.log('Redirecting to lobby:', data.lobby_id);
       router.push(`/lobby/${data.lobby_id}`);
@@ -153,6 +155,20 @@ const seedQueue = async (count = 20) => {
   }
 };
 
+const clearQueue = async () => {
+  loading.value = true;
+  try {
+    const response = await socketStore.emit(SOCKET_EVENTS.QUEUE.CLEAR);
+    if (!response?.success) {
+      throw new Error(response?.message || 'Failed to clear queue');
+    }
+  } catch (error) {
+    rootStore.setError(error.message || 'Failed to clear queue');
+  } finally {
+    loading.value = false;
+  }
+};
+
 const getLobbyLabel = (lobby) => {
   const captains = lobby?.captains;
   if (captains?.team1 && captains?.team2) {
@@ -166,11 +182,17 @@ const getLobbyLabel = (lobby) => {
 <template>
   <div class="home-content content-panel">
       <section v-if="activeView === 'queue'" class="queue-column">
-        <h1>Queue</h1>
+        <h1>20vs20</h1>
+        <p
+          class="countdown countdown-slot"
+          :class="{ 'is-hidden': !queueStore.countdown }"
+        >
+          Lobby created in {{ queueStore.countdown || 0 }}s
+        </p>
 
         <div class="queue-status">
-          <p>
-            Players in queue {{ queueStore.playersInQueue }}/{{ MAX_PLAYERS }}
+          <p class="queue-status-line">
+            <span class="queue-status-text">Players in queue {{ queueStore.playersInQueue }}/{{ MAX_PLAYERS }}</span>
             <span class="queue-indicator" aria-label="Queue status">
               <span
                 class="queue-spinner"
@@ -183,9 +205,6 @@ const getLobbyLabel = (lobby) => {
                 aria-hidden="true"
               >&#10003;</span>
             </span>
-          </p>
-          <p v-if="queueStore.countdown" class="countdown">
-            Lobby created in: {{ queueStore.countdown }}s
           </p>
         </div>
 
@@ -217,6 +236,14 @@ const getLobbyLabel = (lobby) => {
           :disabled="loading"
         >
           Seed Queue ({{ MAX_PLAYERS - 1 }})
+        </button>
+
+        <button
+          v-if="isDev"
+          @click="clearQueue"
+          :disabled="loading"
+        >
+          Clear Queue
         </button>
       </section>
 
@@ -301,6 +328,12 @@ const getLobbyLabel = (lobby) => {
   text-align: center;
   margin-bottom: 1.5rem;
   color: inherit;
+  font-weight: 500;
+}
+
+.home-about h1 {
+  color: inherit;
+  font-weight: 600;
 }
 
 .queue-status {
@@ -313,6 +346,19 @@ const getLobbyLabel = (lobby) => {
   margin: 0.5rem 0;
 }
 
+.queue-status-line {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.queue-status-text {
+  display: inline-block;
+  text-align: center;
+}
+
 .queue-indicator {
   display: inline-flex;
   align-items: center;
@@ -321,6 +367,7 @@ const getLobbyLabel = (lobby) => {
   height: 12px;
   margin-left: 8px;
   vertical-align: -2px;
+  position: relative;
 }
 
 .queue-spinner {
@@ -333,13 +380,21 @@ const getLobbyLabel = (lobby) => {
   border-top-color: rgba(255, 255, 255, 0.8);
   border-radius: 50%;
   animation: queue-spin 0.9s linear infinite;
+  position: absolute;
+  inset: 0;
 }
 
 .queue-tick {
   display: inline-block;
-  font-size: 12px;
+  font-size: 16px;
   line-height: 12px;
+  font-weight: 800;
   color: #7ed957;
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .queue-spinner.is-hidden {
@@ -358,10 +413,24 @@ const getLobbyLabel = (lobby) => {
 }
 
 .countdown {
+  display: block;
   font-size: 1.2em;
   color: #4CAF50;
   font-weight: bold;
-  margin-top: 1rem;
+  margin: 1rem auto 0;
+  line-height: 1.2em;
+  width: 100%;
+  max-width: 250px;
+  text-align: center;
+}
+
+.countdown-slot {
+  min-height: 1.2em;
+  margin-top: 0.5rem;
+}
+
+.countdown-slot.is-hidden {
+  visibility: hidden;
 }
 
 .open-lobbies {
@@ -419,7 +488,7 @@ button {
   width: 200px;
   margin: 1rem auto;
   padding: 0.8rem;
-  background: #3d3d3d;
+  background: #3b3f45;
   color: inherit;
   border: none;
   border-radius: 4px;
@@ -428,7 +497,7 @@ button {
 }
 
 button:hover {
-  background: #4d4d4d;
+  background: #4a4f56;
 }
 
 button:disabled {

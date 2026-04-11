@@ -34,6 +34,10 @@ const handleLogout = async () => {
 </template>
 
 <style scoped>
+h1 {
+  color: inherit;
+  font-weight: 600;
+}
 .profile-page {
   width: 100%;
   max-width: 100%;
@@ -61,7 +65,7 @@ button {
   width: 200px;
   margin: 1rem auto;
   padding: 0.8rem;
-  background: #3d3d3d;
+  background: #3b3f45;
   color: inherit;
   border: none;
   border-radius: 4px;
@@ -70,7 +74,7 @@ button {
 }
 
 button:hover {
-  background: #4d4d4d;
+  background: #4a4f56;
 }
 
 button:disabled {

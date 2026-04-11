@@ -84,6 +84,19 @@ export const useLobbyStore = defineStore('lobby', {
         if (data.isAssigningTeams !== undefined) {
           this.isAssigningTeams = data.isAssigningTeams;
         }
+        const hasTeams = !!(data.teams && (data.teams.team1?.length || data.teams.team2?.length));
+        if (data.step === 1) {
+          if (data.isAssigningTeams === true) {
+            this.showingTeams = false;
+            this.isAssigningTeams = true;
+          } else if (hasTeams) {
+            this.showingTeams = true;
+            this.isAssigningTeams = false;
+          }
+        }
+        if (data.step >= 2) {
+          this.showingTeams = false;
+        }
         this.error = null;
       } catch (error) {
         console.error('Error updating lobby state:', error);
