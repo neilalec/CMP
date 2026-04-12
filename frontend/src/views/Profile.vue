@@ -25,7 +25,7 @@ const handleLogout = async () => {
 <template>
   <div class="profile-page content-panel">
     <h1>Profile</h1>
-    <p class="profile-name">{{ authStore.username }}</p>
+    <p class="profile-name current-user">{{ authStore.username }}</p>
     <p class="profile-note">Profile details coming soon.</p>
     <div class="profile-actions">
       <button @click="handleLogout">Logout</button>

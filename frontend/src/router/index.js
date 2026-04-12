@@ -3,6 +3,7 @@ import Home from '../views/Home.vue';
 import Auth from '../components/Auth.vue';
 import Lobby from '../components/Lobby.vue';
 import Profile from '../views/Profile.vue';
+import Group from '../views/Group.vue';
 import { useAuthStore } from '@/stores/authStore';
 import { useRootStore } from '@/stores/rootStore';
 
@@ -42,6 +43,12 @@ const routes = [
     path: '/profile', 
     name: 'profile', 
     component: Profile, 
+    meta: { requiresAuth: true } 
+  },
+  { 
+    path: '/group', 
+    name: 'group', 
+    component: Group, 
     meta: { requiresAuth: true } 
   },
 ];

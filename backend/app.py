@@ -76,6 +76,11 @@ def load_queue():
 matchmaking_queue = load_queue()
 player_activity = {}
 lobbies = {}
+group_lock = RLock()
+groups = {}
+user_to_group = {}
+GROUP_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+GROUP_CODE_LENGTH = 6
 
 logging.basicConfig(
     level=logging.INFO,
@@ -105,6 +110,55 @@ logger.addFilter(LogFilter())
 logging.getLogger('engineio').setLevel(logging.WARNING)
 logging.getLogger('socketio').setLevel(logging.WARNING)
 logging.getLogger('werkzeug').setLevel(logging.WARNING)
+
+def generate_group_code():
+    for _ in range(1000):
+        code = ''.join(random.choice(GROUP_CODE_ALPHABET) for _ in range(GROUP_CODE_LENGTH))
+        if code not in groups:
+            return code
+    raise RuntimeError('Unable to generate a unique group code')
+
+def get_group_payload(code):
+    group = groups.get(code)
+    if not group:
+        return None
+    return {
+        'code': group['code'],
+        'leader': group['leader'],
+        'members': list(group['members'])
+    }
+
+def get_user_group(username):
+    code = user_to_group.get(username)
+    if code and code in groups:
+        return code
+    if code and code not in groups:
+        user_to_group.pop(username, None)
+    return None
+
+def get_player_groups(players):
+    if not players:
+        return {}
+    result = {}
+    with group_lock:
+        for player in players:
+            code = user_to_group.get(player)
+            if code and code in groups:
+                result[player] = code
+    return result
+
+def is_user_in_any_lobby(username):
+    for lobby in lobbies.values():
+        if username in lobby.get('players', []):
+            return True
+    return False
+
+def broadcast_group_update(code, group_payload=None):
+    payload = {
+        'success': True,
+        'group': group_payload
+    }
+    socketio.emit(SOCKET_EVENTS['GROUP']['UPDATE'], payload, room=code)
 
 #APP CONFIGURATION
 app = Flask(__name__)
@@ -194,6 +248,16 @@ SOCKET_EVENTS =  {
     'OPEN_LOBBIES': {
         'STATUS': 'open_lobbies_status',
         'UPDATE': 'open_lobbies_update'
+    },
+
+    'GROUP': {
+        'CREATE': 'group_create',
+        'JOIN': 'group_join',
+        'LEAVE': 'group_leave',
+        'STATUS': 'group_status',
+        'UPDATE': 'group_update',
+        'QUEUE': 'group_queue',
+        'UNQUEUE': 'group_unqueue'
     },
 
     'MESSAGE': 'message',
@@ -622,7 +686,8 @@ def create_lobby():
                     'countdown_active': True,  # Add countdown flag
                     'map_votes': {},  # Initialize map_votes
                     'countdown': 30,
-                    'countdown_token': 0
+                    'countdown_token': 0,
+                    'player_groups': get_player_groups(players)
                 }
                 
                 lobbies[lobby_id] = lobby_data
@@ -637,6 +702,12 @@ def create_lobby():
                 save_queue()
                 broadcast_queue_update()
                 
+                # Join players to lobby room immediately so they receive countdown updates
+                for player in players:
+                    sid = player_activity.get(player, {}).get('sid')
+                    if sid:
+                        socketio.server.enter_room(sid, lobby_id)
+
                 # Start countdown for team assignment
                 eventlet.spawn(start_team_assignment_countdown, lobby_id)
                 
@@ -701,14 +772,8 @@ def start_team_assignment_countdown(lobby_id):
         if lobby.get('step') != 1 or lobby.get('skip_phase'):
             return
 
-        # Assign teams
-        players = lobby['players']
-        random.shuffle(players)
-        mid = len(players) // 2
-        teams = {
-            'team1': players[:mid],
-            'team2': players[mid:]
-        }
+        # Assign teams (keep groups together when possible)
+        teams = assign_teams(lobby['players'])
         captains = select_captains(teams)
         
         # Update lobby with teams
@@ -806,9 +871,41 @@ def start_teams_display_countdown(lobby_id):
         logger.error(f"Error in teams display countdown: {str(e)}")
 
 def assign_teams(players):
-    random.shuffle(players)
-    mid = len(players) // 2
-    return {'team1': players[:mid], 'team2': players[mid:]}
+    if not players:
+        return {'team1': [], 'team2': []}
+
+    cap1 = len(players) // 2
+    cap2 = len(players) - cap1
+    team1 = []
+    team2 = []
+    group_map = {}
+    solo_players = []
+
+    for player in players:
+        code = user_to_group.get(player)
+        if code and code in groups:
+            group_map.setdefault(code, []).append(player)
+        else:
+            solo_players.append(player)
+
+    clusters = list(group_map.values()) + [[player] for player in solo_players]
+    random.shuffle(clusters)
+
+    for cluster in clusters:
+        if len(team1) + len(cluster) <= cap1:
+            team1.extend(cluster)
+        elif len(team2) + len(cluster) <= cap2:
+            team2.extend(cluster)
+        else:
+            # Fallback: put in the team with more remaining space
+            if (cap1 - len(team1)) >= (cap2 - len(team2)):
+                team1.extend(cluster)
+            else:
+                team2.extend(cluster)
+
+    random.shuffle(team1)
+    random.shuffle(team2)
+    return {'team1': team1, 'team2': team2}
 
 def select_captains(teams):
     captains = {}
@@ -1188,6 +1285,24 @@ def handle_join_queue(data):
     """Handle join queue request"""
     try:
         username = data.get('username')
+
+        if not username:
+            emit(f"{SOCKET_EVENTS['QUEUE']['JOIN']}_response", {
+                'success': False,
+                'message': 'Missing username'
+            })
+            return
+
+        with group_lock:
+            if get_user_group(username):
+                emit(f"{SOCKET_EVENTS['QUEUE']['JOIN']}_response", {
+                    'success': False,
+                    'message': 'You are in a group. Use group queue.',
+                    'inQueue': username in matchmaking_queue,
+                    'playersInQueue': len(matchmaking_queue),
+                    'queue': list(matchmaking_queue)
+                })
+                return
         
         with queue_lock:
             if len(matchmaking_queue) >= MAX_LOBBY_PLAYERS:
@@ -1428,6 +1543,226 @@ def handle_clear_queue(data=None):
         logger.error(f"Error clearing queue: {str(e)}")
         return {'success': False, 'message': 'Failed to clear queue'}
 
+@socketio.on(SOCKET_EVENTS['GROUP']['CREATE'])
+@handle_socket_data
+def handle_group_create(data=None):
+    try:
+        username = data.get('username') if data else None
+        if not username:
+            return {'success': False, 'message': 'Missing username'}
+
+        with group_lock:
+            if get_user_group(username):
+                return {'success': False, 'message': 'Already in a group'}
+            code = generate_group_code()
+            groups[code] = {
+                'code': code,
+                'leader': username,
+                'members': [username]
+            }
+            user_to_group[username] = code
+            existing = player_activity.get(username, {})
+            player_activity[username] = {
+                **existing,
+                'sid': request.sid,
+                'last_seen': time.time()
+            }
+
+        join_room(code)
+        payload = get_group_payload(code)
+        broadcast_group_update(code, payload)
+        return {'success': True, 'group': payload}
+    except Exception as e:
+        logger.error(f"Error creating group: {str(e)}")
+        return {'success': False, 'message': 'Failed to create group'}
+
+@socketio.on(SOCKET_EVENTS['GROUP']['JOIN'])
+@handle_socket_data
+def handle_group_join(data=None):
+    try:
+        username = data.get('username') if data else None
+        code = data.get('code') if data else None
+        if not username or not code:
+            return {'success': False, 'message': 'Missing username or code'}
+
+        code = str(code).strip().upper()
+
+        with group_lock:
+            if get_user_group(username):
+                return {'success': False, 'message': 'Already in a group'}
+            group = groups.get(code)
+            if not group:
+                return {'success': False, 'message': 'Group not found'}
+            if len(group['members']) >= MAX_LOBBY_PLAYERS:
+                return {'success': False, 'message': 'Group is full'}
+            if username not in group['members']:
+                group['members'].append(username)
+            user_to_group[username] = code
+            existing = player_activity.get(username, {})
+            player_activity[username] = {
+                **existing,
+                'sid': request.sid,
+                'last_seen': time.time()
+            }
+
+        join_room(code)
+        payload = get_group_payload(code)
+        broadcast_group_update(code, payload)
+        return {'success': True, 'group': payload}
+    except Exception as e:
+        logger.error(f"Error joining group: {str(e)}")
+        return {'success': False, 'message': 'Failed to join group'}
+
+@socketio.on(SOCKET_EVENTS['GROUP']['LEAVE'])
+@handle_socket_data
+def handle_group_leave(data=None):
+    try:
+        username = data.get('username') if data else None
+        if not username:
+            return {'success': False, 'message': 'Missing username'}
+
+        with group_lock:
+            code = get_user_group(username)
+            if not code:
+                return {'success': True, 'group': None}
+            group = groups.get(code)
+            if not group:
+                user_to_group.pop(username, None)
+                return {'success': True, 'group': None}
+
+            if username in group['members']:
+                group['members'].remove(username)
+            user_to_group.pop(username, None)
+
+            if not group['members']:
+                broadcast_group_update(code, None)
+                groups.pop(code, None)
+                leave_room(code)
+                return {'success': True, 'group': None}
+
+            if group['leader'] == username:
+                group['leader'] = group['members'][0]
+
+            payload = get_group_payload(code)
+
+        broadcast_group_update(code, payload)
+        leave_room(code)
+        return {'success': True, 'group': None}
+    except Exception as e:
+        logger.error(f"Error leaving group: {str(e)}")
+        return {'success': False, 'message': 'Failed to leave group'}
+
+@socketio.on(SOCKET_EVENTS['GROUP']['STATUS'])
+@handle_socket_data
+def handle_group_status(data=None):
+    try:
+        username = data.get('username') if data else None
+        if not username:
+            return {'success': False, 'message': 'Missing username'}
+
+        with group_lock:
+            code = get_user_group(username)
+            payload = get_group_payload(code) if code else None
+
+        return {'success': True, 'group': payload}
+    except Exception as e:
+        logger.error(f"Error getting group status: {str(e)}")
+        return {'success': False, 'message': 'Failed to get group status'}
+
+@socketio.on(SOCKET_EVENTS['GROUP']['QUEUE'])
+@handle_socket_data
+def handle_group_queue(data=None):
+    try:
+        username = data.get('username') if data else None
+        if not username:
+            return {'success': False, 'message': 'Missing username'}
+
+        with group_lock:
+            code = get_user_group(username)
+            if not code:
+                return {'success': False, 'message': 'Not in a group'}
+            group = groups.get(code)
+            if not group:
+                return {'success': False, 'message': 'Group not found'}
+            if group['leader'] != username:
+                return {'success': False, 'message': 'Only the leader can queue the group'}
+            members = list(group['members'])
+            if len(members) > (MAX_LOBBY_PLAYERS // 2):
+                return {'success': False, 'message': 'Group is too large to stay on one team'}
+
+        if any(is_user_in_any_lobby(member) for member in members):
+            return {'success': False, 'message': 'A group member is already in a lobby'}
+
+        with queue_lock:
+            if any(member in matchmaking_queue for member in members):
+                return {'success': False, 'message': 'A group member is already in the queue'}
+            if len(matchmaking_queue) + len(members) > MAX_LOBBY_PLAYERS:
+                return {'success': False, 'message': 'Queue does not have enough slots'}
+
+            for member in members:
+                matchmaking_queue.append(member)
+                existing = player_activity.get(member, {})
+                player_activity[member] = {
+                    **existing,
+                    'status': 'queued'
+                }
+
+            save_queue()
+
+        broadcast_queue_update()
+        check_queue_and_start_countdown()
+
+        return {
+            'success': True,
+            'playersInQueue': len(matchmaking_queue),
+            'queue': list(matchmaking_queue)
+        }
+    except Exception as e:
+        logger.error(f"Error queueing group: {str(e)}")
+        return {'success': False, 'message': 'Failed to queue group'}
+
+@socketio.on(SOCKET_EVENTS['GROUP']['UNQUEUE'])
+@handle_socket_data
+def handle_group_unqueue(data=None):
+    try:
+        username = data.get('username') if data else None
+        if not username:
+            return {'success': False, 'message': 'Missing username'}
+
+        with group_lock:
+            code = get_user_group(username)
+            if not code:
+                return {'success': False, 'message': 'Not in a group'}
+            group = groups.get(code)
+            if not group:
+                return {'success': False, 'message': 'Group not found'}
+            if group['leader'] != username:
+                return {'success': False, 'message': 'Only the leader can leave the queue'}
+            members = list(group['members'])
+
+        with queue_lock:
+            removed = False
+            for member in members:
+                if member in matchmaking_queue:
+                    matchmaking_queue.remove(member)
+                    removed = True
+                if member in player_activity:
+                    player_activity[member]['status'] = 'authenticated'
+            if removed:
+                save_queue()
+
+        if removed:
+            broadcast_queue_update()
+
+        return {
+            'success': True,
+            'playersInQueue': len(matchmaking_queue),
+            'queue': list(matchmaking_queue)
+        }
+    except Exception as e:
+        logger.error(f"Error unqueueing group: {str(e)}")
+        return {'success': False, 'message': 'Failed to leave queue'}
+
 @socketio.on(SOCKET_EVENTS['COUNTDOWN']['TOGGLE_PAUSE'])
 @handle_socket_data
 def handle_toggle_countdown_pause(data=None):
@@ -1515,6 +1850,10 @@ def handle_join_lobby(data):
                     matchmaking_queue.remove(username)
                     save_queue()
                     broadcast_queue_update()
+                if 'player_groups' in lobby and username not in lobby['player_groups']:
+                    code = user_to_group.get(username)
+                    if code and code in groups:
+                        lobby['player_groups'][username] = code
 
                 if lobby['teams'].get('team1') or lobby['teams'].get('team2'):
                     # Add to the smaller team
@@ -1531,7 +1870,10 @@ def handle_join_lobby(data):
                     lobby['teams_assigned'] = True
 
             # Ensure captains exist when teams are present
-            if lobby.get('teams'):
+            has_teams = lobby.get('teams') and (
+                lobby['teams'].get('team1') or lobby['teams'].get('team2')
+            )
+            if has_teams:
                 if not lobby.get('captains'):
                     lobby['captains'] = select_captains(lobby['teams'])
                 else:
@@ -1548,13 +1890,13 @@ def handle_join_lobby(data):
                     'step': lobby['step']
                 }, room=lobby_id)
 
-                broadcast_queue_update()
-                broadcast_open_lobbies_update()
+            broadcast_queue_update()
+            broadcast_open_lobbies_update()
 
-                if len(lobby['players']) >= MAX_LOBBY_PLAYERS and lobby.get('step', 1) == 1:
-                    if not lobby.get('countdown_active'):
-                        lobby['countdown_active'] = True
-                        eventlet.spawn(start_team_assignment_countdown, lobby_id)
+            if len(lobby['players']) >= MAX_LOBBY_PLAYERS and lobby.get('step', 1) == 1:
+                if not lobby.get('countdown_active'):
+                    lobby['countdown_active'] = True
+                    eventlet.spawn(start_team_assignment_countdown, lobby_id)
             
             # Join the socket room
             join_room(lobby_id)
@@ -1568,6 +1910,8 @@ def handle_join_lobby(data):
             }
             
             # Prepare lobby state response
+            if 'player_groups' not in lobby:
+                lobby['player_groups'] = get_player_groups(lobby.get('players', []))
             lobby_state = {
                 'lobby_id': lobby_id,
                 'players': lobby['players'],
@@ -1575,8 +1919,14 @@ def handle_join_lobby(data):
                 'captains': lobby.get('captains'),
                 'step': lobby['step'],
                 'countdown': lobby.get('countdown'),
+                'voting_countdown': lobby.get('voting_countdown'),
                 'selected_map': lobby.get('selected_map'),
-                'server_details': lobby.get('server_details')
+                'server_details': lobby.get('server_details'),
+                'map_pool': lobby.get('map_pool', []),
+                'map_votes': lobby.get('map_votes', {}),
+                'vote_counts': lobby.get('vote_counts', {}),
+                'player_groups': lobby.get('player_groups', {}),
+                'isAssigningTeams': lobby.get('step', 1) == 1 and not lobby.get('teams_assigned', False)
             }
             
             # Notify other players about reconnection if applicable

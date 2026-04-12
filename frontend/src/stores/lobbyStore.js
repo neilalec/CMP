@@ -30,7 +30,8 @@ export const useLobbyStore = defineStore('lobby', {
     votingCountdown: null,
     voteCounts: {}
     ,
-    mapPool: []
+    mapPool: [],
+    playerGroups: {}
   }),
 
   actions: {
@@ -59,7 +60,13 @@ export const useLobbyStore = defineStore('lobby', {
         if (data.selected_map) this.selectedMap = data.selected_map;
         if (data.map_pool) this.mapPool = data.map_pool;
         if (data.mapPool) this.mapPool = data.mapPool;
+        if (data.map_votes) this.mapVotes = data.map_votes;
+        if (data.vote_counts) this.voteCounts = data.vote_counts;
+        if (data.voting_countdown !== undefined) {
+          this.updateVotingCountdown(data.voting_countdown);
+        }
         if (data.teams) this.teams = data.teams;
+        if (data.player_groups) this.playerGroups = data.player_groups;
         if (data.captains) {
           this.captains = data.captains;
           if (data.captains.team1 && data.captains.team2) {
@@ -147,6 +154,7 @@ export const useLobbyStore = defineStore('lobby', {
       this.votingCountdown = null;
       this.voteCounts = {};
       this.mapPool = [];
+      this.playerGroups = {};
     },
 
     updateCountdown(count) {

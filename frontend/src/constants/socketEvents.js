@@ -64,5 +64,15 @@ export const SOCKET_EVENTS = {
     STATUS: 'countdown_status'
   },
 
+  GROUP: {
+    CREATE: 'group_create',
+    JOIN: 'group_join',
+    LEAVE: 'group_leave',
+    STATUS: 'group_status',
+    UPDATE: 'group_update',
+    QUEUE: 'group_queue',
+    UNQUEUE: 'group_unqueue'
+  },
+
   MESSAGE: 'message',
 }; 

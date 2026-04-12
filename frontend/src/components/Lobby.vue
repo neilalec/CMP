@@ -65,6 +65,9 @@ const isDev = import.meta.env.DEV;
 onMounted(async () => {
   const lobbyId = route.params.lobbyId;
   console.log('Lobby component mounted. ID:', lobbyId);
+  if (lobbyStore.lobbyId && lobbyStore.lobbyId !== lobbyId) {
+    lobbyStore.reset();
+  }
   const hasCachedLobby = lobbyStore.lobbyId === lobbyId && lobbyStore.players?.length;
   lobbyStore.loading = !hasCachedLobby;
   
@@ -88,7 +91,7 @@ onMounted(async () => {
             if (data.isAssigningTeams !== undefined) {
               lobbyStore.startTeamAssignment();
             }
-            if (data.teams) {
+            if (data.teams && (data.teams.team1?.length || data.teams.team2?.length)) {
               lobbyStore.updateTeams(data.teams);
             }
             lobbyStore.updateLobbyState(data);
@@ -330,6 +333,29 @@ const isCaptain = (player, teamKey) => {
   return lobbyStore.captains?.[teamKey] === player;
 };
 
+const isCurrentUser = (player) => {
+  return player === authStore.username;
+};
+
+const groupPlayers = (players) => {
+  const groups = {};
+  const segments = [];
+  const mapping = lobbyStore.playerGroups || {};
+  (players || []).forEach((player) => {
+    const code = mapping[player];
+    if (code) {
+      if (!groups[code]) {
+        groups[code] = { id: code, members: [] };
+        segments.push(groups[code]);
+      }
+      groups[code].members.push(player);
+    } else {
+      segments.push({ id: null, members: [player] });
+    }
+  });
+  return segments;
+};
+
 const getTeamLabel = (teamKey) => {
   const captain = lobbyStore.captains?.[teamKey];
   return captain ? `Team ${captain}` : (teamKey === 'team1' ? 'Team 1' : 'Team 2');
@@ -379,12 +405,13 @@ const matchSizeLabel = computed(() => {
     
       <!-- Step 1: Waiting with Countdown -->
       <div v-else-if="lobbyStore.step === 1" class="lobby-section">
-      <!-- Show players list if not assigning teams and not showing teams -->
-      <div v-if="!lobbyStore.isAssigningTeams && !lobbyStore.showingTeams" class="players-list">
+      <!-- Show players list until teams are shown -->
+      <div v-if="!lobbyStore.showingTeams" class="players-list">
         <h3>Players</h3>
+        <p v-if="lobbyStore.isAssigningTeams" class="assigning-note">Assigning teams...</p>
         <ul>
           <li v-for="player in lobbyStore.players" :key="player">
-            {{ player }}
+            <span :class="{ 'current-user': isCurrentUser(player) }">{{ player }}</span>
           </li>
         </ul>
       </div>
@@ -395,9 +422,17 @@ const matchSizeLabel = computed(() => {
           <div class="team map-vote-team">
             <h3>{{ getTeamLabel('team1') }}</h3>
             <ul>
-              <li v-for="player in lobbyStore.teams.team1" :key="player">
-                {{ player }}
-                <span v-if="isCaptain(player, 'team1')" class="captain-tag">Captain</span>
+              <li
+                v-for="(group, index) in groupPlayers(lobbyStore.teams.team1)"
+                :key="group.id || `solo-${index}`"
+                :class="['team-group', { grouped: !!group.id }]"
+              >
+                <div class="team-group-members">
+                  <span v-for="member in group.members" :key="member" class="team-group-member">
+                    <span :class="{ 'current-user': isCurrentUser(member) }">{{ member }}</span>
+                    <span v-if="isCaptain(member, 'team1')" class="captain-tag">Captain</span>
+                  </span>
+                </div>
               </li>
             </ul>
           </div>
@@ -407,9 +442,17 @@ const matchSizeLabel = computed(() => {
           <div class="team map-vote-team">
             <h3>{{ getTeamLabel('team2') }}</h3>
             <ul>
-              <li v-for="player in lobbyStore.teams.team2" :key="player">
-                {{ player }}
-                <span v-if="isCaptain(player, 'team2')" class="captain-tag">Captain</span>
+              <li
+                v-for="(group, index) in groupPlayers(lobbyStore.teams.team2)"
+                :key="group.id || `solo-${index}`"
+                :class="['team-group', { grouped: !!group.id }]"
+              >
+                <div class="team-group-members">
+                  <span v-for="member in group.members" :key="member" class="team-group-member">
+                    <span :class="{ 'current-user': isCurrentUser(member) }">{{ member }}</span>
+                    <span v-if="isCaptain(member, 'team2')" class="captain-tag">Captain</span>
+                  </span>
+                </div>
               </li>
             </ul>
           </div>
@@ -424,9 +467,17 @@ const matchSizeLabel = computed(() => {
         <div class="team map-vote-team">
           <h3>{{ getTeamLabel('team1') }}</h3>
           <ul>
-            <li v-for="player in lobbyStore.teams.team1" :key="player">
-              {{ player }}
-              <span v-if="isCaptain(player, 'team1')" class="captain-tag">Captain</span>
+            <li
+              v-for="(group, index) in groupPlayers(lobbyStore.teams.team1)"
+              :key="group.id || `solo-${index}`"
+              :class="['team-group', { grouped: !!group.id }]"
+            >
+              <div class="team-group-members">
+                <span v-for="member in group.members" :key="member" class="team-group-member">
+                  <span :class="{ 'current-user': isCurrentUser(member) }">{{ member }}</span>
+                  <span v-if="isCaptain(member, 'team1')" class="captain-tag">Captain</span>
+                </span>
+              </div>
             </li>
           </ul>
         </div>
@@ -449,9 +500,17 @@ const matchSizeLabel = computed(() => {
         <div class="team map-vote-team">
           <h3>{{ getTeamLabel('team2') }}</h3>
           <ul>
-            <li v-for="player in lobbyStore.teams.team2" :key="player">
-              {{ player }}
-              <span v-if="isCaptain(player, 'team2')" class="captain-tag">Captain</span>
+            <li
+              v-for="(group, index) in groupPlayers(lobbyStore.teams.team2)"
+              :key="group.id || `solo-${index}`"
+              :class="['team-group', { grouped: !!group.id }]"
+            >
+              <div class="team-group-members">
+                <span v-for="member in group.members" :key="member" class="team-group-member">
+                  <span :class="{ 'current-user': isCurrentUser(member) }">{{ member }}</span>
+                  <span v-if="isCaptain(member, 'team2')" class="captain-tag">Captain</span>
+                </span>
+              </div>
             </li>
           </ul>
         </div>
@@ -464,9 +523,17 @@ const matchSizeLabel = computed(() => {
           <div class="team map-vote-team">
             <h3>{{ getTeamLabel('team1') }}</h3>
             <ul>
-              <li v-for="player in lobbyStore.teams.team1" :key="player">
-                {{ player }}
-                <span v-if="isCaptain(player, 'team1')" class="captain-tag">Captain</span>
+              <li
+                v-for="(group, index) in groupPlayers(lobbyStore.teams.team1)"
+                :key="group.id || `solo-${index}`"
+                :class="['team-group', { grouped: !!group.id }]"
+              >
+                <div class="team-group-members">
+                  <span v-for="member in group.members" :key="member" class="team-group-member">
+                    <span :class="{ 'current-user': isCurrentUser(member) }">{{ member }}</span>
+                    <span v-if="isCaptain(member, 'team1')" class="captain-tag">Captain</span>
+                  </span>
+                </div>
               </li>
             </ul>
           </div>
@@ -480,9 +547,17 @@ const matchSizeLabel = computed(() => {
           <div class="team map-vote-team">
             <h3>{{ getTeamLabel('team2') }}</h3>
             <ul>
-              <li v-for="player in lobbyStore.teams.team2" :key="player">
-                {{ player }}
-                <span v-if="isCaptain(player, 'team2')" class="captain-tag">Captain</span>
+              <li
+                v-for="(group, index) in groupPlayers(lobbyStore.teams.team2)"
+                :key="group.id || `solo-${index}`"
+                :class="['team-group', { grouped: !!group.id }]"
+              >
+                <div class="team-group-members">
+                  <span v-for="member in group.members" :key="member" class="team-group-member">
+                    <span :class="{ 'current-user': isCurrentUser(member) }">{{ member }}</span>
+                    <span v-if="isCaptain(member, 'team2')" class="captain-tag">Captain</span>
+                  </span>
+                </div>
               </li>
             </ul>
           </div>
@@ -501,9 +576,17 @@ const matchSizeLabel = computed(() => {
           <div class="team">
             <h3>{{ getTeamLabel('team1') }}</h3>
             <ul>
-              <li v-for="player in lobbyStore.teams.team1" :key="player">
-                {{ player }}
-                <span v-if="isCaptain(player, 'team1')" class="captain-tag">Captain</span>
+              <li
+                v-for="(group, index) in groupPlayers(lobbyStore.teams.team1)"
+                :key="group.id || `solo-${index}`"
+                :class="['team-group', { grouped: !!group.id }]"
+              >
+                <div class="team-group-members">
+                  <span v-for="member in group.members" :key="member" class="team-group-member">
+                    <span :class="{ 'current-user': isCurrentUser(member) }">{{ member }}</span>
+                    <span v-if="isCaptain(member, 'team1')" class="captain-tag">Captain</span>
+                  </span>
+                </div>
               </li>
             </ul>
           </div>
@@ -511,9 +594,17 @@ const matchSizeLabel = computed(() => {
           <div class="team">
             <h3>{{ getTeamLabel('team2') }}</h3>
             <ul>
-              <li v-for="player in lobbyStore.teams.team2" :key="player">
-                {{ player }}
-                <span v-if="isCaptain(player, 'team2')" class="captain-tag">Captain</span>
+              <li
+                v-for="(group, index) in groupPlayers(lobbyStore.teams.team2)"
+                :key="group.id || `solo-${index}`"
+                :class="['team-group', { grouped: !!group.id }]"
+              >
+                <div class="team-group-members">
+                  <span v-for="member in group.members" :key="member" class="team-group-member">
+                    <span :class="{ 'current-user': isCurrentUser(member) }">{{ member }}</span>
+                    <span v-if="isCaptain(member, 'team2')" class="captain-tag">Captain</span>
+                  </span>
+                </div>
               </li>
             </ul>
           </div>
@@ -653,6 +744,13 @@ const matchSizeLabel = computed(() => {
   margin-bottom: 15px;
 }
 
+.assigning-note {
+  margin: 0 0 12px;
+  text-align: center;
+  color: #888;
+  font-size: 0.9rem;
+}
+
 .players-list ul {
   list-style: none;
   padding: 0;
@@ -739,6 +837,29 @@ const matchSizeLabel = computed(() => {
   justify-content: center;
   gap: 6px;
   font-size: 0.8rem;
+}
+
+.team-group {
+  border-radius: 6px;
+  flex-direction: column;
+  padding: 8px 10px;
+}
+
+.team-group.grouped {
+  border: 1px solid rgba(126, 217, 87, 0.25);
+}
+
+.team-group-members {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.team-group-member {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
 
 .map-vote-layout {

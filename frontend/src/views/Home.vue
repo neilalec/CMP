@@ -5,6 +5,7 @@ import { useQueueStore } from '../stores/queueStore';
 import { useSocketStore } from '../stores/socketStore';
 import { useAuthStore } from '../stores/authStore';
 import { useLobbyStore } from '../stores/lobbyStore';
+import { useGroupStore } from '../stores/groupStore';
 import { SOCKET_EVENTS } from '../constants/socketEvents';
 import { useRootStore } from '../stores/rootStore';
 
@@ -14,12 +15,18 @@ const queueStore = useQueueStore();
 const socketStore = useSocketStore();
 const authStore = useAuthStore();
 const lobbyStore = useLobbyStore();
+const groupStore = useGroupStore();
 const rootStore = useRootStore();
 const loading = ref(false);
 const isDev = import.meta.env.DEV;
 const MAX_PLAYERS = 40;
 const isInLobby = computed(() => {
   return !!lobbyStore.lobbyId || !!localStorage.getItem('currentLobby');
+});
+const isInGroup = computed(() => groupStore.inGroup);
+const isGroupLeader = computed(() => {
+  if (!groupStore.leader || !authStore.username) return false;
+  return groupStore.leader.toLowerCase() === authStore.username.toLowerCase();
 });
 const isQueueFull = computed(() => queueStore.playersInQueue >= MAX_PLAYERS);
 const activeView = computed(() => {
@@ -69,28 +76,10 @@ onMounted(async () => {
     }
   });
 
-  // Listen for lobby creation
-  socketStore.on(SOCKET_EVENTS.LOBBY.CREATED, (data) => {
-    console.log('Lobby created event received:', data);
-    const isParticipant = data?.players?.includes(authStore.username);
-    if (!isParticipant) {
-      return;
-    }
-    if (data?.lobby_id) {
-      lobbyStore.updateLobbyState(data);
-      localStorage.setItem('currentLobby', data.lobby_id);
-      queueStore.resetQueue();
-      console.log('Redirecting to lobby:', data.lobby_id);
-      router.push(`/lobby/${data.lobby_id}`);
-    } else {
-      console.error('Invalid lobby data received:', data);
-    }
-  });
 });
 
 onBeforeUnmount(() => {
   socketStore.off(SOCKET_EVENTS.QUEUE.UPDATE);
-  socketStore.off(SOCKET_EVENTS.LOBBY.CREATED);
   socketStore.off(SOCKET_EVENTS.OPEN_LOBBIES.UPDATE);
 });
 
@@ -99,9 +88,23 @@ const joinQueue = async () => {
     rootStore.setError('You are already in a lobby. Return to the lobby to continue.');
     return;
   }
+  if (isInGroup.value && !isGroupLeader.value) {
+    rootStore.setError('Only the group leader can queue the group.');
+    return;
+  }
   loading.value = true;
   try {
-    await queueStore.joinQueue(authStore.username);
+    if (isInGroup.value && isGroupLeader.value) {
+      const response = await groupStore.queueGroup(authStore.username);
+      if (response?.queue) {
+        queueStore.updateQueueState({
+          ...response,
+          inQueue: response.queue.includes(authStore.username)
+        });
+      }
+    } else {
+      await queueStore.joinQueue(authStore.username);
+    }
   } finally {
     loading.value = false;
   }
@@ -133,9 +136,29 @@ const joinOpenLobby = async (lobbyId) => {
 };
 
 const leaveQueue = async () => {
+  if (isInGroup.value && !isGroupLeader.value) {
+    rootStore.setError('Only the group leader can leave the queue. Leave the group to exit.');
+    return;
+  }
   loading.value = true;
   try {
-    await queueStore.leaveQueue(authStore.username);
+    if (isInGroup.value && isGroupLeader.value) {
+      const response = await groupStore.unqueueGroup(authStore.username);
+      if (response?.queue) {
+        queueStore.updateQueueState({
+          ...response,
+          inQueue: response.queue.includes(authStore.username)
+        });
+      } else {
+        queueStore.updateQueueState({
+          inQueue: false,
+          playersInQueue: queueStore.playersInQueue,
+          queue: queueStore.queueList
+        });
+      }
+    } else {
+      await queueStore.leaveQueue(authStore.username);
+    }
   } finally {
     loading.value = false;
   }
@@ -211,31 +234,43 @@ const getLobbyLabel = (lobby) => {
         <button 
           v-if="!queueStore.inQueue"
           @click="joinQueue" 
-          :disabled="loading || isInLobby || isQueueFull"
+          :disabled="loading || isInLobby || isQueueFull || (isInGroup && !isGroupLeader)"
         >
           {{
             isInLobby
               ? "You're in a lobby"
+              : isInGroup && !isGroupLeader
+                ? "Group leader only"
               : isQueueFull
                 ? 'Queue is full'
-                : (loading ? 'Processing...' : 'Join Queue')
+                : (loading
+                  ? 'Processing...'
+                  : (isInGroup && isGroupLeader
+                    ? `Queue as Group of ${groupStore.members.length}`
+                    : 'Join Queue'))
           }}
         </button>
 
         <button 
           v-if="queueStore.inQueue" 
           @click="leaveQueue"
-          :disabled="loading"
+          :disabled="loading || (isInGroup && !isGroupLeader)"
         >
-          Leave Queue
+          {{
+            isInGroup && !isGroupLeader
+              ? 'Leave Group to Exit'
+              : isInGroup && isGroupLeader
+                ? `Leave Queue as Group of ${groupStore.members.length}`
+                : 'Leave Queue'
+          }}
         </button>
 
         <button
           v-if="isDev"
-          @click="seedQueue(MAX_PLAYERS - 1)"
+          @click="seedQueue(MAX_PLAYERS - 2)"
           :disabled="loading"
         >
-          Seed Queue ({{ MAX_PLAYERS - 1 }})
+          Seed Queue ({{ MAX_PLAYERS - 2 }})
         </button>
 
         <button

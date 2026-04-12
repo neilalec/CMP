@@ -59,3 +59,8 @@ a,
   min-height: 100%;
   overflow: visible;
 }
+
+.current-user {
+  color: #d4af37;
+  font-weight: 600;
+}
