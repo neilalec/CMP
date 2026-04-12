@@ -248,18 +248,21 @@ onBeforeUnmount(() => {
   font-family: Arial, sans-serif;
   color: inherit;
   min-height: 100vh;
+  height: 100vh;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
   padding: 0;
   width: 100%;
+  overflow: hidden;
 }
 
 .app-shell {
   width: 100%;
   max-width: 100%;
   min-height: 100vh;
+  height: 100vh;
   --nav-icon-box: 36px;
   --nav-collapsed: 40px;
   --nav-right-width: 56px;
@@ -342,10 +345,9 @@ button:hover {
 }
 
 .side-link:hover {
-  background: #4d4d4d;
-  border-color: #4d4d4d;
+  background: transparent;
+  border-color: transparent;
 }
-
 
 .app-left .side-link,
 .app-left .lobby-id-button {
@@ -431,37 +433,55 @@ button:hover {
   opacity: 1;
 }
 
-.in-lobby .app-right .profile-button:hover {
+.app-right .profile-button:hover {
   background: transparent;
   border-color: transparent;
 }
 
-.in-lobby .app-right .profile-button:hover .nav-icon {
+.app-right .profile-button:hover .nav-icon {
   background: #4d4d4d;
   border-radius: 4px;
 }
 
-.in-lobby .app-left .side-link:hover,
-.in-lobby .app-left .lobby-id-button:hover {
+.app-left .side-link:hover,
+.app-left .lobby-id-button:hover {
   background: transparent;
   border-color: transparent;
 }
 
-.in-lobby .app-left .side-link:hover .nav-icon,
-.in-lobby .app-left .lobby-id-button:hover .nav-icon {
+.app-left .side-link:hover .nav-icon,
+.app-left .lobby-id-button:hover .nav-icon {
   background: #4d4d4d;
   border-radius: 4px;
 }
 
 .app-main {
-  display: flex;
+  display: block;
   flex: 1;
-  flex-direction: column;
-  align-items: stretch;
-  justify-content: stretch;
-  gap: 0;
   padding: 0;
   min-width: 0;
+  background: var(--panel-bg);
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: #3a3a3a #1f1f1f;
+}
+
+.app-main::-webkit-scrollbar {
+  width: 10px;
+}
+
+.app-main::-webkit-scrollbar-track {
+  background: #1f1f1f;
+}
+
+.app-main::-webkit-scrollbar-thumb {
+  background: #3a3a3a;
+  border-radius: 6px;
+}
+
+.app-main::-webkit-scrollbar-thumb:hover {
+  background: #4a4a4a;
 }
 
 .app-actions {

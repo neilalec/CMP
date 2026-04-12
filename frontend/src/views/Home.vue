@@ -333,7 +333,7 @@ const getLobbyLabel = (lobby) => {
 
 .home-about h1 {
   color: inherit;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .queue-status {

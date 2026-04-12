@@ -52,8 +52,8 @@ a,
 }
 
 .content-panel {
-  background: var(--panel-bg);
-  border-radius: 10px;
+  background: transparent;
+  border-radius: 0;
   padding: 24px;
   width: 100%;
   min-height: 100%;

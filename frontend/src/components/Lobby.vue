@@ -416,6 +416,7 @@ const matchSizeLabel = computed(() => {
         </div>
       </div>
     </div>
+    
 
       <!-- Step 2: Map Voting -->
       <div v-else-if="lobbyStore.step === 2" class="lobby-section">
@@ -519,10 +520,12 @@ const matchSizeLabel = computed(() => {
         </div>
       </div>
       </div>
-      </div>
+    </div>
+    <div class="lobby-actions">
       <button class="leave-lobby-button" @click="handleLeaveLobby">
         Leave Lobby
       </button>
+    </div>
     </div>
   </div>
 </template>
@@ -541,11 +544,13 @@ const matchSizeLabel = computed(() => {
   width: 100%;
   max-width: 100%;
   min-height: 100%;
+  height: auto;
   display: flex;
   flex-direction: column;
   align-items: center;
   position: relative;
-  padding: 20px 20px 70px;
+  padding: 0px 0px 20px;
+  align-self: stretch;
 }
 
 .lobby-title {
@@ -559,8 +564,9 @@ const matchSizeLabel = computed(() => {
   width: 100%;
   min-height: 0;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
 }
 
 .lobby-section {
@@ -570,7 +576,7 @@ const matchSizeLabel = computed(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  --teams-offset: -40px;
+  --teams-offset: 0px;
 }
 
 .countdown {
@@ -793,7 +799,7 @@ const matchSizeLabel = computed(() => {
   flex-direction: column;
   gap: 12px;
   align-items: stretch;
-  margin-top: var(--teams-offset);
+  margin-top: 0;
   padding-top: 34px;
   width: 100%;
   max-width: 360px;
@@ -910,10 +916,16 @@ const matchSizeLabel = computed(() => {
   align-items: start;
 }
 
+.lobby-actions {
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+  padding-right: 20px;
+  margin-top: 100px;
+}
+
 .leave-lobby-button {
-  position: absolute;
-  right: 20px;
-  bottom: 20px;
+  position: static;
   padding: 0.6rem 1.2rem;
   background: #3b3f45;
   color: inherit;

@@ -36,7 +36,7 @@ const handleLogout = async () => {
 <style scoped>
 h1 {
   color: inherit;
-  font-weight: 600;
+  font-weight: 500;
 }
 .profile-page {
   width: 100%;
