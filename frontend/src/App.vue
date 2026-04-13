@@ -227,7 +227,7 @@ onBeforeUnmount(() => {
           <span class="nav-label">Home</span>
         </RouterLink>
         <RouterLink class="side-link" to="/queue">
-          <span class="nav-icon" aria-hidden="true">
+          <span class="nav-icon" :class="{ 'in-queue': queueStore.inQueue }" aria-hidden="true">
             <svg viewBox="0 0 24 24" role="img">
               <polygon points="4,5 12,12 4,19" fill="#4a4f56" stroke="currentColor" stroke-width="1.6" />
               <polygon points="12,5 20,12 12,19" fill="#4a4f56" stroke="currentColor" stroke-width="1.6" />
@@ -261,7 +261,13 @@ onBeforeUnmount(() => {
           </span>
           <span class="nav-label current-user">{{ authStore.username }}</span>
         </button>
-        <button class="group-button" type="button" title="Group page" @click="handleGroup">
+        <button
+          class="group-button"
+          :class="{ 'in-group': groupStore.inGroup }"
+          type="button"
+          title="Group page"
+          @click="handleGroup"
+        >
           <span class="nav-icon group-icon" aria-hidden="true">
             <svg viewBox="0 0 28 22" role="img">
               <circle cx="8" cy="7" r="3" fill="currentColor" />
@@ -699,6 +705,10 @@ button:hover {
   height: 36px;
 }
 
+.group-button.in-group .nav-icon {
+  color: #7ed957;
+}
+
 .nav-icon {
   margin-right: 0;
   opacity: 0.8;
@@ -718,6 +728,10 @@ button:hover {
 
 .lobby-icon {
   font-size: 2em;
+}
+
+.nav-icon.in-queue {
+  color: #7ed957;
 }
 
 </style>
