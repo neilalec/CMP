@@ -60,7 +60,43 @@ If the config is correct, SquadJS should connect to:
 - the server over RCON
 - the log directory over SFTP/FTP
 
-### 5. Test layer commands in game
+### 5. Optional local bridge for your Flask app
+
+You can expose a tiny local HTTP bridge from SquadJS so your Flask backend can call it on the same machine.
+
+Add this to `config.json`:
+
+```json
+"bridge": {
+  "enabled": true,
+  "host": "127.0.0.1",
+  "port": 3001,
+  "token": "your-local-token"
+}
+```
+
+Endpoints:
+
+- `GET /health`
+- `GET /players`
+- `POST /layer/change`
+- `POST /layer/next`
+
+Use the token as:
+
+```text
+Authorization: Bearer your-local-token
+```
+
+Example calls:
+
+```powershell
+curl.exe -H "Authorization: Bearer your-local-token" http://127.0.0.1:3001/health
+curl.exe -H "Authorization: Bearer your-local-token" http://127.0.0.1:3001/players
+curl.exe -X POST -H "Authorization: Bearer your-local-token" -H "Content-Type: application/json" -d "{\"layer\":\"Gorodok_RAAS_v1\"}" http://127.0.0.1:3001/layer/change
+```
+
+### 6. Test layer commands in game
 
 This repo includes a tiny custom plugin: `CmpLayerTest`.
 
@@ -106,7 +142,7 @@ If the layer requires faction arguments, include them after the layer:
 !cmpchange Narva_AAS_v1 USA RGF
 ```
 
-### 6. What success looks like
+### 7. What success looks like
 
 For this first milestone, success is:
 
@@ -114,7 +150,7 @@ For this first milestone, success is:
 - you can join the server
 - typing `!cmpchange ...` causes the server to change layer
 
-### 7. Notes
+### 8. Notes
 
 - `AdminChangeLayer` changes immediately. Use this for testing.
 - `AdminSetNextLayer` only changes the next layer.

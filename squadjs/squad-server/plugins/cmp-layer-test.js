@@ -37,10 +37,14 @@ export default class CmpLayerTest extends BasePlugin {
     this.onChangeCommand = this.onLayerCommand.bind(this, 'AdminChangeLayer');
     this.onNextCommand = this.onLayerCommand.bind(this, 'AdminSetNextLayer');
     this.onInfoCommand = this.onInfo.bind(this);
+    this.onPlayerConnected = this.onPlayerConnectedEvent.bind(this);
+    this.onPlayerJoinSucceeded = this.onPlayerJoinSucceededEvent.bind(this);
 
     this.server.on(`CHAT_COMMAND:${this.options.changeCommand.toLowerCase()}`, this.onChangeCommand);
     this.server.on(`CHAT_COMMAND:${this.options.nextCommand.toLowerCase()}`, this.onNextCommand);
     this.server.on(`CHAT_COMMAND:${this.options.infoCommand.toLowerCase()}`, this.onInfoCommand);
+    this.server.on('PLAYER_CONNECTED', this.onPlayerConnected);
+    this.server.on('JOIN_SUCCEEDED', this.onPlayerJoinSucceeded);
   }
 
   async unmount() {
@@ -56,6 +60,8 @@ export default class CmpLayerTest extends BasePlugin {
       `CHAT_COMMAND:${this.options.infoCommand.toLowerCase()}`,
       this.onInfoCommand
     );
+    this.server.removeEventListener('PLAYER_CONNECTED', this.onPlayerConnected);
+    this.server.removeEventListener('JOIN_SUCCEEDED', this.onPlayerJoinSucceeded);
   }
 
   async onLayerCommand(rconCommand, data) {
@@ -101,5 +107,19 @@ export default class CmpLayerTest extends BasePlugin {
       data.eosID,
       `${serverName} | Current: ${currentLayer} | Next: ${nextLayer}`
     );
+  }
+
+  async onPlayerConnectedEvent(data) {
+    const playerName = data.player?.name || data.playerName || 'Unknown Player';
+    const steamID = data.player?.steamID || data.steamID || 'Unknown SteamID';
+
+    console.log(`[CmpLayerTest] PLAYER_CONNECTED: ${playerName} (${steamID})`);
+  }
+
+  async onPlayerJoinSucceededEvent(data) {
+    const playerName = data.player?.name || data.playerName || 'Unknown Player';
+    const steamID = data.player?.steamID || data.steamID || 'Unknown SteamID';
+
+    console.log(`[CmpLayerTest] JOIN_SUCCEEDED: ${playerName} (${steamID})`);
   }
 }
