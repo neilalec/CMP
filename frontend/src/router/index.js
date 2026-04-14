@@ -63,6 +63,7 @@ router.beforeEach((to, from, next) => {
   const authStore = useAuthStore();
   const rootStore = useRootStore();
   const isAuthenticated = authStore.isLoggedIn;
+  const currentLobby = localStorage.getItem('currentLobby');
 
   // Clear any existing errors when changing routes
   rootStore.clearError();
@@ -70,6 +71,8 @@ router.beforeEach((to, from, next) => {
   // Handle authentication redirects
   if (to.meta.requiresAuth && !isAuthenticated) {
     next('/auth');
+  } else if (to.path === '/queue' && currentLobby) {
+    next(`/lobby/${currentLobby}`);
   } else if (to.meta.guest && isAuthenticated) {
     next('/');
   } else {

@@ -1,1 +1,4 @@
 backend/matchmaking.log
+backend/__pycache__/
+squadjs/node_modules/
+squadjs/config.json

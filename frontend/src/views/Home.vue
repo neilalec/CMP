@@ -194,11 +194,11 @@ const clearQueue = async () => {
 };
 
 const getLobbyLabel = (lobby) => {
-  const captains = lobby?.captains;
-  if (captains?.team1 && captains?.team2) {
-    return `Team ${captains.team1} vs Team ${captains.team2}`;
-  }
-  return lobby?.lobby_id || 'Lobby';
+  const maxPlayers = Number(lobby?.max_players || MAX_PLAYERS);
+  const left = Math.floor(maxPlayers / 2);
+  const right = maxPlayers - left;
+  const mapLabel = lobby?.selected_map || 'Map TBD';
+  return `${left}vs${right} - ${mapLabel}`;
 };
 
 </script>

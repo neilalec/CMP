@@ -19,17 +19,13 @@ export const useLobbyStore = defineStore('lobby', {
       team2: null
     },
     serverDetails: null,
-    step: 1,
+    step: 2,
     loading: false,
     error: null,
     countdown: null,
-    isAssigningTeams: false,
-    showingTeams: false,
-    teamCountdown: null,
     mapVotes: {},
     votingCountdown: null,
-    voteCounts: {}
-    ,
+    voteCounts: {},
     mapPool: [],
     playerGroups: {}
   }),
@@ -76,10 +72,6 @@ export const useLobbyStore = defineStore('lobby', {
         if (data.server_details) this.serverDetails = data.server_details;
         if (data.step) {
           this.step = data.step;
-          if (data.step === 2) {
-            this.showingTeams = false;
-            this.isAssigningTeams = false;
-          }
           if (data.step >= 3) {
             this.countdown = null;
             this.votingCountdown = null;
@@ -87,22 +79,6 @@ export const useLobbyStore = defineStore('lobby', {
         }
         if (data.countdown !== undefined) {
           this.countdown = data.countdown;
-        }
-        if (data.isAssigningTeams !== undefined) {
-          this.isAssigningTeams = data.isAssigningTeams;
-        }
-        const hasTeams = !!(data.teams && (data.teams.team1?.length || data.teams.team2?.length));
-        if (data.step === 1) {
-          if (data.isAssigningTeams === true) {
-            this.showingTeams = false;
-            this.isAssigningTeams = true;
-          } else if (hasTeams) {
-            this.showingTeams = true;
-            this.isAssigningTeams = false;
-          }
-        }
-        if (data.step >= 2) {
-          this.showingTeams = false;
         }
         this.error = null;
       } catch (error) {
@@ -143,13 +119,10 @@ export const useLobbyStore = defineStore('lobby', {
       this.teams = { team1: [], team2: [] };
       this.captains = { team1: null, team2: null };
       this.serverDetails = null;
-      this.step = 1;
+      this.step = 2;
       this.loading = false;
       this.error = null;
       this.countdown = null;
-      this.isAssigningTeams = false;
-      this.showingTeams = false;
-      this.teamCountdown = null;
       this.mapVotes = {};
       this.votingCountdown = null;
       this.voteCounts = {};
@@ -161,15 +134,8 @@ export const useLobbyStore = defineStore('lobby', {
       this.countdown = count > 0 ? count : null;
     },
 
-    startTeamAssignment() {
-      this.isAssigningTeams = true;
-      this.showingTeams = false;
-    },
-
     updateTeams(teams) {
       this.teams = teams;
-      this.showingTeams = true;
-      this.isAssigningTeams = false;
     },
 
     submitMapVote(map) {
@@ -179,11 +145,6 @@ export const useLobbyStore = defineStore('lobby', {
         player: this.username,
         map: map
       });
-    },
-
-    updateTeamCountdown(count) {
-      console.log('[Pinia] Setting teamCountdown to:', count);
-      this.teamCountdown = count > 0 ? count : null;
     },
 
     updateMapVotes(votes) {

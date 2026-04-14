@@ -31,11 +31,8 @@ const canReturnToLobby = computed(() => !!currentLobbyId.value && !isInLobby.val
 const activeLobbyId = computed(() => {
   return route.params.lobbyId || lobbyStore.lobbyId || currentLobbyId.value;
 });
-const activeCaptains = computed(() => {
-  if (lobbyStore.captains?.team1 && lobbyStore.captains?.team2) {
-    return lobbyStore.captains;
-  }
-  return currentLobbyCaptains.value;
+const playRoute = computed(() => {
+  return activeLobbyId.value ? `/lobby/${activeLobbyId.value}` : '/queue';
 });
 const isMatchAcceptParticipant = computed(() => {
   return (
@@ -44,12 +41,6 @@ const isMatchAcceptParticipant = computed(() => {
   );
 });
 const isMatchAcceptCancelled = computed(() => queueStore.matchAccept.cancelled);
-const lobbyLabel = computed(() => {
-  if (activeCaptains.value?.team1 && activeCaptains.value?.team2) {
-    return `Team ${activeCaptains.value.team1} vs Team ${activeCaptains.value.team2}`;
-  }
-  return activeLobbyId.value;
-});
 const handleQueueUpdate = (data) => {
   queueStore.updateQueueState({
     ...data,
@@ -174,13 +165,6 @@ const handleDismissMatchAccept = () => {
   queueStore.resetMatchAccept();
 };
 
-const handleLobbyIdClick = () => {
-  if (!activeLobbyId.value) return;
-  if (!isInLobby.value) {
-    router.push(`/lobby/${activeLobbyId.value}`);
-  }
-};
-
 const syncLobbyPresence = async () => {
   if (!currentLobbyId.value || !socketStore.isConnected) return;
   try {
@@ -234,6 +218,16 @@ watch(() => lobbyStore.lobbyId, (id) => {
   }
 });
 
+watch(
+  [() => route.path, activeLobbyId],
+  ([path, lobbyId]) => {
+    if (path === '/queue' && lobbyId) {
+      router.replace(`/lobby/${lobbyId}`);
+    }
+  },
+  { immediate: true }
+);
+
 watch(() => lobbyStore.captains, (captains) => {
   if (captains?.team1 && captains?.team2) {
     currentLobbyCaptains.value = captains;
@@ -265,7 +259,7 @@ onBeforeUnmount(() => {
             </span>
             <span class="nav-label">Home</span>
           </RouterLink>
-          <RouterLink class="side-link" to="/queue">
+          <RouterLink class="side-link" :to="playRoute">
             <span class="nav-icon" :class="{ 'in-queue': queueStore.inQueue }" aria-hidden="true">
               <svg viewBox="0 0 24 24" role="img">
                 <polygon points="4,5 12,12 4,19" fill="#4a4f56" stroke="currentColor" stroke-width="1.6" />
@@ -278,13 +272,7 @@ onBeforeUnmount(() => {
             <span class="nav-icon">&#9673;</span>
             <span class="nav-label">Lobbies</span>
           </RouterLink>
-          <div v-if="activeLobbyId" class="lobby-dropdown">
-            <button class="lobby-id-button" type="button" @click="handleLobbyIdClick">
-              <span class="nav-icon lobby-icon">&#9671;</span>
-              <span class="lobby-label nav-label">{{ lobbyLabel }}</span>
-            </button>
-          </div>
-        </aside>
+      </aside>
 
         <main class="app-main">
           <RouterView />

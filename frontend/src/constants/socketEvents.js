@@ -49,10 +49,8 @@ export const SOCKET_EVENTS = {
     SKIP_PHASE: 'skip-phase',
     PREV_PHASE: 'prev-phase',
     COUNTDOWN: {
-      TEAMS: 'lobby_countdown_teams',
       VOTING: 'lobby_countdown_voting'
     },
-    TEAMS_ASSIGNED: 'teams_assigned',
   },
 
   OPEN_LOBBIES: {
