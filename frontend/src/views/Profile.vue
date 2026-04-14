@@ -39,9 +39,9 @@ h1 {
   font-weight: 500;
 }
 .profile-page {
-  width: 100%;
-  max-width: 100%;
-  margin: 0;
+  width: min(100%, 760px);
+  max-width: 760px;
+  margin: 56px auto 0;
   text-align: center;
 }
 

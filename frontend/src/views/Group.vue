@@ -111,9 +111,9 @@ h1 {
 }
 
 .group-page {
-  width: 100%;
-  max-width: 100%;
-  margin: 0;
+  width: min(100%, 960px);
+  max-width: 960px;
+  margin: 56px auto 0;
   text-align: center;
 }
 

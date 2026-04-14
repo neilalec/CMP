@@ -19,7 +19,7 @@ const groupStore = useGroupStore();
 const rootStore = useRootStore();
 const loading = ref(false);
 const isDev = import.meta.env.DEV;
-const MAX_PLAYERS = 40;
+const MAX_PLAYERS = 2;
 const isInLobby = computed(() => {
   return !!lobbyStore.lobbyId || !!localStorage.getItem('currentLobby');
 });
@@ -34,6 +34,21 @@ const activeView = computed(() => {
   if (route.path === '/lobbies') return 'lobbies';
   return null;
 });
+const handleQueueUpdate = (data) => {
+  console.log('Queue update received:', data);
+  queueStore.updateQueueState({
+    ...data,
+    inQueue: data.queue?.includes(authStore.username)
+  });
+};
+const handleOpenLobbiesUpdate = (data) => {
+  if (data?.openLobbies) {
+    queueStore.updateOpenLobbies(data.openLobbies);
+  }
+  if (data?.activeLobbies) {
+    queueStore.updateActiveLobbies(data.activeLobbies);
+  }
+};
 
 onMounted(async () => {
   console.log('Home component mounted');
@@ -59,28 +74,14 @@ onMounted(async () => {
   }
 
   // Listen for queue updates
-  socketStore.on(SOCKET_EVENTS.QUEUE.UPDATE, (data) => {
-    console.log('Queue update received:', data);
-    queueStore.updateQueueState({
-      ...data,
-      inQueue: data.queue?.includes(authStore.username)
-    });
-  });
-
-  socketStore.on(SOCKET_EVENTS.OPEN_LOBBIES.UPDATE, (data) => {
-    if (data?.openLobbies) {
-      queueStore.updateOpenLobbies(data.openLobbies);
-    }
-    if (data?.activeLobbies) {
-      queueStore.updateActiveLobbies(data.activeLobbies);
-    }
-  });
+  socketStore.on(SOCKET_EVENTS.QUEUE.UPDATE, handleQueueUpdate);
+  socketStore.on(SOCKET_EVENTS.OPEN_LOBBIES.UPDATE, handleOpenLobbiesUpdate);
 
 });
 
 onBeforeUnmount(() => {
-  socketStore.off(SOCKET_EVENTS.QUEUE.UPDATE);
-  socketStore.off(SOCKET_EVENTS.OPEN_LOBBIES.UPDATE);
+  socketStore.off(SOCKET_EVENTS.QUEUE.UPDATE, handleQueueUpdate);
+  socketStore.off(SOCKET_EVENTS.OPEN_LOBBIES.UPDATE, handleOpenLobbiesUpdate);
 });
 
 const joinQueue = async () => {
@@ -206,12 +207,6 @@ const getLobbyLabel = (lobby) => {
   <div class="home-content content-panel">
       <section v-if="activeView === 'queue'" class="queue-column">
         <h1>20vs20</h1>
-        <p
-          class="countdown countdown-slot"
-          :class="{ 'is-hidden': !queueStore.countdown }"
-        >
-          Lobby created in {{ queueStore.countdown || 0 }}s
-        </p>
 
         <div class="queue-status">
           <p class="queue-status-line">
@@ -219,12 +214,12 @@ const getLobbyLabel = (lobby) => {
             <span class="queue-indicator" aria-label="Queue status">
               <span
                 class="queue-spinner"
-                :class="{ 'is-hidden': !queueStore.inQueue || queueStore.countdown }"
+                :class="{ 'is-hidden': !queueStore.inQueue || queueStore.matchAccept.active }"
                 aria-hidden="true"
               ></span>
               <span
                 class="queue-tick"
-                :class="{ 'is-hidden': !queueStore.countdown }"
+                :class="{ 'is-hidden': !queueStore.matchAccept.active }"
                 aria-hidden="true"
               >&#10003;</span>
             </span>
@@ -332,7 +327,7 @@ const getLobbyLabel = (lobby) => {
         <p>
           The purpose of this web app is to allow players to queue for a competitive Squad match.
         </p><p>
-          Once a queue is filled, a countdown begins, different steps are then fulfilled to setup a completed match.
+          Once a queue is filled, all players must accept the match before setup continues.
         </p><p>
           Once a match is ready, you will be given the server info.
         </p>
@@ -342,9 +337,9 @@ const getLobbyLabel = (lobby) => {
 
 <style scoped>
 .home-content {
-  width: 100%;
-  max-width: 100%;
-  margin: 0;
+  width: min(100%, 1180px);
+  max-width: 1180px;
+  margin: 56px auto 0;
 }
 
 .home-about {

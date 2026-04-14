@@ -96,9 +96,13 @@ const toggleForm = () => {
 
 <style scoped>
 .auth-container {
-  max-width: 300px;
-  margin: 2rem auto;
-  padding: 1rem;
+  width: min(100%, 360px);
+  margin: 0 auto;
+  padding: 1.5rem;
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  border-radius: 14px;
+  box-shadow: var(--surface-shadow);
 }
 
 form {

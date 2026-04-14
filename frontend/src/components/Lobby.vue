@@ -395,6 +395,9 @@ const matchSizeLabel = computed(() => {
         <button v-if="showPauseButton || isDev" class="skip-button" @click="skipPhase">
           Skip Phase
         </button>
+        <button class="leave-lobby-button" @click="handleLeaveLobby">
+          Leave Lobby
+        </button>
       </div>
     </div>
 
@@ -612,11 +615,6 @@ const matchSizeLabel = computed(() => {
       </div>
       </div>
     </div>
-    <div class="lobby-actions">
-      <button class="leave-lobby-button" @click="handleLeaveLobby">
-        Leave Lobby
-      </button>
-    </div>
     </div>
   </div>
 </template>
@@ -647,7 +645,7 @@ const matchSizeLabel = computed(() => {
 .lobby-title {
   color: inherit;
   font-weight: 500;
-  margin: 10px 0 6px;
+  margin: 28px 0 12px;
   text-align: center;
 }
 
@@ -667,7 +665,10 @@ const matchSizeLabel = computed(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  --teams-offset: 0px;
+  --teams-column-width: 420px;
+  --middle-column-width: 320px;
+  --phase-column-gap: 72px;
+  --teams-offset: -52px;
 }
 
 .countdown {
@@ -715,6 +716,8 @@ const matchSizeLabel = computed(() => {
 .countdown-actions {
   display: flex;
   gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
 .skip-button {
@@ -773,21 +776,27 @@ const matchSizeLabel = computed(() => {
 
 .teams-container {
   display: flex;
-  justify-content: space-around;
-  margin: 20px 0;
+  justify-content: space-between;
+  margin: 20px auto 0;
   width: 100%;
-  max-width: 600px;
-  gap: 20px;
+  max-width: calc((2 * var(--teams-column-width)) + var(--middle-column-width) + (2 * var(--phase-column-gap)));
+  gap: var(--phase-column-gap);
+  align-items: flex-start;
 }
 
 .teams-container.teams-assigned {
   max-width: 100%;
   justify-content: space-between;
-  gap: 300px;
+  gap: 72px;
 }
 
 .teams-container.teams-assigned .team {
   max-width: 45%;
+}
+
+.teams-container .team {
+  margin-top: var(--teams-offset);
+  max-width: var(--teams-column-width);
 }
 
 .team {
@@ -864,10 +873,11 @@ const matchSizeLabel = computed(() => {
 
 .map-vote-layout {
   display: grid;
-  grid-template-columns: 1fr 1.2fr 1fr;
-  gap: 32px;
+  grid-template-columns: var(--teams-column-width) var(--middle-column-width) var(--teams-column-width);
+  gap: var(--phase-column-gap);
   width: 100%;
-  max-width: 1100px;
+  max-width: calc((2 * var(--teams-column-width)) + var(--middle-column-width) + (2 * var(--phase-column-gap)));
+  justify-content: center;
   align-items: start;
   min-height: 480px;
 }
@@ -877,6 +887,8 @@ const matchSizeLabel = computed(() => {
 }
 
 .teams-center-spacer {
+  width: 100%;
+  max-width: var(--middle-column-width);
   min-height: 1px;
 }
 
@@ -923,7 +935,7 @@ const matchSizeLabel = computed(() => {
   margin-top: 0;
   padding-top: 34px;
   width: 100%;
-  max-width: 360px;
+  max-width: var(--middle-column-width);
 }
 
 .map-button {
@@ -1002,7 +1014,7 @@ const matchSizeLabel = computed(() => {
   padding: 20px;
   border-radius: 4px;
   width: 100%;
-  max-width: 320px;
+  max-width: var(--middle-column-width);
   text-align: center;
 }
 
@@ -1035,14 +1047,6 @@ const matchSizeLabel = computed(() => {
   width: 100%;
   max-width: 900px;
   align-items: start;
-}
-
-.lobby-actions {
-  width: 100%;
-  display: flex;
-  justify-content: flex-end;
-  padding-right: 20px;
-  margin-top: 100px;
 }
 
 .leave-lobby-button {

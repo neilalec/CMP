@@ -60,7 +60,6 @@
 
 body {
   min-height: 100vh;
-  scrollbar-gutter: stable;
   color: #d8d8d8;
   background: var(--color-background);
   transition:

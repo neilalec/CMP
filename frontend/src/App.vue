@@ -37,12 +37,28 @@ const activeCaptains = computed(() => {
   }
   return currentLobbyCaptains.value;
 });
+const isMatchAcceptParticipant = computed(() => {
+  return (
+    (queueStore.matchAccept.active || queueStore.matchAccept.cancelled)
+    && !isInLobby.value
+  );
+});
+const isMatchAcceptCancelled = computed(() => queueStore.matchAccept.cancelled);
 const lobbyLabel = computed(() => {
   if (activeCaptains.value?.team1 && activeCaptains.value?.team2) {
     return `Team ${activeCaptains.value.team1} vs Team ${activeCaptains.value.team2}`;
   }
   return activeLobbyId.value;
 });
+const handleQueueUpdate = (data) => {
+  queueStore.updateQueueState({
+    ...data,
+    inQueue: data?.queue?.includes(authStore.username)
+  });
+};
+const handleMatchAcceptCancelled = (data) => {
+  queueStore.setMatchAcceptCancelled(data?.reason || 'Match acceptance cancelled');
+};
 const handleGroupUpdate = (data) => {
   groupStore.handleUpdate(data);
 };
@@ -76,9 +92,14 @@ onMounted(async () => {
       router.push('/auth');
     }
     socketStore.on(SOCKET_EVENTS.CONNECTION.CONNECT, syncLobbyPresence);
+    socketStore.on(SOCKET_EVENTS.QUEUE.UPDATE, handleQueueUpdate);
+    socketStore.on(SOCKET_EVENTS.QUEUE.MATCH_ACCEPT_CANCELLED, handleMatchAcceptCancelled);
     socketStore.on(SOCKET_EVENTS.GROUP.UPDATE, handleGroupUpdate);
     socketStore.on(SOCKET_EVENTS.LOBBY.CREATED, handleLobbyCreated);
     await syncLobbyPresence();
+    if (authStore.username) {
+      await queueStore.syncWithServer(authStore.username);
+    }
     if (authStore.username) {
       await groupStore.syncStatus(authStore.username);
     }
@@ -141,6 +162,18 @@ const handleGroup = () => {
   router.push('/group');
 };
 
+const handleAcceptMatch = async () => {
+  try {
+    await queueStore.acceptMatch(authStore.username);
+  } catch (error) {
+    rootStore.setError(error.message || 'Failed to accept match');
+  }
+};
+
+const handleDismissMatchAccept = () => {
+  queueStore.resetMatchAccept();
+};
+
 const handleLobbyIdClick = () => {
   if (!activeLobbyId.value) return;
   if (!isInLobby.value) {
@@ -176,8 +209,11 @@ watch(() => authStore.isLoggedIn, async (isLoggedIn) => {
       // Cleanup existing socket and create new authenticated connection
       await socketStore.cleanupSocket();
       await socketStore.initSocket(authStore.token, authStore.username);
+      socketStore.on(SOCKET_EVENTS.QUEUE.UPDATE, handleQueueUpdate);
+      socketStore.on(SOCKET_EVENTS.QUEUE.MATCH_ACCEPT_CANCELLED, handleMatchAcceptCancelled);
       socketStore.on(SOCKET_EVENTS.GROUP.UPDATE, handleGroupUpdate);
       socketStore.on(SOCKET_EVENTS.LOBBY.CREATED, handleLobbyCreated);
+      await queueStore.syncWithServer(authStore.username);
       await groupStore.syncStatus(authStore.username);
     } catch (error) {
       rootStore.setError('Failed to connect to server');
@@ -208,6 +244,8 @@ watch(() => lobbyStore.captains, (captains) => {
 // Cleanup on component unmount
 onBeforeUnmount(() => {
   socketStore.off(SOCKET_EVENTS.CONNECTION.CONNECT, syncLobbyPresence);
+  socketStore.off(SOCKET_EVENTS.QUEUE.UPDATE, handleQueueUpdate);
+  socketStore.off(SOCKET_EVENTS.QUEUE.MATCH_ACCEPT_CANCELLED, handleMatchAcceptCancelled);
   socketStore.off(SOCKET_EVENTS.GROUP.UPDATE, handleGroupUpdate);
   socketStore.off(SOCKET_EVENTS.LOBBY.CREATED, handleLobbyCreated);
   socketStore.cleanupSocket();
@@ -216,70 +254,102 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="app">
-    <div v-if="authStore.isLoggedIn" class="app-shell" :class="{ 'in-lobby': isInLobby }">
-      <aside class="app-left">
-        <RouterLink class="side-link" to="/">
-          <span class="nav-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" role="img">
-              <path d="M3 11.5L12 4l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" fill="currentColor" />
-            </svg>
-          </span>
-          <span class="nav-label">Home</span>
-        </RouterLink>
-        <RouterLink class="side-link" to="/queue">
-          <span class="nav-icon" :class="{ 'in-queue': queueStore.inQueue }" aria-hidden="true">
-            <svg viewBox="0 0 24 24" role="img">
-              <polygon points="4,5 12,12 4,19" fill="#4a4f56" stroke="currentColor" stroke-width="1.6" />
-              <polygon points="12,5 20,12 12,19" fill="#4a4f56" stroke="currentColor" stroke-width="1.6" />
-            </svg>
-          </span>
-          <span class="nav-label">Play</span>
-        </RouterLink>
-        <RouterLink class="side-link" to="/lobbies">
-          <span class="nav-icon">&#9673;</span>
-          <span class="nav-label">Lobbies</span>
-        </RouterLink>
-        <div v-if="activeLobbyId" class="lobby-dropdown">
-          <button class="lobby-id-button" type="button" @click="handleLobbyIdClick">
-            <span class="nav-icon lobby-icon">&#9671;</span>
-            <span class="lobby-label nav-label">{{ lobbyLabel }}</span>
+    <template v-if="authStore.isLoggedIn">
+      <div class="app-shell" :class="{ 'in-lobby': isInLobby }">
+        <aside class="app-left">
+          <RouterLink class="side-link" to="/">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" role="img">
+                <path d="M3 11.5L12 4l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" fill="currentColor" />
+              </svg>
+            </span>
+            <span class="nav-label">Home</span>
+          </RouterLink>
+          <RouterLink class="side-link" to="/queue">
+            <span class="nav-icon" :class="{ 'in-queue': queueStore.inQueue }" aria-hidden="true">
+              <svg viewBox="0 0 24 24" role="img">
+                <polygon points="4,5 12,12 4,19" fill="#4a4f56" stroke="currentColor" stroke-width="1.6" />
+                <polygon points="12,5 20,12 12,19" fill="#4a4f56" stroke="currentColor" stroke-width="1.6" />
+              </svg>
+            </span>
+            <span class="nav-label">Play</span>
+          </RouterLink>
+          <RouterLink class="side-link" to="/lobbies">
+            <span class="nav-icon">&#9673;</span>
+            <span class="nav-label">Lobbies</span>
+          </RouterLink>
+          <div v-if="activeLobbyId" class="lobby-dropdown">
+            <button class="lobby-id-button" type="button" @click="handleLobbyIdClick">
+              <span class="nav-icon lobby-icon">&#9671;</span>
+              <span class="lobby-label nav-label">{{ lobbyLabel }}</span>
+            </button>
+          </div>
+        </aside>
+
+        <main class="app-main">
+          <RouterView />
+        </main>
+
+        <aside class="app-right">
+          <button class="profile-button" type="button" title="Profile page coming soon" @click="handleProfile">
+            <span class="nav-icon profile-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" role="img">
+                <circle cx="12" cy="8" r="4" fill="currentColor" />
+                <path d="M4 20c0-4 4-6 8-6s8 2 8 6" fill="currentColor" />
+              </svg>
+            </span>
+            <span class="nav-label current-user">{{ authStore.username }}</span>
+          </button>
+          <button
+            class="group-button"
+            :class="{ 'in-group': groupStore.inGroup }"
+            type="button"
+            title="Group page"
+            @click="handleGroup"
+          >
+            <span class="nav-icon group-icon" aria-hidden="true">
+              <svg viewBox="0 0 28 22" role="img">
+                <circle cx="8" cy="7" r="3" fill="currentColor" />
+                <circle cx="20" cy="7" r="3" fill="currentColor" />
+                <path d="M2 21c0-3 3-5 6-5s6 2 6 5" fill="currentColor" />
+                <path d="M14 21c0-3 3-5 6-5s6 2 6 5" fill="currentColor" />
+              </svg>
+            </span>
+            <span class="nav-label">Group</span>
+          </button>
+        </aside>
+      </div>
+
+      <div v-if="isMatchAcceptParticipant" class="match-accept-overlay">
+        <div class="match-accept-modal">
+          <h2>{{ isMatchAcceptCancelled ? 'Match Cancelled' : 'Match Found' }}</h2>
+          <p v-if="isMatchAcceptCancelled">
+            {{ queueStore.matchAccept.cancelReason || 'Not everyone accepted the match.' }}
+          </p>
+          <p v-else>Everyone in the queue must accept before the lobby is created.</p>
+          <p v-if="!isMatchAcceptCancelled" class="match-accept-countdown">
+            Accept within {{ queueStore.matchAccept.countdown ?? 0 }}s
+          </p>
+          <p v-if="!isMatchAcceptCancelled" class="match-accept-progress">
+            Accepted {{ queueStore.matchAccept.acceptedCount }}/{{ queueStore.matchAccept.requiredCount }}
+          </p>
+          <button
+            class="match-accept-button"
+            type="button"
+            @click="isMatchAcceptCancelled ? handleDismissMatchAccept() : handleAcceptMatch()"
+            :disabled="!isMatchAcceptCancelled && (queueStore.loading || queueStore.matchAccept.hasAccepted)"
+          >
+            {{
+              isMatchAcceptCancelled
+                ? 'OK'
+                : (queueStore.matchAccept.hasAccepted
+                  ? 'Accepted'
+                  : (queueStore.loading ? 'Accepting...' : 'Accept Match'))
+            }}
           </button>
         </div>
-      </aside>
-
-      <main class="app-main">
-        <RouterView />
-      </main>
-
-      <aside class="app-right">
-        <button class="profile-button" type="button" title="Profile page coming soon" @click="handleProfile">
-          <span class="nav-icon profile-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" role="img">
-              <circle cx="12" cy="8" r="4" fill="currentColor" />
-              <path d="M4 20c0-4 4-6 8-6s8 2 8 6" fill="currentColor" />
-            </svg>
-          </span>
-          <span class="nav-label current-user">{{ authStore.username }}</span>
-        </button>
-        <button
-          class="group-button"
-          :class="{ 'in-group': groupStore.inGroup }"
-          type="button"
-          title="Group page"
-          @click="handleGroup"
-        >
-          <span class="nav-icon group-icon" aria-hidden="true">
-            <svg viewBox="0 0 28 22" role="img">
-              <circle cx="8" cy="7" r="3" fill="currentColor" />
-              <circle cx="20" cy="7" r="3" fill="currentColor" />
-              <path d="M2 21c0-3 3-5 6-5s6 2 6 5" fill="currentColor" />
-              <path d="M14 21c0-3 3-5 6-5s6 2 6 5" fill="currentColor" />
-            </svg>
-          </span>
-          <span class="nav-label">Group</span>
-        </button>
-      </aside>
-    </div>
+      </div>
+    </template>
 
     <div v-else class="auth-shell">
       <RouterView />
@@ -336,13 +406,11 @@ onBeforeUnmount(() => {
 
 .auth-shell {
   width: 100%;
-  max-width: 800px;
-  min-height: calc(100vh - 48px);
-  background: var(--surface);
-  border: 1px solid var(--surface-border);
-  border-radius: 14px;
-  box-shadow: var(--surface-shadow);
-  padding: 24px;
+  min-height: 100vh;
+  display: flex;
+  justify-content: flex-start;
+  align-items: flex-start;
+  padding: 64px 24px 24px;
 }
 
 .error-message {
@@ -354,6 +422,64 @@ onBeforeUnmount(() => {
   padding: 1rem;
   border-radius: 4px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.match-accept-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(6, 12, 20, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 40;
+  padding: 24px;
+}
+
+.match-accept-modal {
+  width: min(100%, 420px);
+  padding: 28px 24px;
+  background: #16202a;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.42);
+  text-align: center;
+}
+
+.match-accept-modal h2 {
+  margin: 0 0 10px;
+}
+
+.match-accept-modal p {
+  margin: 0;
+}
+
+.match-accept-countdown {
+  margin-top: 14px;
+  color: #7ed957;
+  font-weight: 700;
+}
+
+.match-accept-progress {
+  margin-top: 8px;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.match-accept-button {
+  margin-top: 20px;
+  width: 100%;
+  padding: 0.85rem 1.2rem;
+  background: #2f8f47;
+  border: 1px solid #2f8f47;
+}
+
+.match-accept-button:hover {
+  background: #38a453;
+  border-color: #38a453;
+}
+
+.match-accept-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 
 button {
@@ -377,7 +503,7 @@ button:hover {
   gap: 16px;
   align-items: stretch;
   justify-content: flex-start;
-  padding: 20px 0px;
+  padding: 24vh 0px 20px;
   border-right: 1px solid var(--surface-border);
 }
 
@@ -587,7 +713,7 @@ button:hover {
   align-items: stretch;
   justify-content: flex-start;
   gap: 16px;
-  padding: 16px 0px;
+  padding: 24vh 0px 16px;
   border-left: 1px solid var(--surface-border);
   position: relative;
   width: var(--nav-right-width);

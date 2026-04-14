@@ -30,6 +30,8 @@ export const SOCKET_EVENTS = {
     STATUS: 'queue_status',
     SEED: 'queue_seed',
     CLEAR: 'queue_clear',
+    ACCEPT_MATCH: 'queue_accept_match',
+    MATCH_ACCEPT_CANCELLED: 'queue_match_accept_cancelled',
   },
 
   // Lobby events

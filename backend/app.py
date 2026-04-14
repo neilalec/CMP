@@ -21,7 +21,8 @@ SYNC_INTERVAL = 10
 countdown_active = False
 countdown_paused = False
 countdown_pause_lock = RLock()
-MAX_LOBBY_PLAYERS = 40
+MAX_LOBBY_PLAYERS = 2
+MATCH_ACCEPT_COUNTDOWN = 30
 ALL_SKIRMISH_MAPS = [
     'Al Basrah Skirmish v1',
     'Al Basrah Skirmish v2',
@@ -76,6 +77,7 @@ def load_queue():
 matchmaking_queue = load_queue()
 player_activity = {}
 lobbies = {}
+pending_match = None
 group_lock = RLock()
 groups = {}
 user_to_group = {}
@@ -215,7 +217,9 @@ SOCKET_EVENTS =  {
         'FIND_MATCH': 'find-match',
         'MATCH_FOUND': 'match_found',
         'SEED': 'queue_seed',
-        'CLEAR': 'queue_clear'
+        'CLEAR': 'queue_clear',
+        'ACCEPT_MATCH': 'queue_accept_match',
+        'MATCH_ACCEPT_CANCELLED': 'queue_match_accept_cancelled'
     },
 
   
@@ -406,6 +410,140 @@ def get_username_by_sid(sid):
     logger.warning(f"No username found for SID: {sid}")
     return None
 
+def get_match_accept_payload(username=None):
+    if not pending_match:
+        return None
+
+    accepted_players = [
+        player for player, accepted in pending_match.get('accepted', {}).items()
+        if accepted
+    ]
+    return {
+        'active': True,
+        'players': list(pending_match.get('players', [])),
+        'acceptedPlayers': accepted_players,
+        'acceptedCount': len(accepted_players),
+        'requiredCount': len(pending_match.get('players', [])),
+        'countdown': pending_match.get('countdown', MATCH_ACCEPT_COUNTDOWN),
+        'hasAccepted': bool(username and pending_match.get('accepted', {}).get(username))
+    }
+
+def build_queue_payload(username=None, countdown=None):
+    payload = {
+        'success': True,
+        'inQueue': username in matchmaking_queue if username else False,
+        'playersInQueue': len(matchmaking_queue),
+        'queue': list(matchmaking_queue)
+    }
+    if countdown is not None and countdown > 0:
+        payload['countdown'] = countdown
+    match_accept = get_match_accept_payload(username)
+    if match_accept:
+        payload['matchAccept'] = match_accept
+    return payload
+
+def cancel_pending_match(reason='Match acceptance cancelled.', remove_players=None):
+    global pending_match, countdown_active
+
+    with queue_lock:
+        if not pending_match:
+            return False
+
+        participants = list(pending_match.get('players', []))
+        removed_players = []
+        for username in remove_players or []:
+            if username in matchmaking_queue:
+                matchmaking_queue.remove(username)
+                removed_players.append(username)
+                if username in player_activity:
+                    player_activity[username]['status'] = 'authenticated'
+
+        pending_match = None
+        countdown_active = False
+        save_queue()
+
+    broadcast_queue_update()
+
+    for username in participants:
+        sid = player_activity.get(username, {}).get('sid')
+        if sid:
+            socketio.emit(SOCKET_EVENTS['QUEUE']['MATCH_ACCEPT_CANCELLED'], {
+                'reason': reason,
+                'removedPlayers': removed_players
+            }, room=sid)
+    return True
+
+def finalize_pending_match(match_id):
+    global pending_match
+
+    with queue_lock:
+        if not pending_match or pending_match.get('id') != match_id:
+            return False
+        players = list(pending_match.get('players', []))
+        if not all(pending_match.get('accepted', {}).get(player) for player in players):
+            return False
+        pending_match = None
+
+    broadcast_queue_update()
+    return create_lobby(players)
+
+def start_match_acceptance(players):
+    global pending_match, countdown_active
+
+    with queue_lock:
+        if pending_match:
+            return False
+
+        tracked_players = list(players[:MAX_LOBBY_PLAYERS])
+        pending_match = {
+            'id': f"match_{int(time.time() * 1000)}",
+            'players': tracked_players,
+            'accepted': {player: False for player in tracked_players},
+            'countdown': MATCH_ACCEPT_COUNTDOWN
+        }
+        countdown_active = False
+        match_id = pending_match['id']
+
+    broadcast_queue_update()
+
+    def countdown():
+        remaining = MATCH_ACCEPT_COUNTDOWN
+        while remaining > 0:
+            with queue_lock:
+                if not pending_match or pending_match.get('id') != match_id:
+                    return
+                if all(pending_match['accepted'].get(player) for player in pending_match['players']):
+                    break
+                pending_match['countdown'] = remaining
+
+            broadcast_queue_update()
+            pause_aware_sleep(1)
+            remaining -= 1
+
+        with queue_lock:
+            if not pending_match or pending_match.get('id') != match_id:
+                return
+            all_accepted = all(
+                pending_match['accepted'].get(player)
+                for player in pending_match['players']
+            )
+            pending_match['countdown'] = max(remaining, 0)
+            not_accepted = [
+                player for player in pending_match['players']
+                if not pending_match['accepted'].get(player)
+            ]
+
+        if all_accepted:
+            finalize_pending_match(match_id)
+        else:
+            cancel_pending_match(
+                'Match acceptance timed out.',
+                remove_players=not_accepted
+            )
+
+    eventlet.spawn(countdown)
+    return True
+
 def signal_handler(sig, frame):
     """Handle shutdown signals gracefully"""
     print('\nShutting down server...')
@@ -469,56 +607,20 @@ def update_queue_state(save=True, broadcast=True):
                 logger.error(f"Failed to broadcast queue update: {str(e)}")
 
 def check_queue_and_start_countdown():
-    """Check queue size and start countdown if needed"""
-    should_start_countdown = False
-    
-    # Only hold the lock while checking queue size
+    """Start match acceptance immediately when the queue fills."""
+    players = None
+
     with queue_lock:
+        if pending_match:
+            return
         if len(matchmaking_queue) >= MAX_LOBBY_PLAYERS:
-            should_start_countdown = True
-    
-    if should_start_countdown:
-        countdown_start = 10
-        global countdown_active
-        countdown_active = True
-        
-        def countdown():
-            nonlocal countdown_start
-            global countdown_active
-            
-            while countdown_start > 0 and countdown_active:
-                try:
-                    with queue_lock:
-                        if len(matchmaking_queue) < MAX_LOBBY_PLAYERS:
-                            logger.info("Canceling countdown - not enough players")
-                            countdown_active = False
-                            broadcast_queue_update()  # Send update without countdown
-                            return
-                        
-                        if not is_countdown_paused():
-                            # Only broadcast countdown updates from here
-                            broadcast_queue_update(countdown_start)
+            players = list(matchmaking_queue[:MAX_LOBBY_PLAYERS])
 
-                    if is_countdown_paused():
-                        eventlet.sleep(0.2)
-                        continue
-
-                    pause_aware_sleep(1)
-                    countdown_start -= 1
-                except Exception as e:
-                    logger.error(f"Error in countdown: {e}")
-                    countdown_active = False
-                    return
-            
-            if countdown_active:  # Only create lobby if countdown wasn't cancelled
-                try:
-                    create_lobby()
-                except Exception as e:
-                    logger.error(f"Error creating lobby after countdown: {e}")
-                finally:
-                    countdown_active = False
-
-        eventlet.spawn(countdown)
+    if players:
+        try:
+            start_match_acceptance(players)
+        except Exception as e:
+            logger.error(f"Error starting match acceptance: {e}")
 
 def add_to_queue(username):
     if username not in matchmaking_queue:
@@ -640,16 +742,7 @@ def broadcast_queue_update(countdown=None):
     """Broadcast queue status to all connected clients"""
     try:
         logger.debug(f"Queue before broadcast: {list(matchmaking_queue)}")
-        
-        # Send the same queue status to all clients
-        queue_status = {
-            'success': True,
-            'playersInQueue': len(matchmaking_queue),
-            'queue': list(matchmaking_queue)
-        }
-        # Only add countdown if it's provided and greater than 0
-        if countdown is not None and countdown > 0:
-            queue_status['countdown'] = countdown
+        queue_status = build_queue_payload(countdown=countdown)
 
         # Broadcast to all clients without specifying a room
         socketio.emit(
@@ -663,70 +756,69 @@ def broadcast_queue_update(countdown=None):
         logger.error(f"Error in broadcast_queue_update: {str(e)}")
 
 #LOBBY
-def create_lobby():
+def create_lobby(players_override=None):
     """Create a lobby when enough players are in queue"""
     with queue_lock:
-        if len(matchmaking_queue) >= MAX_LOBBY_PLAYERS:
-            try:
-                # Get first two players
-                players = matchmaking_queue[:MAX_LOBBY_PLAYERS]
-                
-                logger.debug(f"Creating lobby for players: {players}")
-                
-                # Create new lobby
-                lobby_id = f"lobby_{int(time.time())}"
-                
-                lobby_data = {
-                    'lobby_id': lobby_id,
-                    'players': players,
-                    'teams': {'team1': [], 'team2': []},  # Empty teams initially
-                    'step': 1,
-                    'selected_map': None,
-                    'server_details': None,
-                    'countdown_active': True,  # Add countdown flag
-                    'map_votes': {},  # Initialize map_votes
-                    'countdown': 30,
-                    'countdown_token': 0,
-                    'player_groups': get_player_groups(players)
-                }
-                
-                lobbies[lobby_id] = lobby_data
-
-                # Update player states and queue
-                for player in players:
-                    matchmaking_queue.remove(player)
-                    if player in player_activity:
-                        player_activity[player]['status'] = 'in_lobby'
-                
-                # Save and broadcast updates
-                save_queue()
-                broadcast_queue_update()
-                
-                # Join players to lobby room immediately so they receive countdown updates
-                for player in players:
-                    sid = player_activity.get(player, {}).get('sid')
-                    if sid:
-                        socketio.server.enter_room(sid, lobby_id)
-
-                # Start countdown for team assignment
-                eventlet.spawn(start_team_assignment_countdown, lobby_id)
-                
-                # Notify players about lobby creation
-                logger.info(f"Created lobby {lobby_id} with players {players}")
-                for player in players:
-                    sid = player_activity.get(player, {}).get('sid')
-                    if sid:
-                        socketio.emit(SOCKET_EVENTS['LOBBY']['CREATED'], lobby_data, room=sid)
-                broadcast_open_lobbies_update()
-                
-                return True
-
-            except Exception as e:
-                logger.error(f"Error creating lobby: {str(e)}")
-                if 'lobby_id' in locals() and lobby_id in lobbies:
-                    del lobbies[lobby_id]
+        players = list(players_override[:MAX_LOBBY_PLAYERS]) if players_override else None
+        if players is not None:
+            if len(players) < MAX_LOBBY_PLAYERS:
                 return False
+            if any(player not in matchmaking_queue for player in players):
+                logger.warning("Cannot create lobby; one or more accepted players are no longer in queue")
+                return False
+        elif len(matchmaking_queue) >= MAX_LOBBY_PLAYERS:
+            players = matchmaking_queue[:MAX_LOBBY_PLAYERS]
+        else:
+            return False
 
+    try:
+        logger.debug(f"Creating lobby for players: {players}")
+
+        lobby_id = f"lobby_{int(time.time())}"
+        lobby_data = {
+            'lobby_id': lobby_id,
+            'players': players,
+            'teams': {'team1': [], 'team2': []},
+            'step': 1,
+            'selected_map': None,
+            'server_details': None,
+            'countdown_active': True,
+            'map_votes': {},
+            'countdown': 30,
+            'countdown_token': 0,
+            'player_groups': get_player_groups(players)
+        }
+
+        lobbies[lobby_id] = lobby_data
+
+        with queue_lock:
+            for player in players:
+                if player in matchmaking_queue:
+                    matchmaking_queue.remove(player)
+                if player in player_activity:
+                    player_activity[player]['status'] = 'in_lobby'
+            save_queue()
+
+        broadcast_queue_update()
+
+        for player in players:
+            sid = player_activity.get(player, {}).get('sid')
+            if sid:
+                socketio.server.enter_room(sid, lobby_id)
+
+        eventlet.spawn(start_team_assignment_countdown, lobby_id)
+
+        logger.info(f"Created lobby {lobby_id} with players {players}")
+        for player in players:
+            sid = player_activity.get(player, {}).get('sid')
+            if sid:
+                socketio.emit(SOCKET_EVENTS['LOBBY']['CREATED'], lobby_data, room=sid)
+        broadcast_open_lobbies_update()
+        return True
+    except Exception as e:
+        logger.error(f"Error creating lobby: {str(e)}")
+        if 'lobby_id' in locals() and lobby_id in lobbies:
+            del lobbies[lobby_id]
         return False
 
 def start_team_assignment_countdown(lobby_id):
@@ -908,11 +1000,8 @@ def assign_teams(players):
     return {'team1': team1, 'team2': team2}
 
 def select_captains(teams):
-    captains = {}
-    for team_key in ['team1', 'team2']:
-        team = teams.get(team_key, [])
-        captains[team_key] = random.choice(team) if team else None
-    return captains
+    # Captains are temporarily disabled; keep the shape stable for clients.
+    return {'team1': None, 'team2': None}
 
 def select_map_from_votes(lobby):
     if lobby.get('map_votes'):
@@ -976,12 +1065,14 @@ def cleanup_on_start():
     global player_activity
     global lobbies
     global countdown_active
+    global pending_match
     
     logger.info("Cleaning up stale state...")
     matchmaking_queue = []
     player_activity = {}
     lobbies = {}
     countdown_active = False
+    pending_match = None
     save_queue()
     logger.info("Cleanup complete")
 
@@ -1135,6 +1226,11 @@ def handle_disconnect(reason=None):
             
             # Handle queue state if needed
             if username in matchmaking_queue:
+                if pending_match and username in pending_match.get('players', []):
+                    cancel_pending_match(
+                        'A player disconnected during match acceptance.',
+                        remove_players=[username]
+                    )
                 broadcast_queue_update()
                 
     except Exception as e:
@@ -1325,16 +1421,14 @@ def handle_join_queue(data):
                 
                 # Broadcast update to all clients
                 socketio.emit(SOCKET_EVENTS['QUEUE']['UPDATE'], {
-                    'playersInQueue': len(matchmaking_queue),
-                    'queue': list(matchmaking_queue)
+                    **build_queue_payload(),
+                    'inQueue': username in matchmaking_queue
                 })
                 
                 # Send success response to requester
                 emit(f"{SOCKET_EVENTS['QUEUE']['JOIN']}_response", {
-                    'success': True,
-                    'inQueue': True,
-                    'playersInQueue': len(matchmaking_queue),
-                    'queue': list(matchmaking_queue)
+                    **build_queue_payload(username=username),
+                    'inQueue': True
                 })
                 
                 check_queue_and_start_countdown()
@@ -1359,6 +1453,7 @@ def handle_leave_queue(data):
     try:
         logger.info(f"=== Leave queue handler START ===")
         username = data.get('username')
+        cancel_match = False
 
         # Try to acquire lock with timeout
         if not queue_lock.acquire(timeout=2.0):  # 2 second timeout
@@ -1377,34 +1472,35 @@ def handle_leave_queue(data):
                 matchmaking_queue.remove(username)
                 save_queue()
                 logger.info(f"Removed {username} from queue")
+                cancel_match = bool(
+                    pending_match and username in pending_match.get('players', [])
+                )
                 
                 # Send immediate response to requesting client
                 response = {
-                    'success': True,
-                    'inQueue': False,   
-                    'playersInQueue': len(matchmaking_queue),
-                    'queue': list(matchmaking_queue)
+                    **build_queue_payload(username=username),
+                    'inQueue': False,
                 }
                 logger.info(f"Sending leave queue response: {response}")
                 emit(f"{SOCKET_EVENTS['QUEUE']['LEAVE']}_response", response)
                 
                 # Broadcast update to ALL clients
-                socketio.emit(SOCKET_EVENTS['QUEUE']['UPDATE'], {
-                    'success': True,
-                    'playersInQueue': len(matchmaking_queue),
-                    'queue': list(matchmaking_queue)
-                })
+                socketio.emit(SOCKET_EVENTS['QUEUE']['UPDATE'], build_queue_payload())
                 
             else:
                 logger.info(f"{username} not found in queue")
                 emit(f"{SOCKET_EVENTS['QUEUE']['LEAVE']}_response", {
-                    'success': True,
+                    **build_queue_payload(username=username),
                     'inQueue': False,
-                    'playersInQueue': len(matchmaking_queue),
-                    'queue': list(matchmaking_queue)
                 })
         finally:
             queue_lock.release()
+
+        if cancel_match:
+            cancel_pending_match(
+                'A player left the queue during match acceptance.',
+                remove_players=[username]
+            )
                 
     except Exception as e:
         logger.error(f"Error in handle_leave_queue: {str(e)}", exc_info=True)
@@ -1426,10 +1522,7 @@ def handle_queue_status(data=None):
         logger.debug(f"Queue status request from: {username}")
         
         queue_status = {
-            'success': True,  # Add success flag
-            'inQueue': username in matchmaking_queue if username else False,
-            'playersInQueue': len(matchmaking_queue),
-            'queue': list(matchmaking_queue)
+            **build_queue_payload(username=username)
         }
         
         logger.debug(f"Queue status for {username}: {queue_status}")
@@ -1442,6 +1535,42 @@ def handle_queue_status(data=None):
             'success': False,
             'message': 'Failed to get queue status'
         })
+
+@socketio.on(SOCKET_EVENTS['QUEUE']['ACCEPT_MATCH'])
+@handle_socket_data
+def handle_accept_match(data=None):
+    try:
+        username = data.get('username') if data else None
+        if not username:
+            username = get_username_by_sid(request.sid)
+        if not username:
+            return {'success': False, 'message': 'Missing username'}
+
+        with queue_lock:
+            if not pending_match or username not in pending_match.get('players', []):
+                return {'success': False, 'message': 'No pending match to accept'}
+
+            pending_match['accepted'][username] = True
+            match_id = pending_match['id']
+            all_accepted = all(
+                pending_match['accepted'].get(player)
+                for player in pending_match['players']
+            )
+            match_accept = get_match_accept_payload(username)
+
+        broadcast_queue_update()
+
+        if all_accepted:
+            finalize_pending_match(match_id)
+
+        return {
+            'success': True,
+            'matchAccept': match_accept,
+            'allAccepted': all_accepted
+        }
+    except Exception as e:
+        logger.error(f"Error in handle_accept_match: {str(e)}")
+        return {'success': False, 'message': 'Failed to accept match'}
 
 @socketio.on(SOCKET_EVENTS['QUEUE']['SEED'])
 @handle_socket_data
@@ -1505,12 +1634,13 @@ def handle_clear_queue(data=None):
     if not DEV_MODE:
         return {'success': False, 'message': 'Dev mode disabled'}
     try:
-        global countdown_active
+        global countdown_active, pending_match
 
         logger.info("Dev clear: resetting queue, lobbies, and countdown state")
 
         # Stop queue countdowns immediately
         countdown_active = False
+        pending_match = None
         set_countdown_paused(False)
 
         # Cancel any lobby countdown loops by bumping tokens
@@ -1712,11 +1842,7 @@ def handle_group_queue(data=None):
         broadcast_queue_update()
         check_queue_and_start_countdown()
 
-        return {
-            'success': True,
-            'playersInQueue': len(matchmaking_queue),
-            'queue': list(matchmaking_queue)
-        }
+        return build_queue_payload(username=username)
     except Exception as e:
         logger.error(f"Error queueing group: {str(e)}")
         return {'success': False, 'message': 'Failed to queue group'}
@@ -1861,26 +1987,19 @@ def handle_join_lobby(data):
                         lobby['teams']['team1'].append(username)
                     else:
                         lobby['teams']['team2'].append(username)
-                    if not lobby.get('captains'):
-                        lobby['captains'] = select_captains(lobby['teams'])
+                    lobby['captains'] = select_captains(lobby['teams'])
                     lobby['teams_assigned'] = True
                 elif lobby.get('step', 1) >= 2 and len(lobby['players']) >= 2:
                     lobby['teams'] = assign_teams(lobby['players'])
                     lobby['captains'] = select_captains(lobby['teams'])
                     lobby['teams_assigned'] = True
 
-            # Ensure captains exist when teams are present
+            # Keep captain data disabled while preserving response shape.
             has_teams = lobby.get('teams') and (
                 lobby['teams'].get('team1') or lobby['teams'].get('team2')
             )
             if has_teams:
-                if not lobby.get('captains'):
-                    lobby['captains'] = select_captains(lobby['teams'])
-                else:
-                    for team_key in ['team1', 'team2']:
-                        team_players = lobby['teams'].get(team_key, [])
-                        if team_players and not lobby['captains'].get(team_key):
-                            lobby['captains'][team_key] = random.choice(team_players)
+                lobby['captains'] = select_captains(lobby['teams'])
 
                 socketio.emit('lobby_update', {
                     'lobby_id': lobby_id,
@@ -1982,11 +2101,8 @@ def handle_leave_lobby(data):
                     if username in lobby['teams'][team]:
                         lobby['teams'][team].remove(username)
 
-                # Update captains if needed
-                if lobby.get('captains'):
-                    for team in ['team1', 'team2']:
-                        if lobby['captains'].get(team) == username:
-                            lobby['captains'][team] = random.choice(lobby['teams'][team]) if lobby['teams'][team] else None
+                if lobby.get('captains') is not None:
+                    lobby['captains'] = select_captains(lobby['teams'])
                 
                 # Remove from disconnected players if present
                 if 'disconnected_players' in lobby and username in lobby['disconnected_players']:
