@@ -27,7 +27,9 @@ export const useLobbyStore = defineStore('lobby', {
     votingCountdown: null,
     voteCounts: {},
     mapPool: [],
-    playerGroups: {}
+    playerGroups: {},
+    serverPresence: {},
+    announcement: null
   }),
 
   actions: {
@@ -70,6 +72,7 @@ export const useLobbyStore = defineStore('lobby', {
           }
         }
         if (data.server_details) this.serverDetails = data.server_details;
+        if (data.announcement !== undefined) this.announcement = data.announcement;
         if (data.step) {
           this.step = data.step;
           if (data.step >= 3) {
@@ -98,6 +101,7 @@ export const useLobbyStore = defineStore('lobby', {
     removePlayer(username) {
       this.players = this.players.filter(p => p !== username);
       delete this.playerStatuses[username];
+      delete this.serverPresence[username];
       this.teams.team1 = this.teams.team1.filter(p => p !== username);
       this.teams.team2 = this.teams.team2.filter(p => p !== username);
     },
@@ -128,6 +132,18 @@ export const useLobbyStore = defineStore('lobby', {
       this.voteCounts = {};
       this.mapPool = [];
       this.playerGroups = {};
+      this.serverPresence = {};
+      this.announcement = null;
+    },
+
+    updateServerPresence(rows) {
+      const next = {};
+      (rows || []).forEach((row) => {
+        if (row?.username) {
+          next[row.username] = row;
+        }
+      });
+      this.serverPresence = next;
     },
 
     updateCountdown(count) {

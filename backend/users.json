@@ -1,1 +1,1 @@
-{"neil": "123", "testregister": "newpass", "sam": "123", "john": "123", "robert": "123", "joe": "321", "Nicole": "123"}
+{"neil": {"password": "123", "steam_id": "76561198124553635"}, "testregister": {"password": "newpass", "steam_id": ""}, "sam": {"password": "123", "steam_id": "76561198124553636"}, "john": {"password": "123", "steam_id": ""}, "robert": {"password": "123", "steam_id": ""}, "joe": {"password": "321", "steam_id": ""}, "Nicole": {"password": "123", "steam_id": ""}}

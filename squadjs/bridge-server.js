@@ -1,4 +1,5 @@
 import http from 'http';
+import { Layers } from './squad-server/layers/index.js';
 
 function sendJson(res, statusCode, payload) {
   const body = JSON.stringify(payload);
@@ -102,6 +103,20 @@ export function startBridgeServer(server, bridgeConfig = {}) {
         return;
       }
 
+      if (req.method === 'GET' && url.pathname === '/layers') {
+        await Layers.pull();
+        const nameQuery = (url.searchParams.get('name') || '').trim().toLowerCase();
+        const layers = Layers.layers
+          .filter((layer) => !nameQuery || (layer.name || '').toLowerCase() === nameQuery)
+          .map((layer) => ({
+            name: layer.name || null,
+            layerId: layer.layerid || null,
+            classname: layer.classname || null
+          }));
+        sendJson(res, 200, { layers });
+        return;
+      }
+
       if (req.method === 'POST' && url.pathname === '/layer/change') {
         const payload = await readJsonBody(req);
         const command = buildLayerCommand('AdminChangeLayer', payload);
@@ -124,6 +139,21 @@ export function startBridgeServer(server, bridgeConfig = {}) {
           ok: true,
           command,
           response: response || null
+        });
+        return;
+      }
+
+      if (req.method === 'POST' && url.pathname === '/broadcast') {
+        const payload = await readJsonBody(req);
+        const message = typeof payload.message === 'string' ? payload.message.trim() : '';
+        if (!message) {
+          throw new Error('message is required');
+        }
+
+        await server.rcon.broadcast(message);
+        sendJson(res, 200, {
+          ok: true,
+          message
         });
         return;
       }

@@ -89,6 +89,9 @@ onMounted(async () => {
     socketStore.on(SOCKET_EVENTS.LOBBY.CREATED, handleLobbyCreated);
     await syncLobbyPresence();
     if (authStore.username) {
+      await authStore.syncProfile();
+    }
+    if (authStore.username) {
       await queueStore.syncWithServer(authStore.username);
     }
     if (authStore.username) {
@@ -197,6 +200,7 @@ watch(() => authStore.isLoggedIn, async (isLoggedIn) => {
       socketStore.on(SOCKET_EVENTS.QUEUE.MATCH_ACCEPT_CANCELLED, handleMatchAcceptCancelled);
       socketStore.on(SOCKET_EVENTS.GROUP.UPDATE, handleGroupUpdate);
       socketStore.on(SOCKET_EVENTS.LOBBY.CREATED, handleLobbyCreated);
+      await authStore.syncProfile();
       await queueStore.syncWithServer(authStore.username);
       await groupStore.syncStatus(authStore.username);
     } catch (error) {

@@ -1,5 +1,5 @@
 #IMPORTS AND INITIAL SETUP
-import eventlet, json, time, logging, random, asyncio, signal, sys, os
+import eventlet, json, time, logging, random, asyncio, signal, sys, os, sqlite3
 from dotenv import load_dotenv
 eventlet.monkey_patch()
 from datetime import datetime, timedelta
@@ -10,11 +10,12 @@ from collections import Counter
 from flask_cors import CORS
 from threading import Lock, RLock
 from functools import wraps
+from urllib import request as urllib_request
+from urllib import error as urllib_error
+from urllib.parse import quote as url_quote
 
 #GLOBAL VARIABLES AND DATA STRUCTURES
-QUEUE_FILE = 'queue.json'
 queue_lock = RLock()
-USERS_FILE = 'users.json'
 QUEUE_CHECK_INTERVAL = 5
 CLEANUP_INTERVAL = 30
 SYNC_INTERVAL = 10
@@ -32,7 +33,7 @@ ALL_SKIRMISH_MAPS = [
     "Fool's Road Skirmish v2",
     'Gorodok Skirmish v1',
     'Kamdesh Skirmish v1',
-    'Kohat Skirmish v1',
+    'Kohat Toi Skirmish v1',
     'Kokan Skirmish v1',
     'Logar Valley Skirmish v1',
     'Mestia Skirmish v1',
@@ -45,33 +46,369 @@ ALL_SKIRMISH_MAPS = [
     'Yehorivka Skirmish v2'
 ]
 
-load_dotenv()
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+load_dotenv(os.path.join(BASE_DIR, '.env'))
+LEGACY_QUEUE_FILE = os.path.join(BASE_DIR, 'queue.json')
+LEGACY_USERS_FILE = os.path.join(BASE_DIR, 'users.json')
+DATABASE_PATH = os.getenv('DATABASE_PATH', os.path.join(BASE_DIR, 'app.db'))
 DEV_MODE = os.getenv('CMP_DEV_MODE', '0') == '1'
+JWT_ACCESS_TOKEN_EXPIRES_HOURS = int(os.getenv('JWT_ACCESS_TOKEN_EXPIRES_HOURS', '168'))
+SQUADJS_BRIDGE_URL = os.getenv('SQUADJS_BRIDGE_URL', 'http://127.0.0.1:3001').rstrip('/')
+SQUADJS_BRIDGE_TOKEN = os.getenv('SQUADJS_BRIDGE_TOKEN', '')
+FRONTEND_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv('FRONTEND_ORIGINS', 'http://localhost:5173').split(',')
+    if origin.strip()
+]
+BACKEND_PUBLIC_URL = os.getenv('BACKEND_PUBLIC_URL', 'http://localhost:5000').rstrip('/')
+BACKEND_HOST = os.getenv('BACKEND_HOST', '0.0.0.0')
+BACKEND_PORT = int(os.getenv('BACKEND_PORT', '5000'))
+
+def get_db_connection():
+    conn = sqlite3.connect(DATABASE_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def init_database():
+    with get_db_connection() as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                username TEXT PRIMARY KEY,
+                password TEXT NOT NULL,
+                steam_id TEXT NOT NULL DEFAULT ''
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS queue_entries (
+                position INTEGER PRIMARY KEY,
+                username TEXT NOT NULL UNIQUE
+            )
+        """)
+        conn.commit()
+
+def migrate_legacy_json_files():
+    bootstrap_logger = logging.getLogger(__name__)
+    with get_db_connection() as conn:
+        user_count = conn.execute('SELECT COUNT(*) FROM users').fetchone()[0]
+        queue_count = conn.execute('SELECT COUNT(*) FROM queue_entries').fetchone()[0]
+
+        if user_count == 0 and os.path.exists(LEGACY_USERS_FILE):
+            try:
+                with open(LEGACY_USERS_FILE, 'r', encoding='utf-8') as f:
+                    legacy_users = json.load(f)
+                rows = []
+                for username, record in legacy_users.items():
+                    normalized = normalize_user_record(record)
+                    rows.append((username, normalized.get('password', ''), normalized.get('steam_id', '')))
+                conn.executemany(
+                    'INSERT OR REPLACE INTO users (username, password, steam_id) VALUES (?, ?, ?)',
+                    rows
+                )
+                bootstrap_logger.info(f"Migrated {len(rows)} users from legacy JSON store")
+            except Exception as e:
+                bootstrap_logger.error(f"Failed to migrate legacy users.json: {str(e)}")
+
+        if queue_count == 0 and os.path.exists(LEGACY_QUEUE_FILE):
+            try:
+                with open(LEGACY_QUEUE_FILE, 'r', encoding='utf-8') as f:
+                    legacy_queue = json.load(f)
+                rows = [(index, username) for index, username in enumerate(legacy_queue)]
+                conn.executemany(
+                    'INSERT OR REPLACE INTO queue_entries (position, username) VALUES (?, ?)',
+                    rows
+                )
+                bootstrap_logger.info(f"Migrated {len(rows)} queued players from legacy JSON store")
+            except Exception as e:
+                bootstrap_logger.error(f"Failed to migrate legacy queue.json: {str(e)}")
+
+        conn.commit()
 
 def load_users():
-    """Load users from file"""
+    """Load users from SQLite"""
     try:
-        with open(USERS_FILE, 'r') as f:
-            return json.load(f)
-    except FileNotFoundError:
+        with get_db_connection() as conn:
+            rows = conn.execute(
+                'SELECT username, password, steam_id FROM users ORDER BY username'
+            ).fetchall()
+            return {
+                row['username']: {
+                    'password': row['password'],
+                    'steam_id': row['steam_id'] or ''
+                }
+                for row in rows
+            }
+    except Exception as e:
+        logging.getLogger(__name__).error(f"Failed to load users from SQLite: {str(e)}")
         return {}
 
 def save_users():
-    """Save users to file"""
-    with open(USERS_FILE, 'w') as f:
-        json.dump(users, f)
+    """Save users to SQLite"""
+    try:
+        with get_db_connection() as conn:
+            conn.execute('DELETE FROM users')
+            conn.executemany(
+                'INSERT INTO users (username, password, steam_id) VALUES (?, ?, ?)',
+                [
+                    (
+                        username,
+                        normalize_user_record(record).get('password', ''),
+                        normalize_user_record(record).get('steam_id', '')
+                    )
+                    for username, record in users.items()
+                ]
+            )
+            conn.commit()
+    except Exception as e:
+        logging.getLogger(__name__).error(f"Failed to save users to SQLite: {str(e)}")
+
+def normalize_user_record(record):
+    if isinstance(record, dict):
+        return {
+            'password': record.get('password', ''),
+            'steam_id': str(record.get('steam_id', '') or '').strip()
+        }
+    return {
+        'password': record,
+        'steam_id': ''
+    }
+
+init_database()
+migrate_legacy_json_files()
 
 # Initialize users from file
-users = load_users()
+users = {
+    username: normalize_user_record(record)
+    for username, record in load_users().items()
+}
+
+def get_user_record(username):
+    record = users.get(username)
+    if record is None:
+        return None
+    normalized = normalize_user_record(record)
+    if normalized != record:
+        users[username] = normalized
+        save_users()
+    return normalized
+
+def user_has_steam_id(username):
+    record = get_user_record(username)
+    return bool(record and record.get('steam_id'))
+
+def get_user_profile(username):
+    record = get_user_record(username)
+    if not record:
+        return None
+    return {
+        'username': username,
+        'steam_id': record.get('steam_id', ''),
+        'has_steam_id': bool(record.get('steam_id')),
+        'steam_id_locked': username in matchmaking_queue or is_user_in_any_lobby(username)
+    }
+
+def is_valid_steam_id(steam_id):
+    steam_id = str(steam_id or '').strip()
+    return steam_id.isdigit() and len(steam_id) == 17
+
+def squadjs_bridge_request(path, method='GET', payload=None, timeout=5):
+    url = f"{SQUADJS_BRIDGE_URL}{path}"
+    body = None
+    headers = {
+        'Accept': 'application/json'
+    }
+
+    if SQUADJS_BRIDGE_TOKEN:
+        headers['Authorization'] = f"Bearer {SQUADJS_BRIDGE_TOKEN}"
+
+    if payload is not None:
+        body = json.dumps(payload).encode('utf-8')
+        headers['Content-Type'] = 'application/json'
+
+    req = urllib_request.Request(url, data=body, headers=headers, method=method)
+
+    try:
+        with urllib_request.urlopen(req, timeout=timeout) as response:
+            raw = response.read().decode('utf-8')
+            return json.loads(raw) if raw else {}
+    except urllib_error.HTTPError as e:
+        raw = e.read().decode('utf-8') if e.fp else ''
+        try:
+            details = json.loads(raw) if raw else {}
+        except json.JSONDecodeError:
+            details = {'error': raw or str(e)}
+        raise RuntimeError(details.get('error') or f"Bridge request failed with HTTP {e.code}")
+    except urllib_error.URLError as e:
+        raise RuntimeError(f"Unable to reach SquadJS bridge at {SQUADJS_BRIDGE_URL}: {e.reason}")
+    except json.JSONDecodeError as e:
+        raise RuntimeError(f"Invalid JSON from SquadJS bridge: {e}")
+
+def fetch_connected_server_players():
+    response = squadjs_bridge_request('/players')
+    return response.get('players', [])
+
+def fetch_layers_by_name(name):
+    encoded_name = url_quote(str(name or '').strip(), safe='')
+    response = squadjs_bridge_request(f'/layers?name={encoded_name}')
+    return response.get('layers', [])
+
+def resolve_selected_map_layer_id(selected_map):
+    map_aliases = {
+        'Kohat Skirmish v1': 'Kohat Toi Skirmish v1'
+    }
+    resolved_name = map_aliases.get(selected_map, selected_map)
+    layers = fetch_layers_by_name(resolved_name)
+    if not layers:
+        raise RuntimeError(f'Could not resolve selected map "{selected_map}" to a Squad layer id.')
+    return layers[0].get('layerId') or layers[0].get('classname')
+
+def change_server_to_selected_map(selected_map):
+    layer_id = resolve_selected_map_layer_id(selected_map)
+    return squadjs_bridge_request('/layer/change', method='POST', payload={
+        'layer': layer_id
+    })
+
+def broadcast_server_message(message):
+    return squadjs_bridge_request('/broadcast', method='POST', payload={
+        'message': message
+    })
+
+def build_lobby_server_presence(lobby_id):
+    lobby = lobbies.get(lobby_id)
+    if not lobby:
+        raise ValueError('Lobby not found')
+
+    connected_players = fetch_connected_server_players()
+    players_by_steam_id = {
+        str(player.get('steamID') or '').strip(): player
+        for player in connected_players
+        if player.get('steamID')
+    }
+
+    team1_players = set(lobby.get('teams', {}).get('team1', []))
+    team2_players = set(lobby.get('teams', {}).get('team2', []))
+
+    presence = []
+    connected_usernames = []
+    missing_usernames = []
+
+    for username in lobby.get('players', []):
+        profile = get_user_profile(username) or {}
+        steam_id = profile.get('steam_id', '')
+        connected_player = players_by_steam_id.get(steam_id) if steam_id else None
+
+        expected_team_id = None
+        if username in team1_players:
+            expected_team_id = 1
+        elif username in team2_players:
+            expected_team_id = 2
+
+        row = {
+            'username': username,
+            'steam_id': steam_id,
+            'expectedTeamId': expected_team_id,
+            'connected': bool(connected_player),
+            'actualTeamId': connected_player.get('teamID') if connected_player else None,
+            'actualSquadId': connected_player.get('squadID') if connected_player else None,
+            'eosID': connected_player.get('eosID') if connected_player else None,
+            'serverName': connected_player.get('name') if connected_player else None
+        }
+        presence.append(row)
+
+        if row['connected']:
+            connected_usernames.append(username)
+        else:
+            missing_usernames.append(username)
+
+    return {
+        'lobby_id': lobby_id,
+        'players': presence,
+        'connected': connected_usernames,
+        'missing': missing_usernames
+    }
+
+def start_live_roll_monitor(lobby_id):
+    lobby = lobbies.get(lobby_id)
+    if not lobby:
+        return
+
+    lobby['live_roll_token'] = lobby.get('live_roll_token', 0) + 1
+    token = lobby['live_roll_token']
+
+    def monitor():
+        while True:
+            current_lobby = lobbies.get(lobby_id)
+            if not current_lobby:
+                return
+            if current_lobby.get('live_roll_token') != token:
+                return
+            if current_lobby.get('step') != 3:
+                return
+            if current_lobby.get('live_roll_done'):
+                return
+            if not current_lobby.get('selected_map'):
+                return
+
+            try:
+                presence = build_lobby_server_presence(lobby_id)
+            except Exception as e:
+                logger.error(f"Error checking server presence for lobby {lobby_id}: {str(e)}")
+                pause_aware_sleep(5)
+                continue
+
+            if presence.get('missing'):
+                pause_aware_sleep(5)
+                continue
+
+            selected_map = current_lobby.get('selected_map')
+            announcement = f'Server will now roll to live on "{selected_map}"'
+            current_lobby['announcement'] = announcement
+            socketio.emit('lobby_update', {
+                'lobby_id': lobby_id,
+                'announcement': announcement
+            }, room=lobby_id)
+
+            pause_aware_sleep(2)
+
+            try:
+                broadcast_server_message(announcement)
+                bridge_response = change_server_to_selected_map(selected_map)
+                current_lobby['live_roll_done'] = True
+                current_lobby['server_details'] = {
+                    'map': selected_map,
+                    'bridge_response': bridge_response
+                }
+                current_lobby['step'] = 4
+                socketio.emit('lobby_update', {
+                    'lobby_id': lobby_id,
+                    'announcement': announcement,
+                    'selected_map': selected_map,
+                    'server_details': current_lobby['server_details'],
+                    'step': 4
+                }, room=lobby_id)
+            except Exception as e:
+                error_message = f'Failed to roll server live on "{selected_map}": {str(e)}'
+                current_lobby['announcement'] = error_message
+                logger.error(error_message)
+                socketio.emit('lobby_update', {
+                    'lobby_id': lobby_id,
+                    'announcement': error_message
+                }, room=lobby_id)
+            return
+
+    eventlet.spawn(monitor)
 
 # Load queue from file
 def load_queue():
-    """Load queue from file"""
+    """Load queue from SQLite"""
     with queue_lock:
         try:
-            with open('queue.json', 'r') as f:
-                return json.load(f)
-        except:
+            with get_db_connection() as conn:
+                rows = conn.execute(
+                    'SELECT username FROM queue_entries ORDER BY position ASC'
+                ).fetchall()
+                return [row['username'] for row in rows]
+        except Exception as e:
+            logging.getLogger(__name__).error(f"Failed to load queue from SQLite: {str(e)}")
             return []
 
 matchmaking_queue = load_queue()
@@ -171,7 +508,7 @@ logger.info("Configuring CORS")
 CORS(app, 
      resources={
          r"/*": {
-             "origins": ["http://localhost:5173"],
+             "origins": FRONTEND_ORIGINS,
              "methods": ["GET", "POST", "OPTIONS", "WEBSOCKET"],
              "allow_headers": ["*"],
              "supports_credentials": True,
@@ -183,6 +520,7 @@ logger.info("CORS configured")
 #JWT setup
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key')
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'dev-jwt-secret')
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=JWT_ACCESS_TOKEN_EXPIRES_HOURS)
 jwt = JWTManager(app)
 
 SOCKET_EVENTS =  {
@@ -230,6 +568,7 @@ SOCKET_EVENTS =  {
         'UPDATE': 'lobby_update',
         'DATA': 'lobby_data',
         'GET_DATA': 'get-lobby-data',
+        'SERVER_PRESENCE': 'lobby_server_presence',
         'VOTE_MAP': 'vote-map',
         'MAP_SELECTED': 'map_selected',
         'START': 'start-lobby',
@@ -262,6 +601,11 @@ SOCKET_EVENTS =  {
         'UNQUEUE': 'group_unqueue'
     },
 
+    'PROFILE': {
+        'STATUS': 'profile_status',
+        'UPDATE_STEAM_ID': 'profile_update_steam_id'
+    },
+
     'MESSAGE': 'message',
 }; 
 
@@ -276,7 +620,7 @@ logger.info(f"Queue Update Event: {SOCKET_EVENTS['QUEUE']['UPDATE']}")
 logger.info("Initializing SocketIO")
 socketio = SocketIO(
     app,
-    cors_allowed_origins=["http://localhost:5173"],
+    cors_allowed_origins=FRONTEND_ORIGINS,
     async_mode='eventlet',
     logger=False,
     engineio_logger=False,
@@ -435,7 +779,8 @@ def build_queue_payload(username=None, countdown=None):
         'success': True,
         'inQueue': username in matchmaking_queue if username else False,
         'playersInQueue': len(matchmaking_queue),
-        'queue': list(matchmaking_queue)
+        'queue': list(matchmaking_queue),
+        'hasSteamId': user_has_steam_id(username) if username else False
     }
     if countdown is not None and countdown > 0:
         payload['countdown'] = countdown
@@ -572,7 +917,42 @@ def signal_handler(sig, frame):
 #check backend is running
 @app.route('/')
 def index():
-    return "CMP SocketIO backend running. Frontend handled through Vue.js at http://localhost:5173/"
+    return f"CMP SocketIO backend running. Frontend handled through Vue.js for origins: {', '.join(FRONTEND_ORIGINS)}"
+
+@app.route('/api/server/players', methods=['GET'])
+@jwt_required()
+def api_server_players():
+    try:
+        return jsonify({
+            'success': True,
+            'players': fetch_connected_server_players()
+        })
+    except Exception as e:
+        logger.error(f"Error fetching server players from SquadJS bridge: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 502
+
+@app.route('/api/lobbies/<lobby_id>/server-presence', methods=['GET'])
+@jwt_required()
+def api_lobby_server_presence(lobby_id):
+    try:
+        return jsonify({
+            'success': True,
+            'presence': build_lobby_server_presence(lobby_id)
+        })
+    except ValueError as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 404
+    except Exception as e:
+        logger.error(f"Error building server presence for lobby {lobby_id}: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 502
 
 @socketio.on_error_default
 @handle_socket_data
@@ -591,8 +971,7 @@ def update_queue_state(save=True, broadcast=True):
     with queue_lock:
         if save:
             try:
-                with open('queue.json', 'w') as f:
-                    json.dump(matchmaking_queue, f)
+                save_queue()
             except Exception as e:
                 logger.error(f"Failed to save queue: {str(e)}")
         
@@ -635,13 +1014,19 @@ def add_to_queue(username):
         print(f"User {username} is already in the queue.")  # Debug log
         return False
 
-def save_queue():
-    """Save queue to file"""
+def save_queue(queue=None):
+    """Save queue to SQLite"""
     try:
-        with open('queue.json', 'w') as f:
-            json.dump(matchmaking_queue, f)
+        queue_to_save = list(matchmaking_queue if queue is None else queue)
+        with get_db_connection() as conn:
+            conn.execute('DELETE FROM queue_entries')
+            conn.executemany(
+                'INSERT INTO queue_entries (position, username) VALUES (?, ?)',
+                [(index, username) for index, username in enumerate(queue_to_save)]
+            )
+            conn.commit()
     except Exception as e:
-        logger.error(f"Failed to save queue: {str(e)}")
+        logging.getLogger(__name__).error(f"Failed to save queue to SQLite: {str(e)}")
         pass
 
 def start_map_voting(lobby_id):
@@ -731,10 +1116,12 @@ def start_map_voting(lobby_id):
             'step': 3,
             'selected_map': selected_map,
             'lobby_id': lobby_id,
-            'vote_counts': vote_counts if 'vote_counts' in locals() else {}
+            'vote_counts': vote_counts if 'vote_counts' in locals() else {},
+            'announcement': None
         }, room=lobby_id)
         
         logger.info(f"Map {selected_map} selected for lobby {lobby_id}")
+        start_live_roll_monitor(lobby_id)
         
     except Exception as e:
         logger.error(f"Error in map voting countdown: {str(e)}")
@@ -794,7 +1181,10 @@ def create_lobby(players_override=None):
             'voting_countdown': 30,
             'countdown': None,
             'countdown_token': 0,
-            'player_groups': get_player_groups(players)
+            'player_groups': get_player_groups(players),
+            'announcement': None,
+            'live_roll_done': False,
+            'live_roll_token': 0
         }
 
         lobbies[lobby_id] = lobby_data
@@ -1117,7 +1507,10 @@ def register_socket(data):
             return {'success': False, 'message': 'Username already exists'}
             
         # Store the new user
-        users[username] = password
+        users[username] = {
+            'password': password,
+            'steam_id': ''
+        }
         save_users()
         
         # Create access token for automatic login
@@ -1127,7 +1520,8 @@ def register_socket(data):
         return {
             'success': True,
             'message': 'Registration successful',
-            'access_token': access_token
+            'access_token': access_token,
+            'profile': get_user_profile(username)
         }
         
     except Exception as e:
@@ -1152,7 +1546,8 @@ def login_socket(data):
             }
 
         logger.debug(f"Checking credentials for {username}")
-        if users.get(username) != password:
+        user_record = get_user_record(username)
+        if not user_record or user_record.get('password') != password:
             logger.debug(f"Login failed for user: {username}")
             return {
                 'success': False,
@@ -1195,7 +1590,8 @@ def login_socket(data):
             'success': True,
             'message': 'Login successful',
             'access_token': access_token,
-            'active_lobby': active_lobby_id
+            'active_lobby': active_lobby_id,
+            'profile': get_user_profile(username)
         }
         
         logger.info(f"Sending login response for {username}: {response}")
@@ -1225,11 +1621,7 @@ def handle_authenticate(data):
             
             logger.info(f"Authentication successful for {username}")
 
-            queue_data = {
-                'inQueue': username in matchmaking_queue,
-                'playersInQueue': len(matchmaking_queue),
-                'queue': list(matchmaking_queue)
-            }
+            queue_data = build_queue_payload(username=username)
             emit('queue_status', queue_data)
 
             return True
@@ -1239,6 +1631,56 @@ def handle_authenticate(data):
     except Exception as e:
         logger.error(f"Error in handle_authenticate: {str(e)}")
         return False
+
+@socketio.on(SOCKET_EVENTS['PROFILE']['STATUS'])
+@handle_socket_data
+def handle_profile_status(data=None):
+    try:
+        username = data.get('username') if data else None
+        if not username:
+            return {'success': False, 'message': 'Missing username'}
+
+        profile = get_user_profile(username)
+        if not profile:
+            return {'success': False, 'message': 'User not found'}
+
+        return {'success': True, 'profile': profile}
+    except Exception as e:
+        logger.error(f"Error in handle_profile_status: {str(e)}")
+        return {'success': False, 'message': 'Failed to get profile'}
+
+@socketio.on(SOCKET_EVENTS['PROFILE']['UPDATE_STEAM_ID'])
+@handle_socket_data
+def handle_update_steam_id(data=None):
+    try:
+        username = data.get('username') if data else None
+        steam_id = data.get('steam_id') if data else None
+
+        if not username:
+            return {'success': False, 'message': 'Missing username'}
+
+        record = get_user_record(username)
+        if not record:
+            return {'success': False, 'message': 'User not found'}
+
+        if username in matchmaking_queue or is_user_in_any_lobby(username):
+            return {'success': False, 'message': 'Leave the queue or lobby before changing your Steam ID.'}
+
+        if not is_valid_steam_id(steam_id):
+            return {'success': False, 'message': 'Steam ID must be a 17-digit SteamID64.'}
+
+        record['steam_id'] = str(steam_id).strip()
+        users[username] = record
+        save_users()
+
+        return {
+            'success': True,
+            'message': 'Steam ID updated.',
+            'profile': get_user_profile(username)
+        }
+    except Exception as e:
+        logger.error(f"Error in handle_update_steam_id: {str(e)}")
+        return {'success': False, 'message': 'Failed to update Steam ID'}
 
 #QUEUE MANAGEMENT
 @socketio.on(SOCKET_EVENTS['QUEUE']['JOIN'])
@@ -1265,6 +1707,14 @@ def handle_join_queue(data):
                     'queue': list(matchmaking_queue)
                 })
                 return
+
+        if not user_has_steam_id(username):
+            emit(f"{SOCKET_EVENTS['QUEUE']['JOIN']}_response", {
+                **build_queue_payload(username=username),
+                'success': False,
+                'message': 'Set your Steam ID in your profile before joining the queue.'
+            })
+            return
         
         with queue_lock:
             if len(matchmaking_queue) >= MAX_LOBBY_PLAYERS:
@@ -1686,6 +2136,13 @@ def handle_group_queue(data=None):
             if len(members) > (MAX_LOBBY_PLAYERS // 2):
                 return {'success': False, 'message': 'Group is too large to stay on one team'}
 
+        missing_steam_ids = [member for member in members if not user_has_steam_id(member)]
+        if missing_steam_ids:
+            return {
+                'success': False,
+                'message': f"These group members need a Steam ID before queueing: {', '.join(missing_steam_ids)}"
+            }
+
         if any(is_user_in_any_lobby(member) for member in members):
             return {'success': False, 'message': 'A group member is already in a lobby'}
 
@@ -1903,7 +2360,8 @@ def handle_join_lobby(data):
                 'map_pool': lobby.get('map_pool', []),
                 'map_votes': lobby.get('map_votes', {}),
                 'vote_counts': lobby.get('vote_counts', {}),
-                'player_groups': lobby.get('player_groups', {})
+                'player_groups': lobby.get('player_groups', {}),
+                'announcement': lobby.get('announcement')
             }
             
             # Notify other players about reconnection if applicable
@@ -2031,12 +2489,15 @@ def handle_skip_phase(data):
             selected_map, vote_counts = select_map_from_votes(lobby)
             lobby['selected_map'] = selected_map
             lobby['step'] = 3
+            lobby['announcement'] = None
             socketio.emit('lobby_update', {
                 'lobby_id': lobby_id,
                 'selected_map': selected_map,
                 'step': 3,
-                'vote_counts': vote_counts
+                'vote_counts': vote_counts,
+                'announcement': None
             }, room=lobby_id)
+            start_live_roll_monitor(lobby_id)
             lobby['skip_phase'] = False
             return {'success': True, 'step': 3}
 
@@ -2122,10 +2583,29 @@ def get_lobby_data(data):
             'voting_countdown': lobby.get('voting_countdown'),
             'player_groups': lobby.get('player_groups', {}),
             'map_votes': lobby.get('map_votes', {}),
-            'vote_counts': lobby.get('vote_counts', {})
+            'vote_counts': lobby.get('vote_counts', {}),
+            'announcement': lobby.get('announcement')
         })
     else:
         emit(SOCKET_EVENTS['ERROR'], {'msg': 'Lobby not found.'})
+
+@socketio.on(SOCKET_EVENTS['LOBBY']['SERVER_PRESENCE'])
+@handle_socket_data
+def get_lobby_server_presence(data):
+    try:
+        lobby_id = data.get('lobby_id') if data else None
+        if not lobby_id:
+            return {'success': False, 'message': 'Missing lobby_id'}
+
+        return {
+            'success': True,
+            'presence': build_lobby_server_presence(lobby_id)
+        }
+    except ValueError as e:
+        return {'success': False, 'message': str(e)}
+    except Exception as e:
+        logger.error(f"Error in get_lobby_server_presence: {str(e)}")
+        return {'success': False, 'message': 'Failed to get lobby server presence'}
 
 @socketio.on(SOCKET_EVENTS['LOBBY']['VOTE_MAP'])
 @handle_socket_data
@@ -2201,8 +2681,8 @@ if __name__ == '__main__':
          socketio.run(
             app,
             debug=False,
-            host='0.0.0.0',
-            port=5000,
+            host=BACKEND_HOST,
+            port=BACKEND_PORT,
             use_reloader=False,
             log_output=True,
             allow_unsafe_werkzeug=True,

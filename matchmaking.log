@@ -1,0 +1,20 @@
+2026-04-14 21:59:45,870 - INFO - Starting Flask application
+2026-04-14 21:59:45,870 - INFO - Configuring CORS
+2026-04-14 21:59:45,870 - INFO - CORS configured
+2026-04-14 21:59:45,871 - INFO - === Socket Events Configuration ===
+2026-04-14 21:59:45,871 - INFO - Queue Leave Event: leave-queue
+2026-04-14 21:59:45,871 - INFO - Queue Join Event: join-queue
+2026-04-14 21:59:45,871 - INFO - Queue Status Event: queue_status
+2026-04-14 21:59:45,871 - INFO - Queue Update Event: queue_update
+2026-04-14 21:59:45,871 - INFO - Initializing SocketIO
+2026-04-14 21:59:45,878 - INFO - SocketIO initialized
+2026-04-14 22:12:11,648 - INFO - Starting Flask application
+2026-04-14 22:12:11,648 - INFO - Configuring CORS
+2026-04-14 22:12:11,648 - INFO - CORS configured
+2026-04-14 22:12:11,648 - INFO - === Socket Events Configuration ===
+2026-04-14 22:12:11,648 - INFO - Queue Leave Event: leave-queue
+2026-04-14 22:12:11,648 - INFO - Queue Join Event: join-queue
+2026-04-14 22:12:11,648 - INFO - Queue Status Event: queue_status
+2026-04-14 22:12:11,648 - INFO - Queue Update Event: queue_update
+2026-04-14 22:12:11,648 - INFO - Initializing SocketIO
+2026-04-14 22:12:11,656 - INFO - SocketIO initialized

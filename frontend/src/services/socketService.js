@@ -1,10 +1,11 @@
 import { io } from 'socket.io-client';
 import { SOCKET_EVENTS } from '../constants/socketEvents';
+import { SOCKET_URL } from '../config';
 
 export class SocketService {
   constructor() {
     this.socket = null;
-    this.baseURL = 'http://localhost:5000';
+    this.baseURL = SOCKET_URL;
     this.connected = false;
     this.reconnectAttempts = 0;
     this.maxReconnectAttempts = 5;

@@ -42,6 +42,7 @@ export const SOCKET_EVENTS = {
     UPDATE: 'lobby_update',
     DATA: 'lobby_data',
     GET_DATA: 'get-lobby-data',
+    SERVER_PRESENCE: 'lobby_server_presence',
     VOTE_MAP: 'vote-map',
     MAP_SELECTED: 'map_selected',
     START: 'start-lobby',
@@ -72,6 +73,11 @@ export const SOCKET_EVENTS = {
     UPDATE: 'group_update',
     QUEUE: 'group_queue',
     UNQUEUE: 'group_unqueue'
+  },
+
+  PROFILE: {
+    STATUS: 'profile_status',
+    UPDATE_STEAM_ID: 'profile_update_steam_id'
   },
 
   MESSAGE: 'message',

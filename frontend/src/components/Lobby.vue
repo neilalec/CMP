@@ -14,6 +14,7 @@ const socketStore = useSocketStore();
 const rootStore = useRootStore();
 const authStore = useAuthStore();
 const isCountdownPaused = ref(false);
+const serverPresencePoll = ref(null);
 
 // Fallback only; real map pool comes from server per lobby
 const AVAILABLE_MAPS = [
@@ -49,6 +50,38 @@ const mapOptions = computed(() => {
   return lobbyStore.mapPool?.length ? lobbyStore.mapPool : AVAILABLE_MAPS;
 });
 const isDev = import.meta.env.DEV;
+
+const fetchServerPresence = async () => {
+  const lobbyId = lobbyStore.lobbyId || route.params.lobbyId;
+  if (!lobbyId || !socketStore.isConnected) return;
+
+  try {
+    const response = await socketStore.emit(SOCKET_EVENTS.LOBBY.SERVER_PRESENCE, {
+      lobby_id: lobbyId
+    });
+    if (!response?.success) {
+      throw new Error(response?.message || 'Failed to load server presence');
+    }
+    lobbyStore.updateServerPresence(response.presence?.players || []);
+  } catch (error) {
+    console.error('Failed to fetch server presence:', error);
+  }
+};
+
+const startServerPresencePolling = () => {
+  if (serverPresencePoll.value) {
+    clearInterval(serverPresencePoll.value);
+  }
+  fetchServerPresence();
+  serverPresencePoll.value = setInterval(fetchServerPresence, 5000);
+};
+
+const stopServerPresencePolling = () => {
+  if (serverPresencePoll.value) {
+    clearInterval(serverPresencePoll.value);
+    serverPresencePoll.value = null;
+  }
+};
 
 // LIFECYCLE HOOKS
 onMounted(async () => {
@@ -185,6 +218,7 @@ onMounted(async () => {
     
     if (joinResponse?.success) {  // Check for success flag
       lobbyStore.updateLobbyState(joinResponse.data);
+      startServerPresencePolling();
     } else {
       throw new Error(joinResponse?.message || 'Failed to join lobby');
     }
@@ -203,6 +237,7 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
+  stopServerPresencePolling();
   // Remove all listeners
   listeners.value.forEach(({ event, handler }) => {
     socketStore.off(event, handler);
@@ -314,6 +349,14 @@ const isCurrentUser = (player) => {
   return player === authStore.username;
 };
 
+const getServerPresence = (player) => {
+  return lobbyStore.serverPresence?.[player] || null;
+};
+
+const isServerConnected = (player) => {
+  return !!getServerPresence(player)?.connected;
+};
+
 const groupPlayers = (players) => {
   const groups = {};
   const segments = [];
@@ -361,6 +404,9 @@ const matchSizeLabel = computed(() => {
       <p class="countdown" :class="{ 'is-hidden': activeCountdown === null }">
         {{ activeCountdownLabel }} {{ activeCountdown ?? 0 }}s
       </p>
+      <p v-if="lobbyStore.announcement" class="lobby-announcement">
+        {{ lobbyStore.announcement }}
+      </p>
       <div class="countdown-actions">
         <button v-if="showPauseButton" class="pause-button" @click="toggleCountdownPause">
           {{ isCountdownPaused ? 'Unpause Countdown' : 'Pause Countdown' }}
@@ -396,6 +442,9 @@ const matchSizeLabel = computed(() => {
               <div class="team-group-members">
                 <span v-for="member in group.members" :key="member" class="team-group-member">
                   <span :class="{ 'current-user': isCurrentUser(member) }">{{ member }}</span>
+                  <span :class="['connection-flag', isServerConnected(member) ? 'is-connected' : 'is-missing']">
+                    {{ isServerConnected(member) ? 'connected' : 'not connected' }}
+                  </span>
                   <span v-if="isCaptain(member, 'team1')" class="captain-tag">Captain</span>
                 </span>
               </div>
@@ -429,6 +478,9 @@ const matchSizeLabel = computed(() => {
               <div class="team-group-members">
                 <span v-for="member in group.members" :key="member" class="team-group-member">
                   <span :class="{ 'current-user': isCurrentUser(member) }">{{ member }}</span>
+                  <span :class="['connection-flag', isServerConnected(member) ? 'is-connected' : 'is-missing']">
+                    {{ isServerConnected(member) ? 'connected' : 'not connected' }}
+                  </span>
                   <span v-if="isCaptain(member, 'team2')" class="captain-tag">Captain</span>
                 </span>
               </div>
@@ -452,6 +504,9 @@ const matchSizeLabel = computed(() => {
                 <div class="team-group-members">
                   <span v-for="member in group.members" :key="member" class="team-group-member">
                     <span :class="{ 'current-user': isCurrentUser(member) }">{{ member }}</span>
+                    <span :class="['connection-flag', isServerConnected(member) ? 'is-connected' : 'is-missing']">
+                      {{ isServerConnected(member) ? 'connected' : 'not connected' }}
+                    </span>
                     <span v-if="isCaptain(member, 'team1')" class="captain-tag">Captain</span>
                   </span>
                 </div>
@@ -476,6 +531,9 @@ const matchSizeLabel = computed(() => {
                 <div class="team-group-members">
                   <span v-for="member in group.members" :key="member" class="team-group-member">
                     <span :class="{ 'current-user': isCurrentUser(member) }">{{ member }}</span>
+                    <span :class="['connection-flag', isServerConnected(member) ? 'is-connected' : 'is-missing']">
+                      {{ isServerConnected(member) ? 'connected' : 'not connected' }}
+                    </span>
                     <span v-if="isCaptain(member, 'team2')" class="captain-tag">Captain</span>
                   </span>
                 </div>
@@ -505,6 +563,9 @@ const matchSizeLabel = computed(() => {
                 <div class="team-group-members">
                   <span v-for="member in group.members" :key="member" class="team-group-member">
                     <span :class="{ 'current-user': isCurrentUser(member) }">{{ member }}</span>
+                    <span :class="['connection-flag', isServerConnected(member) ? 'is-connected' : 'is-missing']">
+                      {{ isServerConnected(member) ? 'connected' : 'not connected' }}
+                    </span>
                     <span v-if="isCaptain(member, 'team1')" class="captain-tag">Captain</span>
                   </span>
                 </div>
@@ -523,6 +584,9 @@ const matchSizeLabel = computed(() => {
                 <div class="team-group-members">
                   <span v-for="member in group.members" :key="member" class="team-group-member">
                     <span :class="{ 'current-user': isCurrentUser(member) }">{{ member }}</span>
+                    <span :class="['connection-flag', isServerConnected(member) ? 'is-connected' : 'is-missing']">
+                      {{ isServerConnected(member) ? 'connected' : 'not connected' }}
+                    </span>
                     <span v-if="isCaptain(member, 'team2')" class="captain-tag">Captain</span>
                   </span>
                 </div>
@@ -610,6 +674,13 @@ const matchSizeLabel = computed(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
+}
+
+.lobby-announcement {
+  margin: 0.4rem 0 0;
+  color: #7ed957;
+  font-weight: 600;
+  text-align: center;
 }
 
 .countdown-slot .countdown {
@@ -758,6 +829,23 @@ const matchSizeLabel = computed(() => {
   gap: 6px;
   text-align: center;
   min-width: 0;
+  flex-wrap: wrap;
+}
+
+.connection-flag {
+  font-family: "Courier New", Courier, monospace;
+  font-size: 0.68rem;
+  line-height: 1;
+  text-transform: lowercase;
+  white-space: nowrap;
+}
+
+.connection-flag.is-connected {
+  color: #7ed957;
+}
+
+.connection-flag.is-missing {
+  color: #ff6b6b;
 }
 
 .map-vote-layout {

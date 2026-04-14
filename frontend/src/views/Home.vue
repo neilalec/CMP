@@ -59,6 +59,12 @@ onMounted(async () => {
   }
   console.log('Socket connected, syncing with server...');
 
+  try {
+    await authStore.syncProfile();
+  } catch (error) {
+    // ignore profile sync failures here and let the profile page surface them explicitly
+  }
+
   // Now safe to sync - pass username to get accurate queue status
   await queueStore.syncWithServer(authStore.username);
   try {
@@ -87,6 +93,10 @@ onBeforeUnmount(() => {
 const joinQueue = async () => {
   if (isInLobby.value) {
     rootStore.setError('You are already in a lobby. Return to the lobby to continue.');
+    return;
+  }
+  if (!authStore.hasSteamId) {
+    rootStore.setError('Set your Steam ID in your profile before joining the queue.');
     return;
   }
   if (isInGroup.value && !isGroupLeader.value) {
@@ -229,11 +239,13 @@ const getLobbyLabel = (lobby) => {
         <button 
           v-if="!queueStore.inQueue"
           @click="joinQueue" 
-          :disabled="loading || isInLobby || isQueueFull || (isInGroup && !isGroupLeader)"
+          :disabled="loading || isInLobby || isQueueFull || (isInGroup && !isGroupLeader) || !authStore.hasSteamId"
         >
           {{
             isInLobby
               ? "You're in a lobby"
+              : !authStore.hasSteamId
+                ? 'Set Steam ID in Profile'
               : isInGroup && !isGroupLeader
                 ? "Group leader only"
               : isQueueFull

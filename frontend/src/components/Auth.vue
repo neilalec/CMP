@@ -33,7 +33,7 @@ const handleSubmit = async () => {
     if (response.success) {
       console.log(`${formType.value} successful`);
       // Set auth state
-      await authStore.setAuth(response.access_token, username.value);
+      await authStore.setAuth(response.access_token, username.value, response.profile);
       
       // Check for active lobby in response
       if (response.active_lobby) {

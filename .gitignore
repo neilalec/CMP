@@ -1,4 +1,8 @@
 backend/matchmaking.log
 backend/__pycache__/
+backend/*.db
+backend/*.sqlite3
 squadjs/node_modules/
 squadjs/config.json
+backend/.env
+frontend/.env
