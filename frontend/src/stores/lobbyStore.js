@@ -29,6 +29,8 @@ export const useLobbyStore = defineStore('lobby', {
     mapPool: [],
     playerGroups: {},
     serverPresence: {},
+    serverPresenceAvailable: true,
+    serverPresenceError: null,
     announcement: null
   }),
 
@@ -133,10 +135,12 @@ export const useLobbyStore = defineStore('lobby', {
       this.mapPool = [];
       this.playerGroups = {};
       this.serverPresence = {};
+      this.serverPresenceAvailable = true;
+      this.serverPresenceError = null;
       this.announcement = null;
     },
 
-    updateServerPresence(rows) {
+    updateServerPresence(rows, options = {}) {
       const next = {};
       (rows || []).forEach((row) => {
         if (row?.username) {
@@ -144,6 +148,8 @@ export const useLobbyStore = defineStore('lobby', {
         }
       });
       this.serverPresence = next;
+      this.serverPresenceAvailable = options.bridgeAvailable !== false;
+      this.serverPresenceError = options.bridgeError || null;
     },
 
     updateCountdown(count) {

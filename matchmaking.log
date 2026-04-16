@@ -18,3 +18,14 @@
 2026-04-14 22:12:11,648 - INFO - Queue Update Event: queue_update
 2026-04-14 22:12:11,648 - INFO - Initializing SocketIO
 2026-04-14 22:12:11,656 - INFO - SocketIO initialized
+2026-04-16 09:11:27,820 - INFO - Starting Flask application
+2026-04-16 09:11:27,821 - INFO - Configuring CORS
+2026-04-16 09:11:27,821 - INFO - CORS configured
+2026-04-16 09:11:27,821 - INFO - === Socket Events Configuration ===
+2026-04-16 09:11:27,821 - INFO - Queue Leave Event: leave-queue
+2026-04-16 09:11:27,821 - INFO - Queue Join Event: join-queue
+2026-04-16 09:11:27,821 - INFO - Queue Status Event: queue_status
+2026-04-16 09:11:27,821 - INFO - Queue Update Event: queue_update
+2026-04-16 09:11:27,821 - INFO - Initializing SocketIO
+2026-04-16 09:11:27,828 - INFO - SocketIO initialized
+2026-04-16 09:11:29,908 - WARNING - Unable to reach SquadJS bridge at http://127.0.0.1:3001: timed out

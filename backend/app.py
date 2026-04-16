@@ -63,11 +63,41 @@ FRONTEND_ORIGINS = [
 BACKEND_PUBLIC_URL = os.getenv('BACKEND_PUBLIC_URL', 'http://localhost:5000').rstrip('/')
 BACKEND_HOST = os.getenv('BACKEND_HOST', '0.0.0.0')
 BACKEND_PORT = int(os.getenv('BACKEND_PORT', '5000'))
+BRIDGE_ERROR_LOG_INTERVAL_SECONDS = int(os.getenv('BRIDGE_ERROR_LOG_INTERVAL_SECONDS', '30'))
+
+bridge_status = {
+    'available': None,
+    'last_error': None,
+    'last_logged_error': None,
+    'last_logged_at': 0.0
+}
+
+class BridgeUnavailable(RuntimeError):
+    pass
 
 def get_db_connection():
     conn = sqlite3.connect(DATABASE_PATH)
     conn.row_factory = sqlite3.Row
     return conn
+
+def log_bridge_unavailable(error_message):
+    now = time.time()
+    should_log = (
+        bridge_status['last_logged_error'] != error_message
+        or (now - bridge_status['last_logged_at']) >= BRIDGE_ERROR_LOG_INTERVAL_SECONDS
+    )
+    bridge_status['available'] = False
+    bridge_status['last_error'] = error_message
+    if should_log:
+        logging.getLogger(__name__).warning(error_message)
+        bridge_status['last_logged_error'] = error_message
+        bridge_status['last_logged_at'] = now
+
+def mark_bridge_available():
+    if bridge_status['available'] is False:
+        logging.getLogger(__name__).info(f"SquadJS bridge reachable again at {SQUADJS_BRIDGE_URL}")
+    bridge_status['available'] = True
+    bridge_status['last_error'] = None
 
 def init_database():
     with get_db_connection() as conn:
@@ -229,8 +259,10 @@ def squadjs_bridge_request(path, method='GET', payload=None, timeout=5):
     try:
         with urllib_request.urlopen(req, timeout=timeout) as response:
             raw = response.read().decode('utf-8')
+            mark_bridge_available()
             return json.loads(raw) if raw else {}
     except urllib_error.HTTPError as e:
+        mark_bridge_available()
         raw = e.read().decode('utf-8') if e.fp else ''
         try:
             details = json.loads(raw) if raw else {}
@@ -238,9 +270,74 @@ def squadjs_bridge_request(path, method='GET', payload=None, timeout=5):
             details = {'error': raw or str(e)}
         raise RuntimeError(details.get('error') or f"Bridge request failed with HTTP {e.code}")
     except urllib_error.URLError as e:
-        raise RuntimeError(f"Unable to reach SquadJS bridge at {SQUADJS_BRIDGE_URL}: {e.reason}")
+        message = f"Unable to reach SquadJS bridge at {SQUADJS_BRIDGE_URL}: {e.reason}"
+        log_bridge_unavailable(message)
+        raise BridgeUnavailable(message)
     except json.JSONDecodeError as e:
+        mark_bridge_available()
         raise RuntimeError(f"Invalid JSON from SquadJS bridge: {e}")
+
+def get_database_health():
+    try:
+        with get_db_connection() as conn:
+            conn.execute('SELECT 1').fetchone()
+        return {'ok': True, 'path': DATABASE_PATH}
+    except Exception as e:
+        return {'ok': False, 'path': DATABASE_PATH, 'error': str(e)}
+
+def get_bridge_health():
+    try:
+        response = squadjs_bridge_request('/health', timeout=2)
+        return {
+            'ok': True,
+            'url': SQUADJS_BRIDGE_URL,
+            'details': response
+        }
+    except BridgeUnavailable as e:
+        return {
+            'ok': False,
+            'url': SQUADJS_BRIDGE_URL,
+            'error': str(e)
+        }
+    except Exception as e:
+        return {
+            'ok': False,
+            'url': SQUADJS_BRIDGE_URL,
+            'error': str(e)
+        }
+
+def build_bridge_unavailable_presence(lobby_id, lobby, error_message):
+    team1_players = set(lobby.get('teams', {}).get('team1', []))
+    team2_players = set(lobby.get('teams', {}).get('team2', []))
+    presence = []
+
+    for username in lobby.get('players', []):
+        profile = get_user_profile(username) or {}
+        expected_team_id = None
+        if username in team1_players:
+            expected_team_id = 1
+        elif username in team2_players:
+            expected_team_id = 2
+
+        presence.append({
+            'username': username,
+            'steam_id': profile.get('steam_id', ''),
+            'expectedTeamId': expected_team_id,
+            'connected': False,
+            'actualTeamId': None,
+            'actualSquadId': None,
+            'eosID': None,
+            'serverName': None
+        })
+
+    return {
+        'lobby_id': lobby_id,
+        'players': presence,
+        'connected': [],
+        'missing': [player['username'] for player in presence],
+        'bridgeAvailable': False,
+        'bridgeError': error_message
+    }
 
 def fetch_connected_server_players():
     response = squadjs_bridge_request('/players')
@@ -272,12 +369,18 @@ def broadcast_server_message(message):
         'message': message
     })
 
-def build_lobby_server_presence(lobby_id):
+def build_lobby_server_presence(lobby_id, tolerate_bridge_unavailable=False):
     lobby = lobbies.get(lobby_id)
     if not lobby:
         raise ValueError('Lobby not found')
 
-    connected_players = fetch_connected_server_players()
+    try:
+        connected_players = fetch_connected_server_players()
+    except BridgeUnavailable as e:
+        if tolerate_bridge_unavailable:
+            return build_bridge_unavailable_presence(lobby_id, lobby, str(e))
+        raise
+
     players_by_steam_id = {
         str(player.get('steamID') or '').strip(): player
         for player in connected_players
@@ -323,7 +426,9 @@ def build_lobby_server_presence(lobby_id):
         'lobby_id': lobby_id,
         'players': presence,
         'connected': connected_usernames,
-        'missing': missing_usernames
+        'missing': missing_usernames,
+        'bridgeAvailable': True,
+        'bridgeError': None
     }
 
 def start_live_roll_monitor(lobby_id):
@@ -350,6 +455,16 @@ def start_live_roll_monitor(lobby_id):
 
             try:
                 presence = build_lobby_server_presence(lobby_id)
+            except BridgeUnavailable:
+                waiting_message = 'Waiting for SquadJS bridge to become available.'
+                if current_lobby.get('announcement') != waiting_message:
+                    current_lobby['announcement'] = waiting_message
+                    socketio.emit('lobby_update', {
+                        'lobby_id': lobby_id,
+                        'announcement': waiting_message
+                    }, room=lobby_id)
+                pause_aware_sleep(5)
+                continue
             except Exception as e:
                 logger.error(f"Error checking server presence for lobby {lobby_id}: {str(e)}")
                 pause_aware_sleep(5)
@@ -385,6 +500,15 @@ def start_live_roll_monitor(lobby_id):
                     'server_details': current_lobby['server_details'],
                     'step': 4
                 }, room=lobby_id)
+            except BridgeUnavailable:
+                waiting_message = 'Waiting for SquadJS bridge to become available.'
+                current_lobby['announcement'] = waiting_message
+                socketio.emit('lobby_update', {
+                    'lobby_id': lobby_id,
+                    'announcement': waiting_message
+                }, room=lobby_id)
+                pause_aware_sleep(5)
+                continue
             except Exception as e:
                 error_message = f'Failed to roll server live on "{selected_map}": {str(e)}'
                 current_lobby['announcement'] = error_message
@@ -919,6 +1043,22 @@ def signal_handler(sig, frame):
 def index():
     return f"CMP SocketIO backend running. Frontend handled through Vue.js for origins: {', '.join(FRONTEND_ORIGINS)}"
 
+@app.route('/health', methods=['GET'])
+def health():
+    database = get_database_health()
+    bridge = get_bridge_health()
+    ok = bool(database.get('ok')) and bool(bridge.get('ok'))
+    payload = {
+        'ok': ok,
+        'status': 'ok' if ok else 'degraded',
+        'service': 'backend',
+        'database': database,
+        'squadjsBridge': bridge,
+        'queueSize': len(matchmaking_queue),
+        'lobbyCount': len(lobbies)
+    }
+    return jsonify(payload), (200 if ok else 503)
+
 @app.route('/api/server/players', methods=['GET'])
 @jwt_required()
 def api_server_players():
@@ -940,7 +1080,7 @@ def api_lobby_server_presence(lobby_id):
     try:
         return jsonify({
             'success': True,
-            'presence': build_lobby_server_presence(lobby_id)
+            'presence': build_lobby_server_presence(lobby_id, tolerate_bridge_unavailable=True)
         })
     except ValueError as e:
         return jsonify({
@@ -2599,7 +2739,7 @@ def get_lobby_server_presence(data):
 
         return {
             'success': True,
-            'presence': build_lobby_server_presence(lobby_id)
+            'presence': build_lobby_server_presence(lobby_id, tolerate_bridge_unavailable=True)
         }
     except ValueError as e:
         return {'success': False, 'message': str(e)}

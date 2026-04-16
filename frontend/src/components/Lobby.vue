@@ -62,7 +62,10 @@ const fetchServerPresence = async () => {
     if (!response?.success) {
       throw new Error(response?.message || 'Failed to load server presence');
     }
-    lobbyStore.updateServerPresence(response.presence?.players || []);
+    lobbyStore.updateServerPresence(response.presence?.players || [], {
+      bridgeAvailable: response.presence?.bridgeAvailable,
+      bridgeError: response.presence?.bridgeError || null
+    });
   } catch (error) {
     console.error('Failed to fetch server presence:', error);
   }
@@ -357,6 +360,16 @@ const isServerConnected = (player) => {
   return !!getServerPresence(player)?.connected;
 };
 
+const getConnectionFlagClass = (player) => {
+  if (lobbyStore.serverPresenceAvailable === false) return 'is-unavailable';
+  return isServerConnected(player) ? 'is-connected' : 'is-missing';
+};
+
+const getConnectionLabel = (player) => {
+  if (lobbyStore.serverPresenceAvailable === false) return 'server unavailable';
+  return isServerConnected(player) ? 'connected' : 'not connected';
+};
+
 const groupPlayers = (players) => {
   const groups = {};
   const segments = [];
@@ -442,8 +455,8 @@ const matchSizeLabel = computed(() => {
               <div class="team-group-members">
                 <span v-for="member in group.members" :key="member" class="team-group-member">
                   <span :class="{ 'current-user': isCurrentUser(member) }">{{ member }}</span>
-                  <span :class="['connection-flag', isServerConnected(member) ? 'is-connected' : 'is-missing']">
-                    {{ isServerConnected(member) ? 'connected' : 'not connected' }}
+                  <span :class="['connection-flag', getConnectionFlagClass(member)]">
+                    {{ getConnectionLabel(member) }}
                   </span>
                   <span v-if="isCaptain(member, 'team1')" class="captain-tag">Captain</span>
                 </span>
@@ -478,8 +491,8 @@ const matchSizeLabel = computed(() => {
               <div class="team-group-members">
                 <span v-for="member in group.members" :key="member" class="team-group-member">
                   <span :class="{ 'current-user': isCurrentUser(member) }">{{ member }}</span>
-                  <span :class="['connection-flag', isServerConnected(member) ? 'is-connected' : 'is-missing']">
-                    {{ isServerConnected(member) ? 'connected' : 'not connected' }}
+                  <span :class="['connection-flag', getConnectionFlagClass(member)]">
+                    {{ getConnectionLabel(member) }}
                   </span>
                   <span v-if="isCaptain(member, 'team2')" class="captain-tag">Captain</span>
                 </span>
@@ -504,8 +517,8 @@ const matchSizeLabel = computed(() => {
                 <div class="team-group-members">
                   <span v-for="member in group.members" :key="member" class="team-group-member">
                     <span :class="{ 'current-user': isCurrentUser(member) }">{{ member }}</span>
-                    <span :class="['connection-flag', isServerConnected(member) ? 'is-connected' : 'is-missing']">
-                      {{ isServerConnected(member) ? 'connected' : 'not connected' }}
+                    <span :class="['connection-flag', getConnectionFlagClass(member)]">
+                      {{ getConnectionLabel(member) }}
                     </span>
                     <span v-if="isCaptain(member, 'team1')" class="captain-tag">Captain</span>
                   </span>
@@ -531,8 +544,8 @@ const matchSizeLabel = computed(() => {
                 <div class="team-group-members">
                   <span v-for="member in group.members" :key="member" class="team-group-member">
                     <span :class="{ 'current-user': isCurrentUser(member) }">{{ member }}</span>
-                    <span :class="['connection-flag', isServerConnected(member) ? 'is-connected' : 'is-missing']">
-                      {{ isServerConnected(member) ? 'connected' : 'not connected' }}
+                    <span :class="['connection-flag', getConnectionFlagClass(member)]">
+                      {{ getConnectionLabel(member) }}
                     </span>
                     <span v-if="isCaptain(member, 'team2')" class="captain-tag">Captain</span>
                   </span>
@@ -563,8 +576,8 @@ const matchSizeLabel = computed(() => {
                 <div class="team-group-members">
                   <span v-for="member in group.members" :key="member" class="team-group-member">
                     <span :class="{ 'current-user': isCurrentUser(member) }">{{ member }}</span>
-                    <span :class="['connection-flag', isServerConnected(member) ? 'is-connected' : 'is-missing']">
-                      {{ isServerConnected(member) ? 'connected' : 'not connected' }}
+                    <span :class="['connection-flag', getConnectionFlagClass(member)]">
+                      {{ getConnectionLabel(member) }}
                     </span>
                     <span v-if="isCaptain(member, 'team1')" class="captain-tag">Captain</span>
                   </span>
@@ -584,8 +597,8 @@ const matchSizeLabel = computed(() => {
                 <div class="team-group-members">
                   <span v-for="member in group.members" :key="member" class="team-group-member">
                     <span :class="{ 'current-user': isCurrentUser(member) }">{{ member }}</span>
-                    <span :class="['connection-flag', isServerConnected(member) ? 'is-connected' : 'is-missing']">
-                      {{ isServerConnected(member) ? 'connected' : 'not connected' }}
+                    <span :class="['connection-flag', getConnectionFlagClass(member)]">
+                      {{ getConnectionLabel(member) }}
                     </span>
                     <span v-if="isCaptain(member, 'team2')" class="captain-tag">Captain</span>
                   </span>
@@ -846,6 +859,10 @@ const matchSizeLabel = computed(() => {
 
 .connection-flag.is-missing {
   color: #ff6b6b;
+}
+
+.connection-flag.is-unavailable {
+  color: #f1c40f;
 }
 
 .map-vote-layout {
