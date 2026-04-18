@@ -470,7 +470,10 @@ def start_live_roll_monitor(lobby_id):
                 pause_aware_sleep(5)
                 continue
 
-            if presence.get('missing'):
+            connected_usernames = set(presence.get('connected', []))
+            dev_ready_override = DEV_MODE and 'neil' in connected_usernames
+
+            if presence.get('missing') and not dev_ready_override:
                 pause_aware_sleep(5)
                 continue
 

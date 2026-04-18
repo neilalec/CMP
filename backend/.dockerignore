@@ -1,0 +1,11 @@
+venv/
+__pycache__/
+tests/
+.env
+.coverage
+app.db
+matchmaking.log
+pytest.ini
+requirements-test.txt
+users.json
+queue.json
