@@ -15,8 +15,10 @@ class TestAuthentication(unittest.TestCase):
         self.app_context.pop()
         self.client.disconnect()
 
+    @patch('app.emit')
+    @patch('app.join_room')
     @patch('app.verify_jwt_in_request')
-    def test_handle_connect_valid_token(self, mock_verify):
+    def test_handle_connect_valid_token(self, mock_verify, mock_join_room, mock_emit):
         mock_verify.return_value = True
         
         # Use test request context and modify its attributes
@@ -30,8 +32,10 @@ class TestAuthentication(unittest.TestCase):
                 result = handle_connect(None)
                 self.assertTrue(result)
 
+    @patch('app.emit')
+    @patch('app.join_room')
     @patch('app.verify_jwt_in_request')
-    def test_handle_connect_invalid_token(self, mock_verify):
+    def test_handle_connect_invalid_token(self, mock_verify, mock_join_room, mock_emit):
         mock_verify.side_effect = Exception('Invalid token')
         
         # Use the test request context and modify its attributes

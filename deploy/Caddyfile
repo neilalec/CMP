@@ -1,4 +1,8 @@
-:8080 {
+http://cmp.zapto.org {
+    redir https://cmp.zapto.org{uri} permanent
+}
+
+https://cmp.zapto.org {
     handle /api/* {
         uri strip_prefix /api
         reverse_proxy backend:5000

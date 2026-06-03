@@ -1,50 +1,14 @@
 <script setup>
-import { ref, onMounted } from 'vue';
-import { useAuthStore } from '../stores/authStore';
-import { useGroupStore } from '../stores/groupStore';
-import { useRootStore } from '../stores/rootStore';
+import { useGroupView } from '../features/group/composables/useGroupView';
 
-const authStore = useAuthStore();
-const groupStore = useGroupStore();
-const rootStore = useRootStore();
-const joinCode = ref('');
-
-
-onMounted(async () => {
-  if (authStore.username) {
-    await groupStore.syncStatus(authStore.username);
-  }
-});
-
-const handleCreate = async () => {
-  try {
-    await groupStore.createGroup(authStore.username);
-  } catch (error) {
-    rootStore.setError(error.message || 'Failed to create group');
-  }
-};
-
-const handleJoin = async () => {
-  const code = joinCode.value.trim().toUpperCase();
-  if (!code) {
-    rootStore.setError('Enter a group code.');
-    return;
-  }
-  try {
-    await groupStore.joinGroup(authStore.username, code);
-    joinCode.value = '';
-  } catch (error) {
-    rootStore.setError(error.message || 'Failed to join group');
-  }
-};
-
-const handleLeave = async () => {
-  try {
-    await groupStore.leaveGroup(authStore.username);
-  } catch (error) {
-    rootStore.setError(error.message || 'Failed to leave group');
-  }
-};
+const {
+  authStore,
+  groupStore,
+  handleCreate,
+  handleJoin,
+  handleLeave,
+  joinCode
+} = useGroupView();
 
 </script>
 
@@ -113,7 +77,7 @@ h1 {
 .group-page {
   width: min(100%, 960px);
   max-width: 960px;
-  margin: 56px auto 0;
+  margin: clamp(20px, 5vw, 56px) auto 0;
   text-align: center;
 }
 
@@ -247,5 +211,29 @@ button:hover {
 button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+  .group-header {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .group-code,
+  .group-leader {
+    text-align: center;
+  }
+
+  .group-actions,
+  .group-join {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .group-join input,
+  .group-join button,
+  .group-actions button {
+    width: min(100%, 260px);
+  }
 }
 </style>

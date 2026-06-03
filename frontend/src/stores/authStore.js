@@ -1,7 +1,10 @@
 import { defineStore } from 'pinia';
 import { useSocketStore } from './socketStore';
 import { useRootStore } from './rootStore';
+import { useLobbyStore } from './lobbyStore';
+import { useQueueStore } from './queueStore';
 import { SOCKET_EVENTS } from '../constants/socketEvents';
+import { clearCurrentLobby } from '../utils/lobbyPersistence';
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
@@ -82,6 +85,9 @@ export const useAuthStore = defineStore('auth', {
     },
 
     logout() {
+      const lobbyStore = useLobbyStore();
+      const queueStore = useQueueStore();
+
       // Clear auth state
       this.token = null;
       this.username = null;
@@ -93,6 +99,9 @@ export const useAuthStore = defineStore('auth', {
       localStorage.removeItem('token');
       localStorage.removeItem('username');
       localStorage.removeItem('steamId');
+      clearCurrentLobby();
+      lobbyStore.reset();
+      queueStore.resetQueue();
 
       // Clear any errors
       const rootStore = useRootStore();

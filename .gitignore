@@ -1,6 +1,8 @@
 backend/matchmaking.log
 matchmaking.log
 backend/__pycache__/
+backend/services/__pycache__/
+backend/.pytest_cache/
 backend/venv/
 backend/.coverage
 backend/users.json
@@ -15,4 +17,7 @@ squadjs/*.tmp
 backend/.env
 frontend/.env
 frontend/node_modules/
+frontend/dist/
+frontend/.vscode/
+frontend/cypress/
 desktop.ini

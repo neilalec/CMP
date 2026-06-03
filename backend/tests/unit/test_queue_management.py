@@ -29,7 +29,8 @@ class TestQueueManagement(unittest.TestCase):
 
     @patch('app.save_queue')
     @patch('app.check_queue_and_start_countdown')
-    def test_handle_join_queue_duplicate_user(self, mock_countdown, mock_save):
+    @patch('app.user_has_steam_id', return_value=True)
+    def test_handle_join_queue_duplicate_user(self, mock_has_steam_id, mock_countdown, mock_save):
         with self.app.test_request_context() as context:
             # Set request attributes
             context.request.sid = 'test_sid'
@@ -51,7 +52,8 @@ class TestQueueManagement(unittest.TestCase):
 
     @patch('app.save_queue')
     @patch('app.check_queue_and_start_countdown')
-    def test_handle_join_queue_success(self, mock_countdown, mock_save):
+    @patch('app.user_has_steam_id', return_value=True)
+    def test_handle_join_queue_success(self, mock_has_steam_id, mock_countdown, mock_save):
         with self.app.test_request_context() as context:
             # Set request attributes
             context.request.sid = 'test_sid'
@@ -65,8 +67,11 @@ class TestQueueManagement(unittest.TestCase):
                 self.socketio_mock.assert_called_with(
                     'queue_update',
                     {
+                        'success': True,
+                        'inQueue': True,
                         'playersInQueue': 1,
-                        'queue': ['new_user']
+                        'queue': ['new_user'],
+                        'hasSteamId': False
                     }
                 )
                 
@@ -77,7 +82,8 @@ class TestQueueManagement(unittest.TestCase):
                         'success': True,
                         'inQueue': True,
                         'playersInQueue': 1,
-                        'queue': ['new_user']
+                        'queue': ['new_user'],
+                        'hasSteamId': True
                     }
                 )
                 

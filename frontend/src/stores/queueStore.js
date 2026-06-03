@@ -31,6 +31,12 @@ export const useQueueStore = defineStore('queue', {
     updateQueueState(data) {
       if (!data) return;
       const authStore = useAuthStore();
+      console.debug('[queueStore] updateQueueState', {
+        inQueue: data.inQueue,
+        playersInQueue: data.playersInQueue,
+        countdown: data.countdown,
+        matchAccept: data.matchAccept
+      });
       
       this.inQueue = !!data.inQueue;
       this.playersInQueue = data.playersInQueue || 0;
@@ -149,7 +155,9 @@ export const useQueueStore = defineStore('queue', {
       try {
         const authStore = useAuthStore();
         const socketStore = useSocketStore();
+        console.debug('[queueStore] acceptMatch sending', { username });
         const response = await socketStore.emit(SOCKET_EVENTS.QUEUE.ACCEPT_MATCH, { username });
+        console.debug('[queueStore] acceptMatch response', response);
         if (!response?.success) {
           throw new Error(response?.message || 'Failed to accept match');
         }

@@ -6,6 +6,7 @@ import Profile from '../views/Profile.vue';
 import Group from '../views/Group.vue';
 import { useAuthStore } from '@/stores/authStore';
 import { useRootStore } from '@/stores/rootStore';
+import { getCurrentLobbyId } from '../utils/lobbyPersistence';
 
 const routes = [
   { 
@@ -63,7 +64,7 @@ router.beforeEach((to, from, next) => {
   const authStore = useAuthStore();
   const rootStore = useRootStore();
   const isAuthenticated = authStore.isLoggedIn;
-  const currentLobby = localStorage.getItem('currentLobby');
+  const currentLobby = getCurrentLobbyId();
 
   // Clear any existing errors when changing routes
   rootStore.clearError();

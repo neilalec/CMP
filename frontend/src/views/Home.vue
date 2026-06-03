@@ -1,338 +1,61 @@
 <script setup>
-import { ref, onMounted, onBeforeUnmount, computed } from 'vue';
-import { useRouter, useRoute } from 'vue-router';
-import { useQueueStore } from '../stores/queueStore';
-import { useSocketStore } from '../stores/socketStore';
-import { useAuthStore } from '../stores/authStore';
-import { useLobbyStore } from '../stores/lobbyStore';
-import { useGroupStore } from '../stores/groupStore';
-import { SOCKET_EVENTS } from '../constants/socketEvents';
-import { useRootStore } from '../stores/rootStore';
+import QueuePanel from '../features/home/components/QueuePanel.vue';
+import LobbiesPanel from '../features/home/components/LobbiesPanel.vue';
+import { useHomeView } from '../features/home/composables/useHomeView';
 
-const router = useRouter();
-const route = useRoute();
-const queueStore = useQueueStore();
-const socketStore = useSocketStore();
-const authStore = useAuthStore();
-const lobbyStore = useLobbyStore();
-const groupStore = useGroupStore();
-const rootStore = useRootStore();
-const loading = ref(false);
-const isDev = import.meta.env.DEV;
-const MAX_PLAYERS = 2;
-const isInLobby = computed(() => {
-  return !!lobbyStore.lobbyId || !!localStorage.getItem('currentLobby');
-});
-const isInGroup = computed(() => groupStore.inGroup);
-const isGroupLeader = computed(() => {
-  if (!groupStore.leader || !authStore.username) return false;
-  return groupStore.leader.toLowerCase() === authStore.username.toLowerCase();
-});
-const isQueueFull = computed(() => queueStore.playersInQueue >= MAX_PLAYERS);
-const activeView = computed(() => {
-  if (route.path === '/queue') return 'queue';
-  if (route.path === '/lobbies') return 'lobbies';
-  return null;
-});
-const handleQueueUpdate = (data) => {
-  console.log('Queue update received:', data);
-  queueStore.updateQueueState({
-    ...data,
-    inQueue: data.queue?.includes(authStore.username)
-  });
-};
-const handleOpenLobbiesUpdate = (data) => {
-  if (data?.openLobbies) {
-    queueStore.updateOpenLobbies(data.openLobbies);
-  }
-  if (data?.activeLobbies) {
-    queueStore.updateActiveLobbies(data.activeLobbies);
-  }
-};
-
-onMounted(async () => {
-  console.log('Home component mounted');
-  
-  // Wait for socket to be ready
-  while (!socketStore.isConnected) {
-    await new Promise(resolve => setTimeout(resolve, 100));
-  }
-  console.log('Socket connected, syncing with server...');
-
-  try {
-    await authStore.syncProfile();
-  } catch (error) {
-    // ignore profile sync failures here and let the profile page surface them explicitly
-  }
-
-  // Now safe to sync - pass username to get accurate queue status
-  await queueStore.syncWithServer(authStore.username);
-  try {
-    const openLobbies = await socketStore.emit(SOCKET_EVENTS.OPEN_LOBBIES.STATUS);
-    if (openLobbies?.openLobbies) {
-      queueStore.updateOpenLobbies(openLobbies.openLobbies);
-    }
-    if (openLobbies?.activeLobbies) {
-      queueStore.updateActiveLobbies(openLobbies.activeLobbies);
-    }
-  } catch (error) {
-    // ignore
-  }
-
-  // Listen for queue updates
-  socketStore.on(SOCKET_EVENTS.QUEUE.UPDATE, handleQueueUpdate);
-  socketStore.on(SOCKET_EVENTS.OPEN_LOBBIES.UPDATE, handleOpenLobbiesUpdate);
-
-});
-
-onBeforeUnmount(() => {
-  socketStore.off(SOCKET_EVENTS.QUEUE.UPDATE, handleQueueUpdate);
-  socketStore.off(SOCKET_EVENTS.OPEN_LOBBIES.UPDATE, handleOpenLobbiesUpdate);
-});
-
-const joinQueue = async () => {
-  if (isInLobby.value) {
-    rootStore.setError('You are already in a lobby. Return to the lobby to continue.');
-    return;
-  }
-  if (!authStore.hasSteamId) {
-    rootStore.setError('Set your Steam ID in your profile before joining the queue.');
-    return;
-  }
-  if (isInGroup.value && !isGroupLeader.value) {
-    rootStore.setError('Only the group leader can queue the group.');
-    return;
-  }
-  loading.value = true;
-  try {
-    if (isInGroup.value && isGroupLeader.value) {
-      const response = await groupStore.queueGroup(authStore.username);
-      if (response?.queue) {
-        queueStore.updateQueueState({
-          ...response,
-          inQueue: response.queue.includes(authStore.username)
-        });
-      }
-    } else {
-      await queueStore.joinQueue(authStore.username);
-    }
-  } finally {
-    loading.value = false;
-  }
-};
-
-const joinOpenLobby = async (lobbyId) => {
-  if (isInLobby.value) {
-    rootStore.setError('You are already in a lobby. Return to the lobby to continue.');
-    return;
-  }
-  loading.value = true;
-  try {
-    const response = await socketStore.emit(SOCKET_EVENTS.LOBBY.JOIN, {
-      lobby_id: lobbyId,
-      username: authStore.username,
-      allow_new: true
-    });
-    if (response?.success) {
-      localStorage.setItem('currentLobby', lobbyId);
-      router.push(`/lobby/${lobbyId}`);
-    } else {
-      throw new Error(response?.message || 'Failed to join lobby');
-    }
-  } catch (error) {
-    rootStore.setError(error.message || 'Failed to join lobby');
-  } finally {
-    loading.value = false;
-  }
-};
-
-const leaveQueue = async () => {
-  if (isInGroup.value && !isGroupLeader.value) {
-    rootStore.setError('Only the group leader can leave the queue. Leave the group to exit.');
-    return;
-  }
-  loading.value = true;
-  try {
-    if (isInGroup.value && isGroupLeader.value) {
-      const response = await groupStore.unqueueGroup(authStore.username);
-      if (response?.queue) {
-        queueStore.updateQueueState({
-          ...response,
-          inQueue: response.queue.includes(authStore.username)
-        });
-      } else {
-        queueStore.updateQueueState({
-          inQueue: false,
-          playersInQueue: queueStore.playersInQueue,
-          queue: queueStore.queueList
-        });
-      }
-    } else {
-      await queueStore.leaveQueue(authStore.username);
-    }
-  } finally {
-    loading.value = false;
-  }
-};
-
-const seedQueue = async (count = 20) => {
-  loading.value = true;
-  try {
-    const response = await socketStore.emit(SOCKET_EVENTS.QUEUE.SEED, { count });
-    if (!response?.success) {
-      throw new Error(response?.message || 'Failed to seed queue');
-    }
-  } catch (error) {
-    rootStore.setError(error.message || 'Failed to seed queue');
-  } finally {
-    loading.value = false;
-  }
-};
-
-const clearQueue = async () => {
-  loading.value = true;
-  try {
-    const response = await socketStore.emit(SOCKET_EVENTS.QUEUE.CLEAR);
-    if (!response?.success) {
-      throw new Error(response?.message || 'Failed to clear queue');
-    }
-  } catch (error) {
-    rootStore.setError(error.message || 'Failed to clear queue');
-  } finally {
-    loading.value = false;
-  }
-};
-
-const getLobbyLabel = (lobby) => {
-  const maxPlayers = Number(lobby?.max_players || MAX_PLAYERS);
-  const left = Math.floor(maxPlayers / 2);
-  const right = maxPlayers - left;
-  const mapLabel = lobby?.selected_map || 'Map TBD';
-  return `${left}vs${right} - ${mapLabel}`;
-};
+const {
+  MAX_PLAYERS,
+  activeView,
+  authStore,
+  clearQueue,
+  getLobbyLabel,
+  groupStore,
+  isDev,
+  isGroupLeader,
+  isInGroup,
+  isInLobby,
+  isQueueFull,
+  joinOpenLobby,
+  joinQueue,
+  leaveQueue,
+  loading,
+  queueStore,
+} = useHomeView();
 
 </script>
 
 <template>
   <div class="home-content content-panel">
-      <section v-if="activeView === 'queue'" class="queue-column">
-        <h1>20vs20</h1>
+      <QueuePanel
+        v-if="activeView === 'queue'"
+        :players-in-queue="queueStore.playersInQueue"
+        :max-players="MAX_PLAYERS"
+        :in-queue="queueStore.inQueue"
+        :match-accept-active="queueStore.matchAccept.active"
+        :loading="loading"
+        :is-in-lobby="isInLobby"
+        :is-queue-full="isQueueFull"
+        :is-in-group="isInGroup"
+        :is-group-leader="isGroupLeader"
+        :has-steam-id="authStore.hasSteamId"
+        :group-member-count="groupStore.members.length"
+        :is-dev="isDev"
+        @join-queue="joinQueue"
+        @leave-queue="leaveQueue"
+        @seed-queue="seedQueue(MAX_PLAYERS - 2)"
+        @clear-queue="clearQueue"
+      />
 
-        <div class="queue-status">
-          <p class="queue-status-line">
-            <span class="queue-status-text">Players in queue {{ queueStore.playersInQueue }}/{{ MAX_PLAYERS }}</span>
-            <span class="queue-indicator" aria-label="Queue status">
-              <span
-                class="queue-spinner"
-                :class="{ 'is-hidden': !queueStore.inQueue || queueStore.matchAccept.active }"
-                aria-hidden="true"
-              ></span>
-              <span
-                class="queue-tick"
-                :class="{ 'is-hidden': !queueStore.matchAccept.active }"
-                aria-hidden="true"
-              >&#10003;</span>
-            </span>
-          </p>
-        </div>
-
-        <button 
-          v-if="!queueStore.inQueue"
-          @click="joinQueue" 
-          :disabled="loading || isInLobby || isQueueFull || (isInGroup && !isGroupLeader) || !authStore.hasSteamId"
-        >
-          {{
-            isInLobby
-              ? "You're in a lobby"
-              : !authStore.hasSteamId
-                ? 'Set Steam ID in Profile'
-              : isInGroup && !isGroupLeader
-                ? "Group leader only"
-              : isQueueFull
-                ? 'Queue is full'
-                : (loading
-                  ? 'Processing...'
-                  : (isInGroup && isGroupLeader
-                    ? `Queue as Group of ${groupStore.members.length}`
-                    : 'Join Queue'))
-          }}
-        </button>
-
-        <button 
-          v-if="queueStore.inQueue" 
-          @click="leaveQueue"
-          :disabled="loading || (isInGroup && !isGroupLeader)"
-        >
-          {{
-            isInGroup && !isGroupLeader
-              ? 'Leave Group to Exit'
-              : isInGroup && isGroupLeader
-                ? `Leave Queue as Group of ${groupStore.members.length}`
-                : 'Leave Queue'
-          }}
-        </button>
-
-        <button
-          v-if="isDev"
-          @click="seedQueue(MAX_PLAYERS - 2)"
-          :disabled="loading"
-        >
-          Seed Queue ({{ MAX_PLAYERS - 2 }})
-        </button>
-
-        <button
-          v-if="isDev"
-          @click="clearQueue"
-          :disabled="loading"
-        >
-          Clear Queue
-        </button>
-      </section>
-
-      <section v-else-if="activeView === 'lobbies'" class="queue-column">
-        <h1>Lobbies</h1>
-        <div class="lobbies-grid">
-          <div class="lobbies-column">
-            <h3>Players needed</h3>
-            <div v-if="queueStore.openLobbies.length" class="open-lobbies">
-              <div
-                v-for="lobby in queueStore.openLobbies"
-                :key="lobby.lobby_id"
-                class="open-lobby"
-              >
-            <div class="open-lobby-info">
-              <div>{{ getLobbyLabel(lobby) }}</div>
-              <div>Players {{ lobby.players.length }}/{{ MAX_PLAYERS }}</div>
-            </div>
-                <button
-                  @click="joinOpenLobby(lobby.lobby_id)"
-                  :disabled="loading || isInLobby"
-                >
-                  {{ isInLobby ? "You're in a Lobby" : 'Join Lobby' }}
-                </button>
-              </div>
-            </div>
-            <p v-else class="none-text">None</p>
-          </div>
-
-          <div class="lobbies-column">
-            <h3>Full and ongoing</h3>
-            <div v-if="queueStore.activeLobbies.length" class="open-lobbies">
-              <div
-                v-for="lobby in queueStore.activeLobbies"
-                :key="lobby.lobby_id"
-                class="open-lobby"
-              >
-            <div class="open-lobby-info">
-              <div>{{ getLobbyLabel(lobby) }}</div>
-              <div>Players {{ lobby.players.length }}/{{ MAX_PLAYERS }}</div>
-            </div>
-              </div>
-            </div>
-            <p v-else class="none-text">None</p>
-          </div>
-        </div>
-      </section>
+      <LobbiesPanel
+        v-else-if="activeView === 'lobbies'"
+        :open-lobbies="queueStore.openLobbies"
+        :active-lobbies="queueStore.activeLobbies"
+        :loading="loading"
+        :is-in-lobby="isInLobby"
+        :max-players="MAX_PLAYERS"
+        :get-lobby-label="getLobbyLabel"
+        @join-lobby="joinOpenLobby"
+      />
 
       <section v-else class="home-about">
         <h1>Competitive Matchmaking Platform</h1>
@@ -351,7 +74,7 @@ const getLobbyLabel = (lobby) => {
 .home-content {
   width: min(100%, 1180px);
   max-width: 1180px;
-  margin: 56px auto 0;
+  margin: clamp(20px, 5vw, 56px) auto 0;
 }
 
 .home-about {
@@ -378,82 +101,6 @@ const getLobbyLabel = (lobby) => {
   font-weight: 500;
 }
 
-.queue-status {
-  text-align: center;
-  margin-bottom: 2rem;
-  color: inherit;
-}
-
-.queue-status p {
-  margin: 0.5rem 0;
-}
-
-.queue-status-line {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  width: 100%;
-}
-
-.queue-status-text {
-  display: inline-block;
-  text-align: center;
-}
-
-.queue-indicator {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 12px;
-  height: 12px;
-  margin-left: 8px;
-  vertical-align: -2px;
-  position: relative;
-}
-
-.queue-spinner {
-  display: inline-block;
-  width: 12px;
-  height: 12px;
-  flex: 0 0 12px;
-  box-sizing: border-box;
-  border: 2px solid rgba(255, 255, 255, 0.25);
-  border-top-color: rgba(255, 255, 255, 0.8);
-  border-radius: 50%;
-  animation: queue-spin 0.9s linear infinite;
-  position: absolute;
-  inset: 0;
-}
-
-.queue-tick {
-  display: inline-block;
-  font-size: 16px;
-  line-height: 12px;
-  font-weight: 800;
-  color: #7ed957;
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.queue-spinner.is-hidden {
-  visibility: hidden;
-  animation: none;
-}
-
-.queue-tick.is-hidden {
-  visibility: hidden;
-}
-
-@keyframes queue-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 .countdown {
   display: block;
   font-size: 1.2em;
@@ -475,75 +122,8 @@ const getLobbyLabel = (lobby) => {
   visibility: hidden;
 }
 
-.open-lobbies {
-  width: 100%;
-  margin: 0 auto;
-  text-align: center;
-}
-
-.open-lobbies h3 {
-  color: inherit;
-  margin-bottom: 0.8rem;
-}
-
-.queue-column h3 {
-  color: inherit;
-  margin: 0.8rem 0;
-}
-
-.lobbies-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 24px;
-  width: 100%;
-  margin-top: 1rem;
-}
-
-.lobbies-column {
-  width: 100%;
-}
-
-.open-lobby {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 12px;
-  background: var(--panel-bg);
-  border-radius: 6px;
-  margin-bottom: 10px;
-}
-
-.open-lobby-info {
-  text-align: left;
-  color: inherit;
-  font-size: 0.95em;
-}
-
 .none-text {
   color: #888;
   margin-top: 1rem;
-}
-
-button {
-  display: block;
-  width: 200px;
-  margin: 1rem auto;
-  padding: 0.8rem;
-  background: #3b3f45;
-  color: inherit;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-
-button:hover {
-  background: #4a4f56;
-}
-
-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 </style>

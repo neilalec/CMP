@@ -2,6 +2,11 @@ import { defineStore } from 'pinia';
 import { useSocketStore } from './socketStore';
 import { useRootStore } from './rootStore';
 import { SOCKET_EVENTS } from '../constants/socketEvents';
+import {
+  clearCurrentLobby,
+  setCurrentLobbyId,
+  setCurrentLobbyCaptains
+} from '../utils/lobbyPersistence';
 
 
 export const useLobbyStore = defineStore('lobby', {
@@ -46,7 +51,7 @@ export const useLobbyStore = defineStore('lobby', {
         if (data.lobby_id) {
           this.lobbyId = data.lobby_id;
           if (data.players?.length > 0) {
-            localStorage.setItem('currentLobby', data.lobby_id);
+            setCurrentLobbyId(data.lobby_id);
           }
         }
         if (data.players) {
@@ -70,7 +75,7 @@ export const useLobbyStore = defineStore('lobby', {
         if (data.captains) {
           this.captains = data.captains;
           if (data.captains.team1 && data.captains.team2) {
-            localStorage.setItem('currentLobbyCaptains', JSON.stringify(data.captains));
+            setCurrentLobbyCaptains(data.captains);
           }
         }
         if (data.server_details) this.serverDetails = data.server_details;
@@ -114,7 +119,7 @@ export const useLobbyStore = defineStore('lobby', {
 
     leaveLobby() {
       this.reset();
-      localStorage.removeItem('currentLobby');
+      clearCurrentLobby();
     },
 
     reset() {

@@ -6,6 +6,7 @@ import { useRootStore } from '../stores/rootStore';
 import { useSocketStore } from '../stores/socketStore';
 import { useLobbyStore } from '../stores/lobbyStore';
 import { SOCKET_EVENTS } from '../constants/socketEvents';
+import { setCurrentLobbyId } from '../utils/lobbyPersistence';
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -38,7 +39,7 @@ const handleSubmit = async () => {
       // Check for active lobby in response
       if (response.active_lobby) {
         console.log('Active lobby found:', response.active_lobby);
-        localStorage.setItem('currentLobby', response.active_lobby);
+        setCurrentLobbyId(response.active_lobby);
         router.push(`/lobby/${response.active_lobby}`);
       } else {
         lobbyStore.leaveLobby();

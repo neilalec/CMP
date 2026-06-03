@@ -1,14 +1,13 @@
 <script setup>
-import { onMounted, onBeforeUnmount, watch, ref, computed } from 'vue';
 import { RouterLink, RouterView } from 'vue-router';
 import { useRouter, useRoute } from 'vue-router';
 import { useAuthStore } from './stores/authStore';
 import { useSocketStore } from './stores/socketStore';
 import { useRootStore } from './stores/rootStore';
-import { SOCKET_EVENTS } from './constants/socketEvents';
 import { useLobbyStore } from './stores/lobbyStore';
 import { useQueueStore } from './stores/queueStore';
 import { useGroupStore } from './stores/groupStore';
+import { useAppSession } from './features/app/composables/useAppSession';
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -18,235 +17,29 @@ const lobbyStore = useLobbyStore();
 const queueStore = useQueueStore();
 const groupStore = useGroupStore();
 const route = useRoute();
-const isInLobby = computed(() => route.path.startsWith('/lobby/'));
-const currentLobbyId = ref(localStorage.getItem('currentLobby'));
-const currentLobbyCaptains = ref(null);
-try {
-  const saved = localStorage.getItem('currentLobbyCaptains');
-  currentLobbyCaptains.value = saved ? JSON.parse(saved) : null;
-} catch (error) {
-  currentLobbyCaptains.value = null;
-}
-const canReturnToLobby = computed(() => !!currentLobbyId.value && !isInLobby.value);
-const activeLobbyId = computed(() => {
-  return route.params.lobbyId || lobbyStore.lobbyId || currentLobbyId.value;
-});
-const playRoute = computed(() => {
-  return activeLobbyId.value ? `/lobby/${activeLobbyId.value}` : '/queue';
-});
-const isMatchAcceptParticipant = computed(() => {
-  return (
-    (queueStore.matchAccept.active || queueStore.matchAccept.cancelled)
-    && !isInLobby.value
-  );
-});
-const isMatchAcceptCancelled = computed(() => queueStore.matchAccept.cancelled);
-const handleQueueUpdate = (data) => {
-  queueStore.updateQueueState({
-    ...data,
-    inQueue: data?.queue?.includes(authStore.username)
-  });
-};
-const handleMatchAcceptCancelled = (data) => {
-  queueStore.setMatchAcceptCancelled(data?.reason || 'Match acceptance cancelled');
-};
-const handleGroupUpdate = (data) => {
-  groupStore.handleUpdate(data);
-};
-const handleLobbyCreated = (data) => {
-  const isParticipant = data?.players?.includes(authStore.username);
-  if (!isParticipant) return;
-  if (data?.lobby_id) {
-    lobbyStore.reset();
-    lobbyStore.updateLobbyState(data);
-    localStorage.setItem('currentLobby', data.lobby_id);
-    queueStore.resetQueue();
-    router.push(`/lobby/${data.lobby_id}`);
-  }
-};
-// Initialize socket and auth state on mount
-onMounted(async () => {
-  console.log('App mounted, initializing base socket connection...');
-  try {
-    // First restore auth state
-    const isAuthenticated = authStore.restoreAuth();
-    
-    // Initialize socket with auth credentials if available
-    if (isAuthenticated) {
-      await socketStore.initSocket(authStore.token, authStore.username);
-    } else {
-      await socketStore.initSocket();
-    }
-    
-    // Redirect if not authenticated
-    if (!isAuthenticated) {
-      router.push('/auth');
-    }
-    socketStore.on(SOCKET_EVENTS.CONNECTION.CONNECT, syncLobbyPresence);
-    socketStore.on(SOCKET_EVENTS.QUEUE.UPDATE, handleQueueUpdate);
-    socketStore.on(SOCKET_EVENTS.QUEUE.MATCH_ACCEPT_CANCELLED, handleMatchAcceptCancelled);
-    socketStore.on(SOCKET_EVENTS.GROUP.UPDATE, handleGroupUpdate);
-    socketStore.on(SOCKET_EVENTS.LOBBY.CREATED, handleLobbyCreated);
-    await syncLobbyPresence();
-    if (authStore.username) {
-      await authStore.syncProfile();
-    }
-    if (authStore.username) {
-      await queueStore.syncWithServer(authStore.username);
-    }
-    if (authStore.username) {
-      await groupStore.syncStatus(authStore.username);
-    }
-  } catch (error) {
-    console.error('Failed to initialize socket:', error);
-    rootStore.setError('Failed to connect to server');
-  }
-});
-
-// Handle logout
-const handleLogout = async () => {
-  try {
-    await socketStore.cleanupSocket();
-    authStore.logout();
-    localStorage.removeItem('currentLobby');
-    localStorage.removeItem('currentLobbyCaptains');
-    currentLobbyId.value = null;
-    currentLobbyCaptains.value = null;
-    groupStore.resetGroup();
-    // Reinitialize unauthenticated socket after logout
-    await socketStore.initSocket();
-    router.push('/auth');
-  } catch (error) {
-    rootStore.setError('Logout failed');
-  }
-};
-
-const handleLeaveLobby = async () => {
-  if (!route.params.lobbyId) return;
-  try {
-    const response = await socketStore.emit(SOCKET_EVENTS.LOBBY.LEAVE, {
-      lobby_id: route.params.lobbyId,
-      username: authStore.username
-    });
-    if (response?.success) {
-      lobbyStore.leaveLobby();
-      localStorage.removeItem('currentLobby');
-      localStorage.removeItem('currentLobbyCaptains');
-      currentLobbyId.value = null;
-      currentLobbyCaptains.value = null;
-      router.push('/');
-    } else {
-      throw new Error(response?.message || 'Failed to leave lobby');
-    }
-  } catch (error) {
-    rootStore.setError('Failed to leave lobby');
-  }
-};
-
-const handleReturnToLobby = async () => {
-  if (!currentLobbyId.value) return;
-  router.push(`/lobby/${currentLobbyId.value}`);
-};
-
-const handleProfile = () => {
-  router.push('/profile');
-};
-
-const handleGroup = () => {
-  router.push('/group');
-};
-
-const handleAcceptMatch = async () => {
-  try {
-    await queueStore.acceptMatch(authStore.username);
-  } catch (error) {
-    rootStore.setError(error.message || 'Failed to accept match');
-  }
-};
-
-const handleDismissMatchAccept = () => {
-  queueStore.resetMatchAccept();
-};
-
-const syncLobbyPresence = async () => {
-  if (!currentLobbyId.value || !socketStore.isConnected) return;
-  try {
-    const response = await socketStore.emit(SOCKET_EVENTS.OPEN_LOBBIES.STATUS);
-    const openLobbies = response?.openLobbies || [];
-    const activeLobbies = response?.activeLobbies || [];
-    const exists = [...openLobbies, ...activeLobbies].some(
-      lobby => lobby.lobby_id === currentLobbyId.value
-    );
-    if (!exists) {
-      lobbyStore.leaveLobby();
-      localStorage.removeItem('currentLobbyCaptains');
-      currentLobbyId.value = null;
-      currentLobbyCaptains.value = null;
-    }
-  } catch (error) {
-    // Ignore transient errors during reconnects
-  }
-};
-
-// Watch for auth state changes to update socket connection
-watch(() => authStore.isLoggedIn, async (isLoggedIn) => {
-  if (isLoggedIn && authStore.token) {
-    try {
-      rootStore.setLoading(true);
-      // Cleanup existing socket and create new authenticated connection
-      await socketStore.cleanupSocket();
-      await socketStore.initSocket(authStore.token, authStore.username);
-      socketStore.on(SOCKET_EVENTS.QUEUE.UPDATE, handleQueueUpdate);
-      socketStore.on(SOCKET_EVENTS.QUEUE.MATCH_ACCEPT_CANCELLED, handleMatchAcceptCancelled);
-      socketStore.on(SOCKET_EVENTS.GROUP.UPDATE, handleGroupUpdate);
-      socketStore.on(SOCKET_EVENTS.LOBBY.CREATED, handleLobbyCreated);
-      await authStore.syncProfile();
-      await queueStore.syncWithServer(authStore.username);
-      await groupStore.syncStatus(authStore.username);
-    } catch (error) {
-      rootStore.setError('Failed to connect to server');
-      authStore.logout();
-    } finally {
-      rootStore.setLoading(false);
-    }
-  }
-});
-
-watch(() => lobbyStore.lobbyId, (id) => {
-  if (id) {
-    currentLobbyId.value = id;
-    localStorage.setItem('currentLobby', id);
-  } else if (!localStorage.getItem('currentLobby')) {
-    currentLobbyId.value = null;
-    currentLobbyCaptains.value = null;
-  }
-});
-
-watch(
-  [() => route.path, activeLobbyId],
-  ([path, lobbyId]) => {
-    if (path === '/queue' && lobbyId) {
-      router.replace(`/lobby/${lobbyId}`);
-    }
-  },
-  { immediate: true }
-);
-
-watch(() => lobbyStore.captains, (captains) => {
-  if (captains?.team1 && captains?.team2) {
-    currentLobbyCaptains.value = captains;
-    localStorage.setItem('currentLobbyCaptains', JSON.stringify(captains));
-  }
-}, { deep: true });
-
-// Cleanup on component unmount
-onBeforeUnmount(() => {
-  socketStore.off(SOCKET_EVENTS.CONNECTION.CONNECT, syncLobbyPresence);
-  socketStore.off(SOCKET_EVENTS.QUEUE.UPDATE, handleQueueUpdate);
-  socketStore.off(SOCKET_EVENTS.QUEUE.MATCH_ACCEPT_CANCELLED, handleMatchAcceptCancelled);
-  socketStore.off(SOCKET_EVENTS.GROUP.UPDATE, handleGroupUpdate);
-  socketStore.off(SOCKET_EVENTS.LOBBY.CREATED, handleLobbyCreated);
-  socketStore.cleanupSocket();
+const {
+  isInLobby,
+  currentLobbyId,
+  canReturnToLobby,
+  playRoute,
+  isMatchAcceptParticipant,
+  isMatchAcceptCancelled,
+  handleLogout,
+  handleLeaveLobby,
+  handleReturnToLobby,
+  handleProfile,
+  handleGroup,
+  handleAcceptMatch,
+  handleDismissMatchAccept
+} = useAppSession({
+  router,
+  route,
+  authStore,
+  socketStore,
+  rootStore,
+  lobbyStore,
+  queueStore,
+  groupStore
 });
 </script>
 
@@ -358,21 +151,23 @@ onBeforeUnmount(() => {
   font-family: Arial, sans-serif;
   color: inherit;
   min-height: 100vh;
-  height: 100vh;
+  min-height: 100dvh;
+  height: auto;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
   padding: 0;
   width: 100%;
-  overflow: hidden;
+  overflow-x: hidden;
 }
 
 .app-shell {
   width: 100%;
   max-width: 100%;
   min-height: 100vh;
-  height: 100vh;
+  min-height: 100dvh;
+  height: auto;
   --nav-icon-box: 36px;
   --nav-collapsed: 40px;
   --nav-right-width: 56px;
@@ -399,10 +194,11 @@ onBeforeUnmount(() => {
 .auth-shell {
   width: 100%;
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   justify-content: flex-start;
   align-items: flex-start;
-  padding: 64px 24px 24px;
+  padding: clamp(24px, 6vw, 64px) clamp(16px, 4vw, 24px) 24px;
 }
 
 .error-message {
@@ -495,7 +291,7 @@ button:hover {
   gap: 16px;
   align-items: stretch;
   justify-content: flex-start;
-  padding: 24vh 0px 20px;
+  padding: clamp(24px, 18vh, 24vh) 0px 20px;
   border-right: 1px solid var(--surface-border);
 }
 
@@ -705,7 +501,7 @@ button:hover {
   align-items: stretch;
   justify-content: flex-start;
   gap: 16px;
-  padding: 24vh 0px 16px;
+  padding: clamp(24px, 18vh, 24vh) 0px 16px;
   border-left: 1px solid var(--surface-border);
   position: relative;
   width: var(--nav-right-width);
@@ -850,6 +646,102 @@ button:hover {
 
 .nav-icon.in-queue {
   color: #7ed957;
+}
+
+@media (max-width: 1024px) {
+  .app-shell,
+  .app-shell:not(.in-lobby) {
+    grid-template-columns: 92px minmax(0, 1fr) var(--nav-right-width);
+  }
+
+  .app-left,
+  .app-right {
+    padding-top: 32px;
+  }
+}
+
+@media (max-width: 768px) {
+  .app-shell,
+  .app-shell.in-lobby,
+  .app-shell:not(.in-lobby) {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  .app-left,
+  .app-right {
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px 14px;
+    border: none;
+    width: 100%;
+  }
+
+  .app-left {
+    border-bottom: 1px solid var(--surface-border);
+  }
+
+  .app-right {
+    border-top: 1px solid var(--surface-border);
+  }
+
+  .app-left .side-link,
+  .app-left .lobby-id-button,
+  .app-right .profile-button,
+  .app-right .group-button {
+    width: auto;
+    min-width: 0;
+    display: inline-grid;
+    grid-template-columns: var(--nav-icon-box) auto;
+    column-gap: 8px;
+    padding: 0 10px;
+  }
+
+  .nav-label,
+  .app-shell:not(.in-lobby) .app-left .nav-label,
+  .app-shell.in-lobby .app-left .nav-label,
+  .app-right .nav-label,
+  .in-lobby .app-right .nav-label {
+    position: static;
+    max-width: 140px;
+    opacity: 1;
+    overflow: visible;
+    pointer-events: auto;
+    transform: none;
+    background: transparent;
+    border: none;
+    padding: 0;
+    right: auto;
+  }
+
+  .app-left .side-link::before,
+  .app-left .lobby-id-button::before {
+    display: none;
+  }
+
+  .app-right .profile-button:hover .nav-icon,
+  .app-right .group-button:hover .nav-icon {
+    background: transparent;
+  }
+}
+
+@media (max-width: 480px) {
+  .auth-shell {
+    padding-inline: 12px;
+  }
+
+  .app-left .side-link,
+  .app-left .lobby-id-button,
+  .app-right .profile-button,
+  .app-right .group-button {
+    width: 100%;
+    justify-content: center;
+  }
 }
 
 </style>

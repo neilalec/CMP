@@ -5,7 +5,7 @@ import vue from '@vitejs/plugin-vue'
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
-  const apiBaseUrl = env.VITE_API_BASE_URL || env.VITE_SOCKET_URL || 'http://localhost:5000'
+  const proxyTarget = env.VITE_DEV_PROXY_TARGET || 'http://localhost'
 
   return {
     plugins: [
@@ -18,8 +18,13 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       proxy: {
+        '/api': {
+          target: proxyTarget,
+          changeOrigin: true,
+          secure: false,
+        },
         '/socket.io': {
-          target: apiBaseUrl,
+          target: proxyTarget,
           ws: true,
           changeOrigin: true,
           secure: false,

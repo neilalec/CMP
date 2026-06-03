@@ -42,6 +42,7 @@ export const SOCKET_EVENTS = {
     UPDATE: 'lobby_update',
     DATA: 'lobby_data',
     GET_DATA: 'get-lobby-data',
+    ACTIVE_SYNC: 'active_lobby_sync',
     SERVER_PRESENCE: 'lobby_server_presence',
     VOTE_MAP: 'vote-map',
     MAP_SELECTED: 'map_selected',
