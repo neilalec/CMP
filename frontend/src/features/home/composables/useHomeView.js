@@ -21,7 +21,8 @@ export function useHomeView() {
 
   const loading = ref(false);
   const isDev = import.meta.env.DEV;
-  const MAX_PLAYERS = 2;
+  const canManageQueueTools = computed(() => isDev && !!authStore.isAdmin);
+  const queueModes = computed(() => Object.values(queueStore.queueModes || {}));
 
   const isInLobby = computed(() => !!lobbyStore.lobbyId || !!getCurrentLobbyId());
   const isInGroup = computed(() => groupStore.inGroup);
@@ -29,18 +30,32 @@ export function useHomeView() {
     if (!groupStore.leader || !authStore.username) return false;
     return groupStore.leader.toLowerCase() === authStore.username.toLowerCase();
   });
-  const isQueueFull = computed(() => queueStore.playersInQueue >= MAX_PLAYERS);
+  const dashboardPhase = computed(() => {
+    if (isInLobby.value) return 'map';
+    if (queueStore.matchAccept.active || queueStore.matchAccept.cancelled) return 'accept';
+    return 'queue';
+  });
+  const profileStatusLabel = computed(() => (authStore.hasSteamId ? 'Steam ID ready' : 'Steam ID required'));
+  const groupStatusLabel = computed(() => {
+    if (!isInGroup.value) return 'Solo queue ready';
+    if (isGroupLeader.value) return `Leading ${groupStore.members.length} player group`;
+    return `Grouped with ${groupStore.leader || 'leader'}`;
+  });
+  const lobbyStatusLabel = computed(() => {
+    const open = queueStore.openLobbies.length;
+    const active = queueStore.activeLobbies.length;
+    return `${open} open / ${active} active`;
+  });
+  const currentQueueMode = computed(() => queueStore.queueMode);
+  const serverAvailable = computed(() => queueStore.serverAvailable);
   const activeView = computed(() => {
-    if (route.path === '/queue') return 'queue';
+    if (route.path === '/play' || route.path === '/') return 'queue';
     if (route.path === '/lobbies') return 'lobbies';
-    return null;
+    return 'queue';
   });
 
   const handleQueueUpdate = (data) => {
-    queueStore.updateQueueState({
-      ...data,
-      inQueue: data.queue?.includes(authStore.username)
-    });
+    queueStore.updateQueueState(data);
   };
 
   const handleOpenLobbiesUpdate = (data) => {
@@ -86,7 +101,18 @@ export function useHomeView() {
     socketStore.off(SOCKET_EVENTS.OPEN_LOBBIES.UPDATE, handleOpenLobbiesUpdate);
   });
 
-  const joinQueue = async () => {
+  const getQueueProgressPercent = (modeId) => {
+    const queue = queueStore.queueModes?.[modeId];
+    if (!queue?.maxPlayers) return 0;
+    return Math.min(100, Math.round((queue.playersInQueue / queue.maxPlayers) * 100));
+  };
+
+  const isModeQueueFull = (modeId) => {
+    const queue = queueStore.queueModes?.[modeId];
+    return !!queue && queue.playersInQueue >= queue.maxPlayers;
+  };
+
+  const joinQueue = async (queueMode) => {
     if (isInLobby.value) {
       rootStore.setError('You are already in a lobby. Return to the lobby to continue.');
       return;
@@ -102,15 +128,15 @@ export function useHomeView() {
     loading.value = true;
     try {
       if (isInGroup.value && isGroupLeader.value) {
-        const response = await groupStore.queueGroup(authStore.username);
+        const response = await groupStore.queueGroup(authStore.username, queueMode);
         if (response?.queue) {
           queueStore.updateQueueState({
             ...response,
-            inQueue: response.queue.includes(authStore.username)
+            inQueue: true
           });
         }
       } else {
-        await queueStore.joinQueue(authStore.username);
+        await queueStore.joinQueue(authStore.username, queueMode);
       }
     } finally {
       loading.value = false;
@@ -142,7 +168,7 @@ export function useHomeView() {
     }
   };
 
-  const leaveQueue = async () => {
+  const leaveQueue = async (queueMode = null) => {
     if (isInGroup.value && !isGroupLeader.value) {
       rootStore.setError('Only the group leader can leave the queue. Leave the group to exit.');
       return;
@@ -150,34 +176,37 @@ export function useHomeView() {
     loading.value = true;
     try {
       if (isInGroup.value && isGroupLeader.value) {
-        const response = await groupStore.unqueueGroup(authStore.username);
+        const response = await groupStore.unqueueGroup(authStore.username, queueMode || currentQueueMode.value);
         if (response?.queue) {
           queueStore.updateQueueState({
             ...response,
-            inQueue: response.queue.includes(authStore.username)
+            inQueue: false
           });
         } else {
           queueStore.updateQueueState({
             inQueue: false,
-            playersInQueue: queueStore.playersInQueue,
-            queue: queueStore.queueList
+            queueMode: null,
+            queueModes: queueStore.queueModes
           });
         }
       } else {
-        await queueStore.leaveQueue(authStore.username);
+        await queueStore.leaveQueue(authStore.username, queueMode || currentQueueMode.value);
       }
     } finally {
       loading.value = false;
     }
   };
 
-  const seedQueue = async (count = 20) => {
+  const seedQueue = async (queueMode, count = null) => {
+    if (!canManageQueueTools.value) {
+      rootStore.setError('Admin access required.');
+      return;
+    }
     loading.value = true;
     try {
-      const response = await socketStore.emit(SOCKET_EVENTS.QUEUE.SEED, { count });
-      if (!response?.success) {
-        throw new Error(response?.message || 'Failed to seed queue');
-      }
+      const queue = queueStore.queueModes?.[queueMode];
+      const seedCount = count ?? Math.max(0, (queue?.maxPlayers || 0) - (queue?.playersInQueue || 0));
+      await queueStore.seedQueue(seedCount, queueMode);
     } catch (error) {
       rootStore.setError(error.message || 'Failed to seed queue');
     } finally {
@@ -185,13 +214,14 @@ export function useHomeView() {
     }
   };
 
-  const clearQueue = async () => {
+  const clearQueue = async (queueMode = null) => {
+    if (!canManageQueueTools.value) {
+      rootStore.setError('Admin access required.');
+      return;
+    }
     loading.value = true;
     try {
-      const response = await socketStore.emit(SOCKET_EVENTS.QUEUE.CLEAR);
-      if (!response?.success) {
-        throw new Error(response?.message || 'Failed to clear queue');
-      }
+      await queueStore.clearQueue(queueMode);
     } catch (error) {
       rootStore.setError(error.message || 'Failed to clear queue');
     } finally {
@@ -200,31 +230,41 @@ export function useHomeView() {
   };
 
   const getLobbyLabel = (lobby) => {
-    const maxPlayers = Number(lobby?.max_players || MAX_PLAYERS);
+    const maxPlayers = Number(lobby?.max_players || 0);
     const left = Math.floor(maxPlayers / 2);
     const right = maxPlayers - left;
     const mapLabel = lobby?.selected_map || 'Map TBD';
-    return `${left}vs${right} - ${mapLabel}`;
+    const modeLabel = lobby?.queue_label || `${left}v${right}`;
+    return `${modeLabel} - ${mapLabel}`;
   };
 
   return {
-    MAX_PLAYERS,
     activeView,
     authStore,
+    canManageQueueTools,
     clearQueue,
+    currentQueueMode,
+    dashboardPhase,
     getLobbyLabel,
+    getQueueProgressPercent,
     groupStore,
+    groupStatusLabel,
     handleOpenLobbiesUpdate,
     handleQueueUpdate,
     isDev,
     isGroupLeader,
     isInGroup,
     isInLobby,
-    isQueueFull,
+    isModeQueueFull,
     joinOpenLobby,
     joinQueue,
     leaveQueue,
+    lobbyStatusLabel,
     loading,
+    profileStatusLabel,
+    queueModes,
+    serverAvailable,
+    seedQueue,
     queueStore
   };
 }

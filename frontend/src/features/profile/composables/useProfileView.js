@@ -5,6 +5,7 @@ import { useLobbyStore } from '../../../stores/lobbyStore';
 import { useQueueStore } from '../../../stores/queueStore';
 import { useRootStore } from '../../../stores/rootStore';
 import { useSocketStore } from '../../../stores/socketStore';
+import { clearCurrentLobby } from '../../../utils/lobbyPersistence';
 
 export function useProfileView() {
   const authStore = useAuthStore();
@@ -66,9 +67,10 @@ export function useProfileView() {
       await socketStore.cleanupSocket();
       lobbyStore.reset();
       queueStore.resetQueue();
+      clearCurrentLobby();
       authStore.logout();
       await socketStore.initSocket();
-      router.push('/auth');
+      router.replace('/auth');
     } catch (error) {
       rootStore.setError('Logout failed');
     }

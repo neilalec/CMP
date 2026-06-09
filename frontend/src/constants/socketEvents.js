@@ -39,6 +39,7 @@ export const SOCKET_EVENTS = {
     CREATED: 'lobby_created',
     JOIN: 'join-lobby',
     LEAVE: 'leave-lobby',
+    DELETE: 'delete-lobby',
     UPDATE: 'lobby_update',
     DATA: 'lobby_data',
     GET_DATA: 'get-lobby-data',

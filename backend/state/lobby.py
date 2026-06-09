@@ -1,3 +1,6 @@
+from app_state import MATCH_ACCEPT_COUNTDOWN
+
+
 def _app():
     import app as backend_app
     return backend_app
@@ -90,12 +93,15 @@ def get_open_lobbies():
     open_lobbies = []
     for lobby_id, lobby in app.lobbies.items():
         players = lobby.get('players', [])
-        if len(players) < app.MAX_LOBBY_PLAYERS:
+        max_players = int(lobby.get('max_players') or app.MAX_LOBBY_PLAYERS)
+        if len(players) < max_players:
             open_lobbies.append({
                 'lobby_id': lobby_id,
                 'players': players,
-                'open_slots': app.MAX_LOBBY_PLAYERS - len(players),
-                'max_players': app.MAX_LOBBY_PLAYERS,
+                'open_slots': max_players - len(players),
+                'max_players': max_players,
+                'queue_mode': lobby.get('queue_mode'),
+                'queue_label': lobby.get('queue_label'),
                 'step': lobby.get('step', 1),
                 'captains': lobby.get('captains'),
                 'selected_map': lobby.get('selected_map')
@@ -108,13 +114,16 @@ def get_active_lobbies():
     active = []
     for lobby_id, lobby in app.lobbies.items():
         players = lobby.get('players', [])
-        if len(players) < app.MAX_LOBBY_PLAYERS:
+        max_players = int(lobby.get('max_players') or app.MAX_LOBBY_PLAYERS)
+        if len(players) < max_players:
             continue
         active.append({
             'lobby_id': lobby_id,
             'players': players,
-            'open_slots': max(0, app.MAX_LOBBY_PLAYERS - len(players)),
-            'max_players': app.MAX_LOBBY_PLAYERS,
+            'open_slots': max(0, max_players - len(players)),
+            'max_players': max_players,
+            'queue_mode': lobby.get('queue_mode'),
+            'queue_label': lobby.get('queue_label'),
             'step': lobby.get('step', 1),
             'captains': lobby.get('captains'),
             'selected_map': lobby.get('selected_map')
@@ -153,19 +162,23 @@ def get_username_by_sid(sid):
 
 def get_match_accept_payload(username=None):
     app = _app()
-    if not app.pending_match:
-        return None
-
-    accepted_players = [
-        player for player, accepted in app.pending_match.get('accepted', {}).items()
-        if accepted
-    ]
-    return {
-        'active': True,
-        'players': list(app.pending_match.get('players', [])),
-        'acceptedPlayers': accepted_players,
-        'acceptedCount': len(accepted_players),
-        'requiredCount': len(app.pending_match.get('players', [])),
-        'countdown': app.pending_match.get('countdown', app.MATCH_ACCEPT_COUNTDOWN),
-        'hasAccepted': bool(username and app.pending_match.get('accepted', {}).get(username))
-    }
+    for queue_mode, pending in app.pending_match.items():
+        if not pending:
+            continue
+        if username and username not in pending.get('players', []):
+            continue
+        accepted_players = [
+            player for player, accepted in pending.get('accepted', {}).items()
+            if accepted
+        ]
+        return {
+            'active': True,
+            'queueMode': queue_mode,
+            'players': list(pending.get('players', [])),
+            'acceptedPlayers': accepted_players,
+            'acceptedCount': len(accepted_players),
+            'requiredCount': len(pending.get('players', [])),
+            'countdown': pending.get('countdown', MATCH_ACCEPT_COUNTDOWN),
+            'hasAccepted': bool(username and pending.get('accepted', {}).get(username))
+        }
+    return None

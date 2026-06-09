@@ -1,6 +1,30 @@
 import json
 import time
 
+from services.auth_security import hash_password, needs_password_rehash, verify_password
+from services.rate_limit import check_rate_limit
+from services.queue import find_user_queue_mode
+
+
+def _client_ip(request):
+    forwarded_for = request.headers.get('X-Forwarded-For', '') if request else ''
+    if forwarded_for:
+        return forwarded_for.split(',')[0].strip() or 'unknown'
+    return getattr(request, 'remote_addr', None) or 'unknown'
+
+
+def _rate_limit_key(scope, request, username):
+    normalized_username = str(username or 'anonymous').strip().lower() or 'anonymous'
+    return f"{scope}:{_client_ip(request)}:{normalized_username}"
+
+
+def _rate_limited_response(result):
+    return {
+        'success': False,
+        'message': f"Too many attempts. Try again in {result['retry_after']} seconds.",
+        'retry_after': result['retry_after']
+    }
+
 
 def handle_connect_event(
     auth,
@@ -111,7 +135,7 @@ def handle_disconnect_event(
                         'temporary': True
                     }, room=lobby_id)
 
-            if username in matchmaking_queue:
+            if find_user_queue_mode(matchmaking_queue, username):
                 broadcast_queue_update()
     except Exception as e:
         logger.error(f"Error in handle_disconnect: {str(e)}")
@@ -120,24 +144,40 @@ def handle_disconnect_event(
 def register_socket_event(
     data,
     *,
+    password_auth_enabled,
     users,
     save_users,
     create_access_token,
     get_user_profile,
+    request,
+    max_attempts,
+    window_seconds,
     logger
 ):
     try:
+        if not password_auth_enabled:
+            return {'success': False, 'message': 'Password registration is disabled'}
+
         username = data.get('username')
         password = data.get('password')
 
         if not username or not password:
             return {'success': False, 'message': 'Missing credentials'}
 
+        rate_limit = check_rate_limit(
+            _rate_limit_key('register', request, username),
+            max_attempts=max_attempts,
+            window_seconds=window_seconds
+        )
+        if not rate_limit['allowed']:
+            logger.warning(f"Registration rate limited for {username} from {_client_ip(request)}")
+            return _rate_limited_response(rate_limit)
+
         if username in users:
             return {'success': False, 'message': 'Username already exists'}
 
         users[username] = {
-            'password': password,
+            'password': hash_password(password),
             'steam_id': ''
         }
         save_users()
@@ -159,7 +199,10 @@ def register_socket_event(
 def login_socket_event(
     data,
     *,
+    password_auth_enabled,
     logger,
+    users,
+    save_users,
     get_user_record,
     create_access_token,
     find_active_lobby_for_user,
@@ -169,11 +212,19 @@ def login_socket_event(
     join_room,
     get_user_room,
     emit,
-    get_user_profile
+    get_user_profile,
+    max_attempts,
+    window_seconds
 ):
     try:
         logger.debug("=== Starting login handler ===")
-        logger.debug(f"Login attempt from: {data}")
+
+        if not password_auth_enabled:
+            logger.info("Password login rejected because password auth is disabled")
+            return {
+                'success': False,
+                'message': 'Password login is disabled'
+            }
 
         username = data.get('username')
         password = data.get('password')
@@ -185,14 +236,29 @@ def login_socket_event(
                 'message': 'Missing credentials'
             }
 
+        rate_limit = check_rate_limit(
+            _rate_limit_key('login', request, username),
+            max_attempts=max_attempts,
+            window_seconds=window_seconds
+        )
+        if not rate_limit['allowed']:
+            logger.warning(f"Login rate limited for {username} from {_client_ip(request)}")
+            return _rate_limited_response(rate_limit)
+
         logger.debug(f"Checking credentials for {username}")
         user_record = get_user_record(username)
-        if not user_record or user_record.get('password') != password:
+        if not user_record or not verify_password(user_record.get('password'), password):
             logger.debug(f"Login failed for user: {username}")
             return {
                 'success': False,
                 'message': 'Invalid credentials'
             }
+
+        if needs_password_rehash(user_record.get('password')):
+            user_record['password'] = hash_password(password)
+            users[username] = user_record
+            save_users()
+            logger.info(f"Upgraded legacy plaintext password hash for {username}")
 
         logger.debug(f"Login successful for user: {username}")
         access_token = create_access_token(identity=username)
@@ -229,7 +295,7 @@ def login_socket_event(
             'profile': get_user_profile(username)
         }
 
-        logger.info(f"Sending login response for {username}: {response}")
+        logger.info(f"Login successful for {username}")
         return response
     except Exception as e:
         logger.error(f"Error in login handler: {str(e)}", exc_info=True)
@@ -256,10 +322,11 @@ def handle_authenticate_event(
 
     try:
         if username:
+            queue_mode = find_user_queue_mode(matchmaking_queue, username)
             upsert_player_activity(
                 username,
                 sid=request.sid,
-                status='in_queue' if username in matchmaking_queue else 'connected',
+                status='in_queue' if queue_mode else 'connected',
                 timestamp=time.time()
             )
             join_room(get_user_room(username))

@@ -1,10 +1,7 @@
 import { defineStore } from 'pinia';
 import { socketService } from '../services/socketService';
 import { useRootStore } from './rootStore';
-import { SOCKET_EVENTS } from '../constants/socketEvents';
 import { AppError } from '../utils/errorHandler';
-import { useAuthStore } from './authStore';
-import { useLobbyStore } from './lobbyStore';
 
 export const useSocketStore = defineStore('socket', {
   state: () => ({
@@ -17,7 +14,6 @@ export const useSocketStore = defineStore('socket', {
   actions: {
     async initSocket(token = null, username = null) {
       const rootStore = useRootStore();
-      const lobbyStore = useLobbyStore();
       
       console.log('SocketStore initSocket called with:', { token, username });
       
@@ -26,13 +22,6 @@ export const useSocketStore = defineStore('socket', {
         this.lastError = null;
 
         await socketService.connect(token, username);
-        
-        // Listen for lobby creation events during authentication
-        socketService.on(SOCKET_EVENTS.LOBBY.CREATED, (data) => {
-          if (data?.lobby_id) {
-            lobbyStore.updateLobbyState(data);
-          }
-        });
 
         this.isConnected = true;
         console.log('Socket connection established');

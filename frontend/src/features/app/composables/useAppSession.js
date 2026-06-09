@@ -30,22 +30,24 @@ export function useAppSession({
     return route.params.lobbyId || lobbyStore.lobbyId || currentLobbyId.value
   })
   const playRoute = computed(() => {
-    return activeLobbyId.value ? `/lobby/${activeLobbyId.value}` : '/queue'
+    return activeLobbyId.value ? `/lobby/${activeLobbyId.value}` : '/play'
   })
   const isMatchAcceptParticipant = computed(() => {
+    const players = Array.isArray(queueStore.matchAccept.players)
+      ? queueStore.matchAccept.players
+      : []
     return (
       (queueStore.matchAccept.active || queueStore.matchAccept.cancelled)
       && !isInLobby.value
+      && !!authStore.username
+      && players.includes(authStore.username)
     )
   })
   const isMatchAcceptCancelled = computed(() => queueStore.matchAccept.cancelled)
   const lobbySyncPending = ref(false)
 
   const handleQueueUpdate = (data) => {
-    queueStore.updateQueueState({
-      ...data,
-      inQueue: data?.queue?.includes(authStore.username)
-    })
+    queueStore.updateQueueState(data)
   }
 
   const handleMatchAcceptCancelled = (data) => {
@@ -164,11 +166,12 @@ export function useAppSession({
       queueStore.resetQueue()
       lobbyStore.reset()
       groupStore.resetGroup()
+      clearCurrentLobby()
       authStore.logout()
       currentLobbyId.value = null
       currentLobbyCaptains.value = null
       await socketStore.initSocket()
-      router.push('/auth')
+      router.replace('/auth')
     } catch (error) {
       rootStore.setError('Logout failed')
     }
@@ -240,6 +243,20 @@ export function useAppSession({
     queueStore.resetMatchAccept()
   }
 
+  const handleCloseMatchAccept = async () => {
+    if (isMatchAcceptCancelled.value) {
+      handleDismissMatchAccept()
+      return
+    }
+
+    try {
+      const queueMode = queueStore.matchAccept.queueMode || queueStore.queueMode || null
+      await queueStore.leaveQueue(authStore.username, queueMode)
+    } catch (error) {
+      rootStore.setError(error.message || 'Failed to cancel match acceptance')
+    }
+  }
+
   onMounted(async () => {
     console.log('App mounted, initializing base socket connection...')
     try {
@@ -252,7 +269,7 @@ export function useAppSession({
       }
 
       if (!isAuthenticated) {
-        router.push('/auth')
+        router.replace('/auth')
         clearCurrentLobby()
         currentLobbyId.value = null
         currentLobbyCaptains.value = null
@@ -275,6 +292,10 @@ export function useAppSession({
         await initAuthenticatedState()
       } catch (error) {
         rootStore.setError('Failed to connect to server')
+        clearCurrentLobby()
+        queueStore.resetQueue()
+        lobbyStore.reset()
+        groupStore.resetGroup()
         authStore.logout()
       } finally {
         rootStore.setLoading(false)
@@ -295,7 +316,7 @@ export function useAppSession({
   watch(
     [() => route.path, activeLobbyId],
     ([path, lobbyId]) => {
-      if (path === '/queue' && lobbyId) {
+      if ((path === '/queue' || path === '/play') && lobbyId) {
         router.replace(`/lobby/${lobbyId}`)
       }
     },
@@ -338,6 +359,7 @@ export function useAppSession({
     handleProfile,
     handleGroup,
     handleAcceptMatch,
+    handleCloseMatchAccept,
     handleDismissMatchAccept
   }
 }

@@ -118,6 +118,66 @@ Healthy response should include:
 
 Degraded response usually means a dependency is unavailable, most often SquadJS.
 
+## Match Server Details
+
+The Match Ready and Live lobby cards read server connection details from the backend. Configure them in `backend/.env`:
+
+```env
+SQUAD_SERVER_NAME=Your Squad Server Name
+SQUAD_SERVER_PASSWORD=optional-server-password
+SQUAD_SERVER_CONNECT_ADDRESS=optional-ip-or-host:port
+```
+
+`SQUAD_SERVER_NAME` can be left blank if the SquadJS bridge can read the server name from RCON. `SQUAD_SERVER_CONNECT_ADDRESS` is optional; when present, the UI renders it as a `steam://connect/...` convenience link, but players can always use the displayed server name and password in the Squad server browser.
+
+## Steam Sign-In
+
+Steam sign-in uses Steam OpenID and does not require a Steam Web API key for basic authentication.
+Steam should be the only production login method. Password login is a local development/test fallback only.
+
+The flow is:
+
+1. Frontend opens `/api/auth/steam/start`.
+2. Backend redirects the browser to Steam.
+3. Steam redirects back to `/api/auth/steam/callback`.
+4. Backend verifies the OpenID response with Steam.
+5. Backend links or creates a local CMP user by SteamID64.
+6. Frontend receives the normal CMP access token and continues into the app.
+
+Important config:
+
+```env
+CMP_DEV_MODE=0
+CMP_PASSWORD_AUTH_ENABLED=0
+FRONTEND_ORIGINS=http://localhost:5173,http://localhost,http://localhost:8080,https://localhost,http://192.168.1.117:8080,https://cmp.zapto.org
+SECRET_KEY=<strong-random-secret>
+JWT_SECRET_KEY=<strong-random-secret>
+JWT_ACCESS_TOKEN_EXPIRES_HOURS=12
+```
+
+The frontend origin you use in the browser must be present in `FRONTEND_ORIGINS`, because Steam auth redirects back into that origin after backend verification. Use `http://localhost:5173` for Vite development, or `http://localhost` / `https://localhost` when testing through Caddy.
+
+For local development only, you can enable the username/password test form with:
+
+```env
+CMP_DEV_MODE=1
+CMP_PASSWORD_AUTH_ENABLED=1
+```
+
+and in `frontend/.env`:
+
+```env
+VITE_PASSWORD_AUTH_ENABLED=1
+```
+
+When `CMP_DEV_MODE=0`, the backend refuses to start if password auth is enabled or if `SECRET_KEY` / `JWT_SECRET_KEY` are weak placeholders.
+
+If you change `backend/.env`, recreate the backend container:
+
+```powershell
+docker compose up -d --force-recreate backend
+```
+
 ## LAN Access Checklist
 
 To access the app from another device:
@@ -203,10 +263,15 @@ Check SquadJS logs:
 docker compose logs -f squadjs
 ```
 
-Make sure `squadjs/config.json` exists locally and the bridge host is set to:
+Make sure `squadjs/config.json` exists locally and the `CmpBridge` plugin is enabled with the bridge host set to:
 
 ```json
-"host": "0.0.0.0"
+{
+  "plugin": "CmpBridge",
+  "enabled": true,
+  "host": "0.0.0.0",
+  "port": 3001
+}
 ```
 
 ### Code changes do not appear

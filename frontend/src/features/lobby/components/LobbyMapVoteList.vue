@@ -18,50 +18,67 @@ defineEmits(['vote'])
 </script>
 
 <template>
-  <div class="map-list">
-    <button
-      v-for="map in maps"
-      :key="map"
-      @click="$emit('vote', map)"
-      :class="['map-button', { voted: selectedMap === map }]"
-      type="button"
-    >
-      {{ map }}
-      <span v-if="getVotesForMap(map) > 0" class="vote-count">
-        ({{ getVotesForMap(map) }})
-      </span>
-    </button>
+  <div class="map-list window-panel">
+    <div class="window-titlebar">
+      <span class="window-titlebar-label">Vote</span>
+      <span class="window-titlebar-meta">{{ maps.length }}</span>
+    </div>
+    <div class="map-list-body">
+      <button
+        v-for="map in maps"
+        :key="map"
+        @click="$emit('vote', map)"
+        :class="['map-button', { voted: selectedMap === map }]"
+        type="button"
+      >
+        <span>{{ map }}</span>
+        <strong v-if="getVotesForMap(map) > 0" class="vote-count">
+          {{ getVotesForMap(map) }}
+        </strong>
+      </button>
+    </div>
   </div>
 </template>
 
 <style scoped>
 .map-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  align-items: stretch;
   margin-top: 0;
-  padding-top: 34px;
   width: 100%;
   max-width: var(--middle-column-width, 280px);
+  overflow: hidden;
+}
+
+.map-list-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
+  padding: 12px;
 }
 
 .map-button {
   position: relative;
-  padding: 15px 25px;
-  background: #3b3f45;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--control-bg);
   color: inherit;
-  border: none;
-  border-radius: 4px;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-md);
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: background-color 0.12s ease, border-color 0.12s ease, transform 0.08s ease;
   min-width: 120px;
   width: 100%;
-  text-align: center;
+  text-align: left;
+  font-weight: 800;
+  box-shadow: var(--surface-shadow);
 }
 
 .map-button:hover {
-  background: #4a4f56;
+  background: var(--control-bg-hover);
+  transform: translateY(-1px);
 }
 
 .map-button:disabled {
@@ -70,19 +87,23 @@ defineEmits(['vote'])
 }
 
 .map-button.voted {
-  background: #2E7D32;
-  transform: scale(1.05);
+  background: var(--accent-soft);
+  border-color: var(--accent-border);
+  color: var(--accent-strong);
 }
 
 .vote-count {
-  position: absolute;
-  top: -8px;
-  right: -8px;
-  background: #2d2d2d;
-  color: #4CAF50;
-  border-radius: 50%;
-  padding: 2px 6px;
-  font-size: 0.8em;
+  flex: 0 0 auto;
+  min-width: 24px;
+  min-height: 24px;
+  background: var(--panel-bg-strong);
+  border: 1px solid var(--accent-border);
+  color: var(--accent-strong);
+  border-radius: var(--radius-sm);
+  padding: 3px 7px;
+  font-size: 0.78em;
+  font-weight: 900;
+  box-shadow: var(--surface-shadow);
 }
 
 @media (max-width: 900px) {

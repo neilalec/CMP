@@ -1,18 +1,32 @@
+import os
+from pathlib import Path
+
 import pytest
-from app import app, socketio, load_users, users
+import app as backend_app
+import app_core
+from app import app, socketio, users
 from flask_jwt_extended import create_access_token
 import json
-import os
 
 @pytest.fixture(scope='session')
 def flask_app():
     app.config.update({
         'TESTING': True,
-        'JWT_SECRET_KEY': 'test-secret',
-        'SECRET_KEY': 'test-secret',
+        'JWT_SECRET_KEY': 'test-secret-key-with-32-bytes-minimum',
+        'SECRET_KEY': 'test-secret-key-with-32-bytes-minimum',
         'USERS_FILE': 'test_users.json'
     })
     return app
+
+
+@pytest.fixture(scope='function', autouse=True)
+def isolated_test_database(tmp_path, monkeypatch):
+    database_path = tmp_path / 'test_app.db'
+    monkeypatch.setattr(app_core, 'DATABASE_PATH', str(database_path))
+    monkeypatch.setattr(backend_app, 'DATABASE_PATH', str(database_path))
+    app_core.init_database()
+
+    yield database_path
 
 @pytest.fixture(scope='function')
 def test_users():

@@ -1,40 +1,36 @@
 #IMPORTS AND INITIAL SETUP
-import eventlet, json, time, logging, random, asyncio, os, sqlite3, sys
+import eventlet, json, logging, random, os, sys
 from dotenv import load_dotenv
 eventlet.monkey_patch()
 sys.modules.setdefault('app', sys.modules[__name__])
-from datetime import datetime, timedelta
-from flask import Flask, jsonify, request
-from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity, verify_jwt_in_request
-from flask_socketio import SocketIO, emit, join_room, leave_room
-from collections import Counter
+load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
+from datetime import timedelta
+from flask import Flask, request
+from flask_jwt_extended import JWTManager, create_access_token, get_jwt_identity, verify_jwt_in_request
+from flask_socketio import SocketIO, emit, join_room
 from flask_cors import CORS
-from threading import Lock, RLock
+from werkzeug.middleware.proxy_fix import ProxyFix
 from types import SimpleNamespace
-from functools import wraps
 from app_state import (
-    ALL_SKIRMISH_MAPS,
+    AUTH_LOGIN_MAX_ATTEMPTS,
+    AUTH_RATE_LIMIT_WINDOW_SECONDS,
+    AUTH_REGISTER_MAX_ATTEMPTS,
     BACKEND_HOST,
     BACKEND_PORT,
     BACKEND_PUBLIC_URL,
     BASE_DIR,
-    BRIDGE_ERROR_LOG_INTERVAL_SECONDS,
-    CLEANUP_INTERVAL,
     DATABASE_PATH,
     DEV_MODE,
     FRONTEND_ORIGINS,
     GROUP_CODE_ALPHABET,
     GROUP_CODE_LENGTH,
     JWT_ACCESS_TOKEN_EXPIRES_HOURS,
-    LEGACY_QUEUE_FILE,
-    LEGACY_USERS_FILE,
+    LIVE_ROLL_READY_GRACE_SECONDS,
     MAX_LOBBY_PLAYERS,
-    MATCH_ACCEPT_COUNTDOWN,
-    QUEUE_CHECK_INTERVAL,
-    SYNC_INTERVAL,
+    PASSWORD_AUTH_ENABLED,
+    QUEUE_MODES,
     SQUADJS_BRIDGE_TOKEN,
     SQUADJS_BRIDGE_URL,
-    bridge_status,
     countdown_active,
     countdown_paused,
     countdown_pause_lock,
@@ -49,76 +45,65 @@ from app_state import (
     users,
 )
 from app_core import (
+    allocate_server_for_lobby,
+    approve_server,
     broadcast_server_message,
     build_lobby_server_presence,
+    build_lobby_join_url,
     change_server_to_selected_map,
+    create_server,
+    fetch_completed_matches,
+    fetch_lobby_audit_events,
+    get_admin_diagnostics,
     get_bridge_health,
     get_database_health,
     get_db_connection,
+    get_history_counts,
+    get_server_by_id,
+    get_server_connection_details,
+    get_server_pool_capacity,
     get_user_profile,
     get_user_record,
+    hash_password,
+    list_available_servers,
+    list_servers,
+    record_lobby_event,
+    is_admin_user,
     is_valid_steam_id,
     load_queue,
     load_users,
     migrate_legacy_json_files,
     normalize_user_record,
+    release_server_allocation,
+    run_server_health_check,
     save_users,
+    save_completed_match,
+    set_server_enabled,
     squadjs_bridge_request,
     start_live_roll_monitor,
+    test_server_connection,
     user_has_steam_id,
     init_database,
     initialize_state
 )
 from matchmaking import (
-    add_to_queue,
-    assign_teams,
-    broadcast_queue_update,
     cancel_pending_match,
-    check_queue_and_start_countdown,
-    create_lobby,
     finalize_pending_match,
     handle_socket_data,
-    log_event,
-    save_queue,
-    select_captains,
-    select_map_from_votes,
-    start_map_voting,
-    start_match_acceptance,
-    update_queue_state
 )
 from bootstrap import start_server
 from wiring import register_http_routes, register_socket_routes
-from services.bridge import (
-    BridgeUnavailable,
-    build_lobby_server_presence as build_lobby_server_presence_service,
-    broadcast_server_message as broadcast_server_message_service,
-    change_server_to_selected_map as change_server_to_selected_map_service,
-    fetch_connected_server_players as fetch_connected_server_players_service,
-    get_bridge_health as get_bridge_health_service,
-    get_database_health as get_database_health_service,
-    squadjs_bridge_request as squadjs_bridge_request_service
-)
-from services.live_roll import start_live_roll_monitor as start_live_roll_monitor_service
+from services.bridge import fetch_connected_server_players as fetch_connected_server_players_service
+from services.queue import has_available_server_capacity
 from services.profile import (
     build_profile_status as build_profile_status_service,
-    get_user_profile as get_user_profile_service,
     update_steam_id as update_steam_id_service,
-    is_valid_steam_id as is_valid_steam_id_service
-)
-from services.queue import (
-    add_to_queue as add_to_queue_service,
-    build_queue_payload as build_queue_payload_service,
-    cancel_pending_match as cancel_pending_match_service,
-    check_queue_and_start_countdown as check_queue_and_start_countdown_service,
-    finalize_pending_match as finalize_pending_match_service,
-    start_match_acceptance as start_match_acceptance_service,
-    update_queue_state as update_queue_state_service
+    is_valid_steam_id as is_valid_steam_id_service,
 )
 from runtime import (
     cleanup_on_start as cleanup_on_start_runtime,
     cleanup_stale_players as cleanup_stale_players_runtime,
     periodic_queue_management as periodic_queue_management_runtime,
-    start_auth_timeout as start_auth_timeout_runtime,
     start_periodic_tasks as start_periodic_tasks_runtime
 )
 from state.group import (
@@ -142,12 +127,7 @@ from state.lobby import (
     upsert_player_activity
 )
 from state.queue import build_queue_payload
-from state.runtime import (
-    is_countdown_paused,
-    pause_aware_sleep,
-    set_countdown_paused,
-    with_retry
-)
+from state.runtime import is_countdown_paused, set_countdown_paused
 from sockets.auth import (
     handle_authenticate_event,
     handle_connect_event,
@@ -165,6 +145,7 @@ from sockets.group import (
 )
 from sockets.lobby import (
     handle_countdown_status_event,
+    handle_delete_lobby_event,
     handle_get_lobby_data_event,
     handle_join_lobby_event,
     handle_leave_lobby_event,
@@ -174,16 +155,18 @@ from sockets.lobby import (
     handle_skip_phase_event,
     handle_start_lobby_event,
     handle_toggle_countdown_pause_event,
-    select_map_from_votes as select_map_from_votes_event,
     vote_map_event,
 )
 from sockets.profile import handle_profile_status_event, handle_update_steam_id_event
 from sockets.queue import (
     handle_accept_match_event,
+    handle_clear_queue_event,
     handle_join_queue_event,
     handle_leave_queue_event,
     handle_queue_status_event,
+    handle_seed_queue_event,
 )
+import matchmaking as matchmaking_module
 
 GROUP_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 GROUP_CODE_LENGTH = 6
@@ -228,6 +211,7 @@ def generate_group_code():
 
 #APP CONFIGURATION
 app = Flask(__name__)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 logger.info("Starting Flask application")
 
 # CORS setup
@@ -248,6 +232,46 @@ logger.info("CORS configured")
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key')
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'dev-jwt-secret')
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=JWT_ACCESS_TOKEN_EXPIRES_HOURS)
+
+def validate_auth_configuration():
+    if DEV_MODE:
+        return
+
+    if PASSWORD_AUTH_ENABLED:
+        raise RuntimeError('Password auth must be disabled when CMP_DEV_MODE=0')
+
+    if not FRONTEND_ORIGINS:
+        raise RuntimeError('FRONTEND_ORIGINS must include the production frontend origin')
+
+    if not BACKEND_PUBLIC_URL.startswith('https://'):
+        raise RuntimeError('BACKEND_PUBLIC_URL must use HTTPS in production')
+
+    if not SQUADJS_BRIDGE_TOKEN:
+        raise RuntimeError('SQUADJS_BRIDGE_TOKEN must be set in production')
+
+    if not SQUADJS_BRIDGE_URL:
+        raise RuntimeError('SQUADJS_BRIDGE_URL must be set in production')
+
+    if not os.path.isabs(DATABASE_PATH):
+        raise RuntimeError('DATABASE_PATH must be an absolute persistent path in production')
+
+    weak_values = {'', 'change-me', 'dev-secret-key', 'dev-jwt-secret'}
+    for key in ('SECRET_KEY', 'JWT_SECRET_KEY'):
+        value = str(app.config.get(key) or '')
+        if value in weak_values or len(value) < 32:
+            raise RuntimeError(f'{key} must be a strong production secret')
+
+    insecure_public_origins = [
+        origin for origin in FRONTEND_ORIGINS
+        if origin.startswith('http://') and 'localhost' not in origin and '127.0.0.1' not in origin
+    ]
+    if insecure_public_origins:
+        raise RuntimeError(
+            f'Production FRONTEND_ORIGINS must use HTTPS for public origins: {insecure_public_origins}'
+        )
+
+
+validate_auth_configuration()
 jwt = JWTManager(app)
 
 SOCKET_EVENTS =  {
@@ -292,6 +316,7 @@ SOCKET_EVENTS =  {
         'CREATED': 'lobby_created',
         'JOIN': 'join-lobby',
         'LEAVE': 'leave-lobby',
+        'DELETE': 'delete-lobby',
         'UPDATE': 'lobby_update',
         'DATA': 'lobby_data',
         'GET_DATA': 'get-lobby-data',
@@ -358,318 +383,24 @@ socketio = SocketIO(
 )
 logger.info("SocketIO initialized")
 
+# Keep the app-level names stable for existing socket/runtime wiring while routing
+# queue and lobby orchestration through the extracted matchmaking module.
+update_queue_state = matchmaking_module.update_queue_state
+check_queue_and_start_countdown = matchmaking_module.check_queue_and_start_countdown
+add_to_queue = matchmaking_module.add_to_queue
+build_lobby_map_pool = matchmaking_module.build_lobby_map_pool
+save_queue = matchmaking_module.save_queue
+start_map_voting = matchmaking_module.start_map_voting
+broadcast_queue_update = matchmaking_module.broadcast_queue_update
+create_lobby = matchmaking_module.create_lobby
+assign_teams = matchmaking_module.assign_teams
+select_captains = matchmaking_module.select_captains
+select_map_from_votes = matchmaking_module.select_map_from_votes
+
 #HELPER FUNCTIONS
 
 register_http_routes(app)
 register_socket_routes(socketio)
-
-#QUEUE
-def update_queue_state(save=True, broadcast=True):
-    """Atomic queue state update"""
-    try:
-        update_queue_state_service(
-            queue_lock=queue_lock,
-            save_queue=save_queue,
-            socketio=socketio,
-            socket_events=SOCKET_EVENTS,
-            matchmaking_queue=matchmaking_queue,
-            save=save,
-            broadcast=broadcast
-        )
-    except Exception as e:
-        logger.error(f"Failed to update queue state: {str(e)}")
-
-def check_queue_and_start_countdown():
-    """Start match acceptance immediately when the queue fills."""
-    try:
-        check_queue_and_start_countdown_service(
-            queue_lock=queue_lock,
-            pending_match=pending_match,
-            matchmaking_queue=matchmaking_queue,
-            max_lobby_players=MAX_LOBBY_PLAYERS,
-            start_match_acceptance=start_match_acceptance
-        )
-    except Exception as e:
-        logger.error(f"Error starting match acceptance: {e}")
-
-def add_to_queue(username):
-    return add_to_queue_service(username, matchmaking_queue, upsert_player_activity, save_queue)
-
-def save_queue(queue=None):
-    """Save queue to SQLite"""
-    try:
-        queue_to_save = list(matchmaking_queue if queue is None else queue)
-        with get_db_connection() as conn:
-            conn.execute('DELETE FROM queue_entries')
-            conn.executemany(
-                'INSERT INTO queue_entries (position, username) VALUES (?, ?)',
-                [(index, username) for index, username in enumerate(queue_to_save)]
-            )
-            conn.commit()
-    except Exception as e:
-        logging.getLogger(__name__).error(f"Failed to save queue to SQLite: {str(e)}")
-        pass
-
-def start_map_voting(lobby_id):
-    """Handle map voting countdown and selection"""
-    try:
-        countdown = 30  # 30 second countdown
-        lobby = lobbies.get(lobby_id)
-        
-        if not lobby:
-            logger.error(f"Lobby {lobby_id} not found when starting map vote")
-            return
-
-        lobby['countdown_token'] = lobby.get('countdown_token', 0) + 1
-        countdown_token = lobby['countdown_token']
-            
-        logger.info(f"Starting map voting countdown for lobby {lobby_id}")
-        
-        # Initialize map_votes if not exists
-        if 'map_votes' not in lobby:
-            lobby['map_votes'] = {}
-
-        # Pick a random 5-map pool for this lobby
-        if 'map_pool' not in lobby or not lobby['map_pool']:
-            lobby['map_pool'] = random.sample(ALL_SKIRMISH_MAPS, k=min(5, len(ALL_SKIRMISH_MAPS)))
-            
-        # Store the countdown in the lobby state
-        lobby['voting_countdown'] = countdown
-            
-        while countdown > 0:
-            if lobby.get('step') != 2 or lobby.get('skip_phase'):
-                return
-            if lobby.get('countdown_token') != countdown_token:
-                return
-            if is_countdown_paused():
-                eventlet.sleep(0.2)
-                continue
-
-            # Emit countdown update with specific event
-            socketio.emit('lobby_countdown_voting', {
-                'countdown': countdown,
-                'lobby_id': lobby_id,
-                'type': 'voting',
-                'map_pool': lobby.get('map_pool', []),
-                'map_votes': lobby['map_votes'],
-                'vote_counts': {vote: sum(1 for v in lobby['map_votes'].values() if v == vote) 
-                              for vote in set(lobby['map_votes'].values())}
-            }, room=lobby_id)
-            
-            logger.debug(f"Map voting countdown: {countdown}, Votes: {lobby['map_votes']}")
-            pause_aware_sleep(1)
-            countdown -= 1
-            lobby['voting_countdown'] = countdown
-        
-        if lobby.get('step') != 2 or lobby.get('skip_phase'):
-            return
-        if lobby.get('countdown_token') != countdown_token:
-            return
-
-        # After countdown ends, tally votes
-        if lobby['map_votes']:
-            # Count votes for each map
-            vote_counts = {}
-            for username, map_choice in lobby['map_votes'].items():
-                vote_counts[map_choice] = vote_counts.get(map_choice, 0) + 1
-            
-            logger.info(f"Final vote counts: {vote_counts}")
-            
-            # Find map(s) with most votes
-            max_votes = max(vote_counts.values())
-            winning_maps = [map_name for map_name, votes in vote_counts.items() if votes == max_votes]
-            
-            # Select winning map (randomly if tied)
-            selected_map = random.choice(winning_maps)
-            logger.info(f"Selected map: {selected_map} with {max_votes} votes")
-        else:
-            # If no votes, randomly select a map
-            fallback_pool = lobby.get('map_pool') or ALL_SKIRMISH_MAPS
-            selected_map = random.choice(fallback_pool)
-            logger.info(f"No votes cast, randomly selected map: {selected_map}")
-        
-        # Update lobby with selected map
-        lobby['selected_map'] = selected_map
-        lobby['step'] = 3
-        lobby['countdown'] = None
-        lobby['voting_countdown'] = None
-        lobby['vote_counts'] = vote_counts if 'vote_counts' in locals() else {}
-        
-        # Notify clients about selected map
-        socketio.emit('lobby_update', {
-            'step': 3,
-            'selected_map': selected_map,
-            'lobby_id': lobby_id,
-            'voting_countdown': None,
-            'vote_counts': vote_counts if 'vote_counts' in locals() else {},
-            'announcement': None
-        }, room=lobby_id)
-        socketio.emit(SOCKET_EVENTS['LOBBY']['MAP_SELECTED'], {
-            'lobby_id': lobby_id,
-            'map': selected_map,
-            'step': 3,
-            'voting_countdown': None,
-            'vote_counts': vote_counts if 'vote_counts' in locals() else {}
-        }, room=lobby_id)
-        
-        logger.info(f"Map {selected_map} selected for lobby {lobby_id}")
-        start_live_roll_monitor(lobby_id)
-        
-    except Exception as e:
-        logger.error(f"Error in map voting countdown: {str(e)}")
-    
-@with_retry(max_attempts=3)
-def broadcast_queue_update(countdown=None):
-    """Broadcast queue status to all connected clients"""
-    try:
-        logger.debug(f"Queue before broadcast: {list(matchmaking_queue)}")
-        queue_status = build_queue_payload(countdown=countdown)
-
-        # Broadcast to all clients without specifying a room
-        socketio.emit(
-            SOCKET_EVENTS['QUEUE']['UPDATE'], 
-            queue_status,
-            room=None
-        )
-        
-        logger.debug(f"Broadcasting queue update: {queue_status}")
-    except Exception as e:
-        logger.error(f"Error in broadcast_queue_update: {str(e)}")
-
-#LOBBY
-def create_lobby(players_override=None):
-    """Create a lobby when enough players are in queue"""
-    with queue_lock:
-        players = list(players_override[:MAX_LOBBY_PLAYERS]) if players_override else None
-        if players is not None:
-            if len(players) < MAX_LOBBY_PLAYERS:
-                return False
-        elif len(matchmaking_queue) >= MAX_LOBBY_PLAYERS:
-            players = matchmaking_queue[:MAX_LOBBY_PLAYERS]
-        else:
-            return False
-
-    try:
-        logger.debug(f"Creating lobby for players: {players}")
-
-        teams = assign_teams(players)
-        captains = select_captains(teams)
-        map_pool = random.sample(ALL_SKIRMISH_MAPS, k=min(5, len(ALL_SKIRMISH_MAPS)))
-        lobby_id = f"lobby_{int(time.time())}"
-        lobby_data = {
-            'lobby_id': lobby_id,
-            'players': players,
-            'teams': teams,
-            'captains': captains,
-            'step': 2,
-            'selected_map': None,
-            'server_details': None,
-            'countdown_active': False,
-            'map_votes': {},
-            'map_pool': map_pool,
-            'voting_countdown': 30,
-            'countdown': None,
-            'countdown_token': 0,
-            'player_groups': get_player_groups(players),
-            'announcement': None,
-            'live_roll_done': False,
-            'live_roll_token': 0
-        }
-
-        lobbies[lobby_id] = lobby_data
-
-        with queue_lock:
-            for player in players:
-                if player in matchmaking_queue:
-                    matchmaking_queue.remove(player)
-                if player in player_activity:
-                    upsert_player_activity(player, status='in_lobby', lobby_id=lobby_id)
-            save_queue()
-
-        broadcast_queue_update()
-
-        for player in players:
-            for sid in get_player_sids(player):
-                try:
-                    socketio.server.enter_room(sid, lobby_id)
-                except Exception as join_error:
-                    logger.debug(
-                        f"Skipping stale SID {sid} while joining lobby {lobby_id} for {player}: {join_error}"
-                    )
-
-        logger.info(f"Created lobby {lobby_id} with players {players}")
-        for player in players:
-            for sid in get_player_sids(player):
-                try:
-                    socketio.emit(SOCKET_EVENTS['LOBBY']['CREATED'], lobby_data, room=sid)
-                except Exception as emit_error:
-                    logger.debug(
-                        f"Skipping stale SID {sid} while notifying lobby creation for {player}: {emit_error}"
-                    )
-            socketio.emit(SOCKET_EVENTS['LOBBY']['CREATED'], lobby_data, room=get_user_room(player))
-            emit_active_lobby_sync(player, lobby_id)
-        eventlet.spawn(start_map_voting, lobby_id)
-        broadcast_open_lobbies_update()
-        return True
-    except Exception as e:
-        logger.error(f"Error creating lobby: {str(e)}")
-        if 'lobby_id' in locals() and lobby_id in lobbies:
-            del lobbies[lobby_id]
-        return False
-
-def assign_teams(players):
-    if not players:
-        return {'team1': [], 'team2': []}
-
-    cap1 = len(players) // 2
-    cap2 = len(players) - cap1
-    team1 = []
-    team2 = []
-    group_map = {}
-    solo_players = []
-
-    for player in players:
-        code = user_to_group.get(player)
-        if code and code in groups:
-            group_map.setdefault(code, []).append(player)
-        else:
-            solo_players.append(player)
-
-    clusters = list(group_map.values()) + [[player] for player in solo_players]
-    random.shuffle(clusters)
-
-    for cluster in clusters:
-        if len(team1) + len(cluster) <= cap1:
-            team1.extend(cluster)
-        elif len(team2) + len(cluster) <= cap2:
-            team2.extend(cluster)
-        else:
-            # Fallback: put in the team with more remaining space
-            if (cap1 - len(team1)) >= (cap2 - len(team2)):
-                team1.extend(cluster)
-            else:
-                team2.extend(cluster)
-
-    random.shuffle(team1)
-    random.shuffle(team2)
-    return {'team1': team1, 'team2': team2}
-
-def select_captains(teams):
-    # Captains are temporarily disabled; keep the shape stable for clients.
-    return {'team1': None, 'team2': None}
- 
-def select_map_from_votes(lobby):
-    if lobby.get('map_votes'):
-        vote_counts = {}
-        for username, map_choice in lobby['map_votes'].items():
-            vote_counts[map_choice] = vote_counts.get(map_choice, 0) + 1
-        max_votes = max(vote_counts.values())
-        winning_maps = [map_name for map_name, votes in vote_counts.items() if votes == max_votes]
-        selected_map = random.choice(winning_maps)
-        return selected_map, vote_counts
-    pool = lobby.get('map_pool') or ALL_SKIRMISH_MAPS
-    return random.choice(pool), {}
-
 
 def handle_connect(auth):
     if auth is None:
@@ -705,6 +436,7 @@ def handle_join_queue(data):
         socket_events=SOCKET_EVENTS,
         emit=emit,
         socketio=socketio,
+        broadcast_queue_update=broadcast_queue_update,
         request=request,
         logger=logger,
         group_lock=group_lock,
@@ -713,11 +445,148 @@ def handle_join_queue(data):
         build_queue_payload=build_queue_payload,
         queue_lock=queue_lock,
         matchmaking_queue=matchmaking_queue,
-        max_lobby_players=MAX_LOBBY_PLAYERS,
+        queue_modes=QUEUE_MODES,
+        pending_match=pending_match,
+        lobbies=lobbies,
         upsert_player_activity=upsert_player_activity,
         save_queue=save_queue,
-        check_queue_and_start_countdown=check_queue_and_start_countdown
+        check_queue_and_start_countdown=check_queue_and_start_countdown,
+        has_available_server_capacity=has_available_server_capacity
     )
+
+# Public app-module surface for wiring, app_core, and tests.
+# Keep this list deliberate: if another module needs something from `app`,
+# add it here on purpose rather than relying on incidental module globals.
+APP_PUBLIC_EXPORTS = (
+    'AUTH_LOGIN_MAX_ATTEMPTS',
+    'AUTH_RATE_LIMIT_WINDOW_SECONDS',
+    'AUTH_REGISTER_MAX_ATTEMPTS',
+    'BACKEND_HOST',
+    'BACKEND_PORT',
+    'DEV_MODE',
+    'FRONTEND_ORIGINS',
+    'LIVE_ROLL_READY_GRACE_SECONDS',
+    'MAX_LOBBY_PLAYERS',
+    'PASSWORD_AUTH_ENABLED',
+    'QUEUE_MODES',
+    'SOCKET_EVENTS',
+    'app',
+    'allocate_server_for_lobby',
+    'approve_server',
+    'assign_teams',
+    'broadcast_group_update',
+    'broadcast_open_lobbies_update',
+    'broadcast_queue_update',
+    'build_lobby_server_presence',
+    'build_lobby_join_url',
+    'build_profile_status_service',
+    'build_queue_payload',
+    'cancel_pending_match',
+    'change_server_to_selected_map',
+    'check_queue_and_start_countdown',
+    'countdown_active',
+    'countdown_pause_lock',
+    'countdown_paused',
+    'create_access_token',
+    'create_server',
+    'create_lobby',
+    'emit_active_lobby_sync',
+    'fetch_completed_matches',
+    'fetch_connected_server_players_service',
+    'find_active_lobby_for_user',
+    'finalize_pending_match',
+    'generate_group_code',
+    'get_active_lobbies',
+    'get_admin_diagnostics',
+    'get_server_by_id',
+    'get_bridge_health',
+    'get_database_health',
+    'get_group_payload',
+    'get_match_accept_payload',
+    'get_open_lobbies',
+    'get_player_groups',
+    'get_player_sids',
+    'get_server_connection_details',
+    'get_server_pool_capacity',
+    'get_user_group',
+    'get_user_profile',
+    'get_user_record',
+    'get_user_room',
+    'get_username_by_sid',
+    'group_lock',
+    'groups',
+    'handle_accept_match_event',
+    'handle_authenticate_event',
+    'handle_clear_queue_event',
+    'handle_connect',
+    'handle_connect_event',
+    'handle_countdown_status_event',
+    'handle_delete_lobby_event',
+    'handle_disconnect_event',
+    'handle_get_lobby_data_event',
+    'handle_group_create_event',
+    'handle_group_join_event',
+    'handle_group_leave_event',
+    'handle_group_queue_event',
+    'handle_group_status_event',
+    'handle_group_unqueue_event',
+    'handle_join_lobby_event',
+    'handle_join_queue',
+    'handle_join_queue_event',
+    'handle_leave_lobby_event',
+    'handle_leave_queue_event',
+    'handle_open_lobbies_status_event',
+    'handle_prev_phase_event',
+    'handle_profile_status_event',
+    'handle_queue_status_event',
+    'handle_seed_queue_event',
+    'handle_server_presence_event',
+    'handle_skip_phase_event',
+    'handle_socket_data',
+    'handle_start_lobby_event',
+    'handle_toggle_countdown_pause_event',
+    'handle_update_steam_id_event',
+    'hash_password',
+    'is_admin_user',
+    'is_countdown_paused',
+    'is_user_in_any_lobby',
+    'join_room',
+    'jwt',
+    'lobbies',
+    'logger',
+    'login_socket_event',
+    'list_available_servers',
+    'list_servers',
+    'matchmaking_queue',
+    'pending_match',
+    'queue_lock',
+    'record_lobby_event',
+    'register_socket_event',
+    'release_server_allocation',
+    'remove_player_session',
+    'request',
+    'run_server_health_check',
+    'save_queue',
+    'save_users',
+    'select_captains',
+    'select_map_from_votes',
+    'set_server_enabled',
+    'set_countdown_paused',
+    'socketio',
+    'squadjs_bridge_request',
+    'start_live_roll_monitor',
+    'start_map_voting',
+    'test_server_connection',
+    'update_steam_id_service',
+    'upsert_player_activity',
+    'user_has_steam_id',
+    'user_to_group',
+    'users',
+    'verify_jwt_in_request',
+    'vote_map_event',
+)
+
+__all__ = APP_PUBLIC_EXPORTS
 
 #MAIN ENTRY POINT
 if __name__ == '__main__':

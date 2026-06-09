@@ -1,6 +1,5 @@
 import SquadServerFactory from 'squad-server/factory';
 import printLogo from 'squad-server/logo';
-import { startBridgeServer } from './bridge-server.js';
 
 async function main() {
   await printLogo();
@@ -23,8 +22,6 @@ async function main() {
 
   // now mount the plugins
   await Promise.all(server.plugins.map(async (plugin) => await plugin.mount()));
-
-  startBridgeServer(server, rawConfig.bridge || {});
 }
 
 main();

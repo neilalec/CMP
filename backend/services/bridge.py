@@ -113,6 +113,52 @@ def get_bridge_health(bridge_request, bridge_url):
         }
 
 
+def fetch_server_info(bridge_request):
+    response = bridge_request('/server')
+    return response or {}
+
+
+def fetch_latest_round_result(bridge_request):
+    response = bridge_request('/round/latest')
+    return response.get('round') if response else None
+
+
+def build_server_connection_details(
+    bridge_request,
+    configured_name='',
+    password='',
+    connect_address=''
+):
+    bridge_info = {}
+    bridge_available = True
+    bridge_error = None
+
+    try:
+        bridge_info = fetch_server_info(bridge_request)
+    except BridgeUnavailable as e:
+        bridge_available = False
+        bridge_error = str(e)
+    except Exception as e:
+        bridge_available = False
+        bridge_error = str(e)
+
+    server_name = (
+        configured_name
+        or bridge_info.get('serverName')
+        or bridge_info.get('name')
+        or ''
+    )
+
+    return {
+        'serverName': server_name,
+        'password': password or '',
+        'connectAddress': connect_address or '',
+        'bridgeAvailable': bridge_available,
+        'bridgeError': bridge_error,
+        'bridge': bridge_info
+    }
+
+
 def build_bridge_unavailable_presence(lobby_id, lobby, error_message):
     team1_players = set(lobby.get('teams', {}).get('team1', []))
     team2_players = set(lobby.get('teams', {}).get('team2', []))
@@ -151,6 +197,14 @@ def fetch_connected_server_players(bridge_request):
     return response.get('players', [])
 
 
+def force_team_change(steam_id, bridge_request):
+    if not steam_id:
+        raise RuntimeError('steam_id is required to force a team change.')
+    return bridge_request('/players/force-team-change', method='POST', payload={
+        'player': str(steam_id).strip()
+    })
+
+
 def fetch_layers_by_name(name, bridge_request):
     encoded_name = url_quote(str(name or '').strip(), safe='')
     response = bridge_request(f'/layers?name={encoded_name}')
@@ -179,12 +233,73 @@ def normalize_layer_name(name):
     return ' '.join(part for part in normalized if part not in ignored_tokens)
 
 
+def is_hotdrop_layer_name(name):
+    normalized = normalize_hotdrop_layer_name(name)
+    return normalized.startswith('hotdrop ')
+
+
+def normalize_hotdrop_layer_name(name):
+    text = str(name or '').strip().lower().replace('_', ' ')
+    normalized = []
+    token = []
+    for char in text:
+        if char.isalnum():
+            token.append(char)
+        elif token:
+            normalized.append(''.join(token))
+            token = []
+    if token:
+        normalized.append(''.join(token))
+    return ' '.join(normalized)
+
+
+def layer_matches_selected_map(layer_value, selected_map):
+    if not layer_value or not selected_map:
+        return False
+
+    if is_hotdrop_layer_name(selected_map):
+        if not is_hotdrop_layer_name(layer_value):
+            return False
+        return normalize_hotdrop_layer_name(layer_value) == normalize_hotdrop_layer_name(selected_map)
+
+    normalized_layer = normalize_layer_name(layer_value)
+    normalized_selected = normalize_layer_name(selected_map)
+    return normalized_layer == normalized_selected
+
+
+def layer_info_matches_selected_map(layer_info, selected_map):
+    if not layer_info or not selected_map:
+        return False
+
+    if isinstance(layer_info, dict):
+        candidates = [
+            layer_info.get('layerId'),
+            layer_info.get('layerid'),
+            layer_info.get('classname'),
+            layer_info.get('layerClassname'),
+            layer_info.get('name')
+        ]
+        return any(
+            layer_matches_selected_map(candidate, selected_map)
+            for candidate in candidates
+            if candidate
+        )
+
+    return layer_matches_selected_map(layer_info, selected_map)
+
+
 def resolve_selected_map_layer_id(selected_map, bridge_request):
     map_aliases = {
         'Kohat Skirmish v1': 'Kohat Toi Skirmish v1',
         'Sumari Skirmish v1': 'Sumari Bala Skirmish v1'
     }
     resolved_name = map_aliases.get(selected_map, selected_map)
+
+    # Workshop and command-ready layer identifiers can already be valid RCON targets.
+    # HotDrop layers are selected in this exact form, e.g. "HotDrop_Fallujah".
+    if isinstance(resolved_name, str) and resolved_name.startswith('HotDrop_'):
+        return resolved_name
+
     layers = fetch_layers_by_name(resolved_name, bridge_request)
     if not layers:
         all_layers = fetch_all_layers(bridge_request)
@@ -208,6 +323,8 @@ def resolve_selected_map_layer_id(selected_map, bridge_request):
             layers = normalized_matches
 
     if not layers:
+        if isinstance(resolved_name, str) and ' ' not in resolved_name and '_' in resolved_name:
+            return resolved_name
         raise RuntimeError(f'Could not resolve selected map "{selected_map}" to a Squad layer id.')
     return layers[0].get('layerId') or layers[0].get('classname')
 
@@ -217,6 +334,40 @@ def change_server_to_selected_map(selected_map, bridge_request):
     return bridge_request('/layer/change', method='POST', payload={
         'layer': layer_id
     })
+
+
+def set_next_server_map(selected_map, bridge_request):
+    layer_id = resolve_selected_map_layer_id(selected_map, bridge_request)
+    return bridge_request('/layer/next', method='POST', payload={
+        'layer': layer_id
+    })
+
+
+def get_server_layer_status(selected_map, bridge_request):
+    info = fetch_server_info(bridge_request)
+    current_layer = info.get('currentLayer')
+    next_layer = info.get('nextLayer')
+    current_layer_info = info.get('currentLayerInfo') or {}
+    next_layer_info = info.get('nextLayerInfo') or {}
+    return {
+        'serverInfo': info,
+        'currentLayer': current_layer,
+        'nextLayer': next_layer,
+        'currentLayerInfo': current_layer_info,
+        'nextLayerInfo': next_layer_info,
+        'currentMatches': layer_info_matches_selected_map(current_layer_info, selected_map)
+        or layer_info_matches_selected_map(current_layer, selected_map)
+        or layer_matches_selected_map(info.get('currentLayerRaw'), selected_map)
+        or layer_matches_selected_map(info.get('currentLayerName'), selected_map)
+        or layer_matches_selected_map(info.get('currentLayerClassname'), selected_map)
+        or layer_matches_selected_map(info.get('currentLayerId'), selected_map),
+        'nextMatches': layer_info_matches_selected_map(next_layer_info, selected_map)
+        or layer_info_matches_selected_map(next_layer, selected_map)
+        or layer_matches_selected_map(info.get('nextLayerRaw'), selected_map)
+        or layer_matches_selected_map(info.get('nextLayerName'), selected_map)
+        or layer_matches_selected_map(info.get('nextLayerClassname'), selected_map)
+        or layer_matches_selected_map(info.get('nextLayerId'), selected_map)
+    }
 
 
 def broadcast_server_message(message, bridge_request):
@@ -242,6 +393,10 @@ def build_lobby_server_presence(
         if tolerate_bridge_unavailable:
             return build_bridge_unavailable_presence(lobby_id, lobby, str(e))
         raise
+    except Exception as e:
+        if tolerate_bridge_unavailable:
+            return build_bridge_unavailable_presence(lobby_id, lobby, str(e))
+        raise
 
     players_by_steam_id = {
         str(player.get('steamID') or '').strip(): player
@@ -255,10 +410,12 @@ def build_lobby_server_presence(
     presence = []
     connected_usernames = []
     missing_usernames = []
+    aligned_usernames = []
+    mismatched_usernames = []
 
     for username in lobby.get('players', []):
         profile = get_user_profile(username) or {}
-        steam_id = profile.get('steam_id', '')
+        steam_id = str(profile.get('steam_id') or '').strip()
         connected_player = players_by_steam_id.get(steam_id) if steam_id else None
 
         expected_team_id = None
@@ -275,12 +432,23 @@ def build_lobby_server_presence(
             'actualTeamId': connected_player.get('teamID') if connected_player else None,
             'actualSquadId': connected_player.get('squadID') if connected_player else None,
             'eosID': connected_player.get('eosID') if connected_player else None,
-            'serverName': connected_player.get('name') if connected_player else None
+            'serverName': connected_player.get('name') if connected_player else None,
+            'teamAligned': bool(
+                connected_player
+                and (
+                    expected_team_id is None
+                    or connected_player.get('teamID') == expected_team_id
+                )
+            )
         }
         presence.append(row)
 
         if row['connected']:
             connected_usernames.append(username)
+            if row['teamAligned']:
+                aligned_usernames.append(username)
+            else:
+                mismatched_usernames.append(username)
         else:
             missing_usernames.append(username)
 
@@ -288,6 +456,8 @@ def build_lobby_server_presence(
         'lobby_id': lobby_id,
         'players': presence,
         'connected': connected_usernames,
+        'aligned': aligned_usernames,
+        'mismatched': mismatched_usernames,
         'missing': missing_usernames,
         'bridgeAvailable': True,
         'bridgeError': None

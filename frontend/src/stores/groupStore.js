@@ -1,16 +1,10 @@
 import { defineStore } from 'pinia';
-import { useSocketStore } from './socketStore';
 import { SOCKET_EVENTS } from '../constants/socketEvents';
+import { createDefaultGroupState } from './state/groupState';
+import { runStoreSocketAction } from './helpers/storeSocketAction';
 
 export const useGroupStore = defineStore('group', {
-  state: () => ({
-    code: null,
-    leader: null,
-    members: [],
-    loading: false,
-    error: null,
-    lastSync: null
-  }),
+  state: () => createDefaultGroupState(),
 
   getters: {
     inGroup: (state) => !!state.code,
@@ -40,115 +34,96 @@ export const useGroupStore = defineStore('group', {
     },
 
     async createGroup(username) {
-      this.loading = true;
-      try {
-        const socketStore = useSocketStore();
-        const response = await socketStore.emit(SOCKET_EVENTS.GROUP.CREATE, { username });
-        if (response?.success && response?.group) {
+      return runStoreSocketAction(this, {
+        event: SOCKET_EVENTS.GROUP.CREATE,
+        payload: { username },
+        fallbackMessage: 'Failed to create group',
+        validate: (response) => {
+          if (!response?.success || !response?.group) {
+            throw new Error(response?.message || 'Failed to create group');
+          }
+        },
+        onSuccess: (response) => {
           this.setGroup(response.group);
-        } else {
-          throw new Error(response?.message || 'Failed to create group');
         }
-        return response;
-      } catch (error) {
-        this.error = error.message;
-        throw error;
-      } finally {
-        this.loading = false;
-      }
+      });
     },
 
     async joinGroup(username, code) {
-      this.loading = true;
-      try {
-        const socketStore = useSocketStore();
-        const response = await socketStore.emit(SOCKET_EVENTS.GROUP.JOIN, { username, code });
-        if (response?.success && response?.group) {
+      return runStoreSocketAction(this, {
+        event: SOCKET_EVENTS.GROUP.JOIN,
+        payload: { username, code },
+        fallbackMessage: 'Failed to join group',
+        validate: (response) => {
+          if (!response?.success || !response?.group) {
+            throw new Error(response?.message || 'Failed to join group');
+          }
+        },
+        onSuccess: (response) => {
           this.setGroup(response.group);
-        } else {
-          throw new Error(response?.message || 'Failed to join group');
         }
-        return response;
-      } catch (error) {
-        this.error = error.message;
-        throw error;
-      } finally {
-        this.loading = false;
-      }
+      });
     },
 
     async leaveGroup(username) {
-      this.loading = true;
-      try {
-        const socketStore = useSocketStore();
-        const response = await socketStore.emit(SOCKET_EVENTS.GROUP.LEAVE, { username });
-        if (response?.success) {
+      return runStoreSocketAction(this, {
+        event: SOCKET_EVENTS.GROUP.LEAVE,
+        payload: { username },
+        fallbackMessage: 'Failed to leave group',
+        validate: (response) => {
+          if (!response?.success) {
+            throw new Error(response?.message || 'Failed to leave group');
+          }
+        },
+        onSuccess: () => {
           this.resetGroup();
-        } else {
-          throw new Error(response?.message || 'Failed to leave group');
         }
-        return response;
-      } catch (error) {
-        this.error = error.message;
-        throw error;
-      } finally {
-        this.loading = false;
-      }
+      });
     },
 
     async syncStatus(username) {
-      try {
-        const socketStore = useSocketStore();
-        const response = await socketStore.emit(SOCKET_EVENTS.GROUP.STATUS, { username });
-        if (response?.success) {
+      await runStoreSocketAction(this, {
+        event: SOCKET_EVENTS.GROUP.STATUS,
+        payload: { username },
+        setLoading: false,
+        swallowError: true,
+        fallbackMessage: 'Failed to sync group status',
+        onSuccess: (response) => {
+          if (response?.success) {
           this.setGroup(response.group || null);
+          }
         }
-      } catch (error) {
-        this.error = error.message;
-      }
+      });
     },
 
-    async queueGroup(username) {
-      this.loading = true;
-      try {
-        const socketStore = useSocketStore();
-        const response = await socketStore.emit(SOCKET_EVENTS.GROUP.QUEUE, { username });
-        if (!response?.success) {
-          throw new Error(response?.message || 'Failed to queue group');
+    async queueGroup(username, queueMode) {
+      return runStoreSocketAction(this, {
+        event: SOCKET_EVENTS.GROUP.QUEUE,
+        payload: { username, queueMode },
+        fallbackMessage: 'Failed to queue group',
+        validate: (response) => {
+          if (!response?.success) {
+            throw new Error(response?.message || 'Failed to queue group');
+          }
         }
-        return response;
-      } catch (error) {
-        this.error = error.message;
-        throw error;
-      } finally {
-        this.loading = false;
-      }
+      });
     },
 
-    async unqueueGroup(username) {
-      this.loading = true;
-      try {
-        const socketStore = useSocketStore();
-        const response = await socketStore.emit(SOCKET_EVENTS.GROUP.UNQUEUE, { username });
-        if (!response?.success) {
-          throw new Error(response?.message || 'Failed to leave queue');
+    async unqueueGroup(username, queueMode) {
+      return runStoreSocketAction(this, {
+        event: SOCKET_EVENTS.GROUP.UNQUEUE,
+        payload: { username, queueMode },
+        fallbackMessage: 'Failed to leave queue',
+        validate: (response) => {
+          if (!response?.success) {
+            throw new Error(response?.message || 'Failed to leave queue');
+          }
         }
-        return response;
-      } catch (error) {
-        this.error = error.message;
-        throw error;
-      } finally {
-        this.loading = false;
-      }
+      });
     },
 
     resetGroup() {
-      this.code = null;
-      this.leader = null;
-      this.members = [];
-      this.loading = false;
-      this.error = null;
-      this.lastSync = null;
+      Object.assign(this, createDefaultGroupState());
     }
   }
 });

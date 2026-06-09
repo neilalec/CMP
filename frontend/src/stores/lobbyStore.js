@@ -1,47 +1,43 @@
 import { defineStore } from 'pinia';
 import { useSocketStore } from './socketStore';
-import { useRootStore } from './rootStore';
 import { SOCKET_EVENTS } from '../constants/socketEvents';
 import {
   clearCurrentLobby,
   setCurrentLobbyId,
   setCurrentLobbyCaptains
 } from '../utils/lobbyPersistence';
+import { createDefaultLobbyState } from './state/lobbyState';
 
+const assignFirstDefined = (store, targetKey, data, sourceKeys, transform = (value) => value) => {
+  for (const sourceKey of sourceKeys) {
+    if (data[sourceKey] !== undefined) {
+      store[targetKey] = transform(data[sourceKey])
+      return
+    }
+  }
+}
+
+const normalizeArray = (value) => (Array.isArray(value) ? value : [])
 
 export const useLobbyStore = defineStore('lobby', {
-  state: () => ({
-    lobbyId: null,
-    players: [],
-    playerStatuses: {},
-    selectedMap: null,
-    teams: {
-      team1: [],
-      team2: []
-    },
-    captains: {
-      team1: null,
-      team2: null
-    },
-    serverDetails: null,
-    step: 2,
-    loading: false,
-    error: null,
-    countdown: null,
-    mapVotes: {},
-    votingCountdown: null,
-    voteCounts: {},
-    mapPool: [],
-    playerGroups: {},
-    serverPresence: {},
-    serverPresenceAvailable: true,
-    serverPresenceError: null,
-    announcement: null
-  }),
+  state: () => createDefaultLobbyState(),
 
   actions: {
     setLoading(status) {
       this.loading = status;
+    },
+
+    applyLobbyPhase(step) {
+      if (!step) return
+      this.step = step
+      if (step >= 3) {
+        this.countdown = null
+        this.votingCountdown = null
+        return
+      }
+      this.serverPresence = {}
+      this.serverPresenceAvailable = true
+      this.serverPresenceError = null
     },
 
     async updateLobbyState(data) {
@@ -62,9 +58,12 @@ export const useLobbyStore = defineStore('lobby', {
             }
           });
         }
-        if (data.selected_map) this.selectedMap = data.selected_map;
-        if (data.map_pool) this.mapPool = data.map_pool;
-        if (data.mapPool) this.mapPool = data.mapPool;
+        assignFirstDefined(this, 'selectedMap', data, ['selected_map', 'map']);
+        assignFirstDefined(this, 'queueMode', data, ['queue_mode', 'queueMode']);
+        assignFirstDefined(this, 'queueLabel', data, ['queue_label', 'queueLabel']);
+        assignFirstDefined(this, 'matchSizeLabel', data, ['match_size_label', 'matchSizeLabel']);
+        assignFirstDefined(this, 'maxPlayers', data, ['max_players', 'maxPlayers']);
+        assignFirstDefined(this, 'mapPool', data, ['map_pool', 'mapPool'], normalizeArray);
         if (data.map_votes) this.mapVotes = data.map_votes;
         if (data.vote_counts) this.voteCounts = data.vote_counts;
         if (data.voting_countdown !== undefined) {
@@ -79,14 +78,12 @@ export const useLobbyStore = defineStore('lobby', {
           }
         }
         if (data.server_details) this.serverDetails = data.server_details;
-        if (data.announcement !== undefined) this.announcement = data.announcement;
-        if (data.step) {
-          this.step = data.step;
-          if (data.step >= 3) {
-            this.countdown = null;
-            this.votingCountdown = null;
-          }
-        }
+        if (data.server_details === null) this.serverDetails = null;
+        assignFirstDefined(this, 'serverDetailsProvidedAt', data, ['server_details_provided_at']);
+        assignFirstDefined(this, 'liveRollReadyAt', data, ['live_roll_ready_at']);
+        assignFirstDefined(this, 'liveRollCountdown', data, ['live_roll_countdown']);
+        assignFirstDefined(this, 'announcement', data, ['announcement']);
+        this.applyLobbyPhase(data.step);
         if (data.countdown !== undefined) {
           this.countdown = data.countdown;
         }
@@ -123,26 +120,7 @@ export const useLobbyStore = defineStore('lobby', {
     },
 
     reset() {
-      this.lobbyId = null;
-      this.players = [];
-      this.playerStatuses = {};
-      this.selectedMap = null;
-      this.teams = { team1: [], team2: [] };
-      this.captains = { team1: null, team2: null };
-      this.serverDetails = null;
-      this.step = 2;
-      this.loading = false;
-      this.error = null;
-      this.countdown = null;
-      this.mapVotes = {};
-      this.votingCountdown = null;
-      this.voteCounts = {};
-      this.mapPool = [];
-      this.playerGroups = {};
-      this.serverPresence = {};
-      this.serverPresenceAvailable = true;
-      this.serverPresenceError = null;
-      this.announcement = null;
+      Object.assign(this, createDefaultLobbyState());
     },
 
     updateServerPresence(rows, options = {}) {
@@ -169,7 +147,6 @@ export const useLobbyStore = defineStore('lobby', {
       const socketStore = useSocketStore();
       return socketStore.emit(SOCKET_EVENTS.LOBBY.VOTE_MAP, {
         lobby_id: this.lobbyId,
-        player: this.username,
         map: map
       });
     },
@@ -192,6 +169,10 @@ export const useLobbyStore = defineStore('lobby', {
 
     setSelectedMap(map) {
       this.selectedMap = map;
+    },
+
+    updateLiveRollCountdown(count) {
+      this.liveRollCountdown = count > 0 ? count : 0;
     }
   },
 

@@ -20,12 +20,14 @@ from .queue import (
     handle_leave_queue_event,
     handle_queue_status_event,
 )
+from .lobby import handle_delete_lobby_event
 
 __all__ = [
     'handle_accept_match_event',
     'handle_authenticate_event',
     'handle_connect_event',
     'handle_disconnect_event',
+    'handle_delete_lobby_event',
     'handle_group_create_event',
     'handle_group_join_event',
     'handle_group_leave_event',

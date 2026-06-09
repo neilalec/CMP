@@ -1,15 +1,10 @@
 import { io } from 'socket.io-client';
-import { SOCKET_EVENTS } from '../constants/socketEvents';
 import { SOCKET_URL } from '../config';
 
 export class SocketService {
   constructor() {
     this.socket = null;
     this.baseURL = SOCKET_URL;
-    this.connected = false;
-    this.reconnectAttempts = 0;
-    this.maxReconnectAttempts = 5;
-    this.connectionHandlers = new Set(); // Track handlers
   }
 
   async connect(token = null, username = null) {
@@ -70,62 +65,6 @@ export class SocketService {
     });
   }
 
-  cleanup() {
-    if (this.socket) {
-      this.socket.removeAllListeners();
-      this.socket.disconnect();
-      this.socket = null;
-    }
-  }
-
-  setupConnectionHandlers(resolve, reject) {
-    if (!this.socket) return;
-
-    const connectHandler = () => {
-      this.connected = true;
-      this.reconnectAttempts = 0;
-      this.socket.emit(SOCKET_EVENTS.QUEUE.STATUS);
-      resolve();
-    };
-    this.socket.on(SOCKET_EVENTS.CONNECTION.CONNECT, connectHandler);
-    this.connectionHandlers.add({ event: SOCKET_EVENTS.CONNECTION.CONNECT, handler: connectHandler });
-
-    this.socket.on(SOCKET_EVENTS.CONNECTION.ERROR, (error) => {
-      this.connected = false;
-      reject(error);
-    });
-
-    const disconnectHandler = (reason) => {
-      this.connected = false;
-      if (reason === 'io server disconnect' && this.reconnectAttempts < this.maxReconnectAttempts) {
-        this.reconnectAttempts++;
-        setTimeout(() => {
-          try {
-            this.connect().catch(error => {
-              this.emit('error', { message: 'Reconnection failed' });
-            });
-          } catch (error) {
-            this.emit('error', { message: 'Reconnection failed' });
-          }
-        }, 1000 * this.reconnectAttempts);
-      }
-    };
-    this.socket.on(SOCKET_EVENTS.CONNECTION.DISCONNECT, disconnectHandler);
-
-    this.socket.on(SOCKET_EVENTS.CONNECTION.RECONNECT, (attemptNumber) => {
-      this.reconnectAttempts = attemptNumber;
-    });
-
-    // Clean up on disconnect
-    const cleanup = () => {
-      for (const {event, handler} of this.connectionHandlers) {
-        this.socket?.off(event, handler);
-      }
-      this.connectionHandlers.clear();
-    };
-    this.socket.on(SOCKET_EVENTS.CONNECTION.DISCONNECT, cleanup);
-  }
-
   disconnect() {
     if (this.socket) {
       this.socket.removeAllListeners();
@@ -159,21 +98,8 @@ export class SocketService {
     this.socket.off(event, callback);
   }
 
-  // Specific event handlers for different features
-  onQueueUpdate(callback) {
-    this.on(SOCKET_EVENTS.QUEUE.UPDATE, callback);
-  }
-
-  onLobbyUpdate(callback) {
-    this.on(SOCKET_EVENTS.LOBBY.UPDATE, callback);
-  }
-
-  onMatchFound(callback) {
-    this.on(SOCKET_EVENTS.MATCH.FOUND, callback);
-  }
-
   isConnected() {
-    return this.connected && this.socket?.connected;
+    return !!this.socket?.connected;
   }
 }
 

@@ -1,37 +1,54 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import Home from '../views/Home.vue';
-import Auth from '../components/Auth.vue';
-import Lobby from '../components/Lobby.vue';
+import Play from '../views/Play.vue';
+import Auth from '../views/Auth.vue';
+import Lobby from '../views/Lobby.vue';
 import Profile from '../views/Profile.vue';
 import Group from '../views/Group.vue';
+import Results from '../views/Results.vue';
+import Admin from '../views/Admin.vue';
+import SteamAuthCallback from '../views/SteamAuthCallback.vue';
 import { useAuthStore } from '@/stores/authStore';
 import { useRootStore } from '@/stores/rootStore';
 import { getCurrentLobbyId } from '../utils/lobbyPersistence';
 
 const routes = [
+  {
+    path: '/',
+    redirect: '/play'
+  },
   { 
-    path: '/', 
-    name: 'home', 
-    component: Home, 
+    path: '/play', 
+    name: 'play', 
+    component: Play, 
     meta: { requiresAuth: true } 
   },
   { 
     path: '/queue', 
-    name: 'queue', 
-    component: Home, 
-    meta: { requiresAuth: true } 
+    redirect: '/play'
   },
   { 
     path: '/lobbies', 
     name: 'lobbies', 
-    component: Home, 
+    component: Play, 
     meta: { requiresAuth: true } 
+  },
+  {
+    path: '/results',
+    name: 'results',
+    component: Results,
+    meta: { requiresAuth: true }
   },
   { 
     path: '/auth', 
     name: 'auth', 
     component: Auth, 
     meta: { guest: true } 
+  },
+  {
+    path: '/auth/steam/callback',
+    name: 'steam-auth-callback',
+    component: SteamAuthCallback,
+    meta: { steamCallback: true }
   },
   { 
     path: '/lobby/:lobbyId', 
@@ -45,6 +62,12 @@ const routes = [
     name: 'profile', 
     component: Profile, 
     meta: { requiresAuth: true } 
+  },
+  {
+    path: '/admin',
+    name: 'admin',
+    component: Admin,
+    meta: { requiresAuth: true, requiresAdmin: true }
   },
   { 
     path: '/group', 
@@ -70,12 +93,16 @@ router.beforeEach((to, from, next) => {
   rootStore.clearError();
 
   // Handle authentication redirects
-  if (to.meta.requiresAuth && !isAuthenticated) {
+  if (to.meta.steamCallback) {
+    next();
+  } else if (to.meta.requiresAuth && !isAuthenticated) {
     next('/auth');
-  } else if (to.path === '/queue' && currentLobby) {
+  } else if (to.meta.requiresAdmin && !authStore.isAdmin) {
+    next('/play');
+  } else if ((to.path === '/queue' || to.path === '/play') && currentLobby) {
     next(`/lobby/${currentLobby}`);
   } else if (to.meta.guest && isAuthenticated) {
-    next('/');
+    next('/play');
   } else {
     next();
   }

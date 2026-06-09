@@ -15,62 +15,56 @@ const {
 
 <template>
   <div class="profile-page content-panel">
-    <h1>Profile</h1>
-    <p class="profile-name current-user">{{ authStore.username }}</p>
-    <div class="profile-card">
-      <label class="field-label" for="steam-id">Steam ID64</label>
-      <input
-        id="steam-id"
-        v-model="steamId"
-        :class="['steam-input', { 'is-locked': isSteamIdLocked }]"
-        type="text"
-        inputmode="numeric"
-        placeholder="7656119..."
-        maxlength="17"
-        :disabled="isSteamIdLocked || socketStore.loading || !authStore.username"
-        :readonly="isSteamIdLocked || socketStore.loading || !authStore.username"
-      />
-      <p class="profile-note">
-        {{ hasSteamId ? 'Used to verify you on the Squad server.' : 'Required before you can join the queue.' }}
-      </p>
-      <p class="profile-note lock-note">
-        Leave the queue or lobby before changing your Steam ID.
-      </p>
-      <button
-        class="save-button"
-        @click="saveSteamId"
-        :disabled="isSteamIdLocked || socketStore.loading || !steamId || steamId === authStore.steamId"
-      >
-        {{ savingSteamId ? 'Saving...' : 'Save Steam ID' }}
-      </button>
-    </div>
-    <div class="profile-actions">
-      <button @click="handleLogout">Logout</button>
+    <div class="page-shell narrow">
+      <p class="profile-name current-user">{{ authStore.username }}</p>
+      <p v-if="authStore.isAdmin" class="admin-badge">Admin</p>
+
+      <div class="profile-card window-panel">
+        <div class="window-titlebar">
+          <span class="window-titlebar-label">Steam ID</span>
+          <span class="window-titlebar-meta" v-if="hasSteamId">Ready</span>
+        </div>
+        <div class="profile-card-body panel-body">
+          <label class="field-label" for="steam-id">Steam ID64</label>
+          <input
+            id="steam-id"
+            v-model="steamId"
+            :class="['steam-input', { 'is-locked': isSteamIdLocked }]"
+            type="text"
+            inputmode="numeric"
+            placeholder="7656119..."
+            maxlength="17"
+            :disabled="isSteamIdLocked || socketStore.loading || !authStore.username"
+            :readonly="isSteamIdLocked || socketStore.loading || !authStore.username"
+          />
+          <button
+            class="save-button"
+            @click="saveSteamId"
+            :disabled="isSteamIdLocked || socketStore.loading || !steamId || steamId === authStore.steamId"
+          >
+            {{ savingSteamId ? 'Saving...' : 'Save' }}
+          </button>
+        </div>
+      </div>
+
+      <div class="profile-actions">
+        <button @click="handleLogout">Logout</button>
+      </div>
+
     </div>
   </div>
 </template>
 
 <style scoped>
-h1 {
-  color: inherit;
-  font-weight: 500;
-}
 .profile-page {
-  width: min(100%, 760px);
-  max-width: 760px;
-  margin: clamp(20px, 5vw, 56px) auto 0;
   text-align: center;
 }
 
 .profile-card {
   width: min(100%, 420px);
   margin: 1.5rem auto 0;
-  padding: 1.25rem;
-  background: var(--surface);
-  border: 1px solid var(--surface-border);
-  border-radius: 14px;
-  box-shadow: var(--surface-shadow);
   text-align: left;
+  overflow: hidden;
 }
 
 .field-label {
@@ -81,11 +75,6 @@ h1 {
 
 .steam-input {
   width: 100%;
-  padding: 0.8rem 0.9rem;
-  border-radius: 8px;
-  border: 1px solid var(--surface-border);
-  background: rgba(255, 255, 255, 0.04);
-  color: inherit;
 }
 
 .steam-input.is-locked {
@@ -95,18 +84,26 @@ h1 {
 
 .profile-name {
   font-weight: 700;
-  font-size: 1.3rem;
+  font-size: 1.5rem;
   color: inherit;
-  margin: 0.5rem 0 0.75rem;
+  margin: 0 0 0.75rem;
 }
 
-.profile-note {
-  color: inherit;
-  margin: 0.85rem 0 0;
-}
-
-.lock-note {
-  opacity: 0.75;
+.admin-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 0.25rem 0.65rem;
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-border);
+  color: var(--accent-strong);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .save-button {
@@ -117,26 +114,8 @@ h1 {
   margin-top: 1.5rem;
 }
 
-button {
-  display: block;
+.profile-actions button {
   width: 200px;
-  margin: 1rem auto;
-  padding: 0.8rem;
-  background: #3b3f45;
-  color: inherit;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-
-button:hover {
-  background: #4a4f56;
-}
-
-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 @media (max-width: 480px) {

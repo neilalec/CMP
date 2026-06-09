@@ -60,14 +60,15 @@ If the config is correct, SquadJS should connect to:
 - the server over RCON
 - the log directory over SFTP/FTP
 
-### 5. Optional local bridge for your Flask app
+### 5. CMP bridge plugin
 
-You can expose a tiny local HTTP bridge from SquadJS so your Flask backend can call it on the same machine.
+This repo includes a custom `CmpBridge` plugin. It exposes the local HTTP bridge that the Flask backend uses for player presence, server status, layer control, broadcasts, and round results.
 
-Add this to `config.json`:
+Enable it in `config.json` under `plugins`:
 
 ```json
-"bridge": {
+{
+  "plugin": "CmpBridge",
   "enabled": true,
   "host": "127.0.0.1",
   "port": 3001,
@@ -78,9 +79,14 @@ Add this to `config.json`:
 Endpoints:
 
 - `GET /health`
-- `GET /players`
+- `GET /server`
+- `GET /players` (refreshes RCON player list before returning)
+- `GET /layers`
+- `GET /round/latest`
+- `POST /broadcast`
 - `POST /layer/change`
 - `POST /layer/next`
+- `POST /players/force-team-change`
 
 Use the token as:
 
@@ -92,6 +98,7 @@ Example calls:
 
 ```powershell
 curl.exe -H "Authorization: Bearer your-local-token" http://127.0.0.1:3001/health
+curl.exe -H "Authorization: Bearer your-local-token" http://127.0.0.1:3001/server
 curl.exe -H "Authorization: Bearer your-local-token" http://127.0.0.1:3001/players
 curl.exe -X POST -H "Authorization: Bearer your-local-token" -H "Content-Type: application/json" -d "{\"layer\":\"Gorodok_RAAS_v1\"}" http://127.0.0.1:3001/layer/change
 ```

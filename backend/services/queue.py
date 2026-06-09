@@ -1,13 +1,93 @@
 import eventlet
 
 
-def build_queue_payload(matchmaking_queue, user_has_steam_id, get_match_accept_payload, username=None, countdown=None):
+def get_queue_for_mode(matchmaking_queue, queue_mode):
+    return matchmaking_queue.setdefault(queue_mode, [])
+
+
+def get_pending_for_mode(pending_match, queue_mode):
+    if isinstance(pending_match, dict):
+        return pending_match.get(queue_mode)
+    return None
+
+
+def find_user_queue_mode(matchmaking_queue, username):
+    if not username:
+        return None
+    for queue_mode, queue in matchmaking_queue.items():
+        if username in queue:
+            return queue_mode
+    return None
+
+
+def iter_all_queued_users(matchmaking_queue):
+    for queue in matchmaking_queue.values():
+        for username in queue:
+            yield username
+
+
+def has_available_server_capacity(lobbies, pending_match, server_capacity=1):
+    capacity = 1 if server_capacity is None else max(0, int(server_capacity or 0))
+    active_lobbies = len(lobbies or {})
+    active_pending_matches = sum(
+        1 for match in (pending_match or {}).values()
+        if match
+    )
+    return (active_lobbies + active_pending_matches) < capacity
+
+
+def build_queue_payload(
+    matchmaking_queue,
+    user_has_steam_id,
+    get_match_accept_payload,
+    queue_modes,
+    lobbies=None,
+    pending_match=None,
+    server_capacity=1,
+    username=None,
+    countdown=None,
+    queue_mode=None
+):
+    current_queue_mode = find_user_queue_mode(matchmaking_queue, username)
+    queues_payload = {}
+    total_players_in_queue = 0
+
+    for mode_id, config in queue_modes.items():
+        queue = list(matchmaking_queue.get(mode_id, []))
+        total_players_in_queue += len(queue)
+        queues_payload[mode_id] = {
+            'id': mode_id,
+            'label': config['label'],
+            'shortLabel': config['short_label'],
+            'teamSize': config['team_size'],
+            'maxPlayers': config['max_players'],
+            'playersInQueue': len(queue),
+            'queue': queue,
+            'inQueue': bool(username and username in queue),
+        }
+
+    resolved_queue_mode = queue_mode or current_queue_mode
+    active_queue = list(matchmaking_queue.get(resolved_queue_mode, [])) if resolved_queue_mode else []
+    active_config = queue_modes.get(resolved_queue_mode) if resolved_queue_mode else None
+
     payload = {
         'success': True,
-        'inQueue': username in matchmaking_queue if username else False,
-        'playersInQueue': len(matchmaking_queue),
-        'queue': list(matchmaking_queue),
-        'hasSteamId': user_has_steam_id(username) if username else False
+        'inQueue': current_queue_mode is not None,
+        'queueMode': current_queue_mode,
+        'playersInQueue': len(active_queue),
+        'queue': active_queue,
+        'maxPlayers': active_config['max_players'] if active_config else None,
+        'queueModes': queues_payload,
+        'totalPlayersInQueue': total_players_in_queue,
+        'hasSteamId': user_has_steam_id(username) if username else False,
+        'serverCapacity': 1 if server_capacity is None else max(0, int(server_capacity or 0)),
+        'serverAvailable': has_available_server_capacity(
+            lobbies,
+            pending_match,
+            server_capacity=server_capacity
+        ),
+        'activeLobbyCount': len(lobbies or {}),
+        'activePendingMatchCount': sum(1 for match in (pending_match or {}).values() if match),
     }
     if countdown is not None and countdown > 0:
         payload['countdown'] = countdown
@@ -35,11 +115,13 @@ def cancel_pending_match(
         if not pending_match:
             return False, None
 
+        queue_mode = pending_match.get('queue_mode')
+        queue = get_queue_for_mode(matchmaking_queue, queue_mode)
         participants = list(pending_match.get('players', []))
         removed_players = []
         for username in remove_players or []:
-            if username in matchmaking_queue:
-                matchmaking_queue.remove(username)
+            if username in queue:
+                queue.remove(username)
                 removed_players.append(username)
                 if username in player_activity:
                     player_activity[username]['status'] = 'authenticated'
@@ -51,7 +133,8 @@ def cancel_pending_match(
     for username in participants:
         socketio.emit(socket_events['QUEUE']['MATCH_ACCEPT_CANCELLED'], {
             'reason': reason,
-            'removedPlayers': removed_players
+            'removedPlayers': removed_players,
+            'queueMode': queue_mode
         }, room=get_user_room(username))
     return True, removed_players
 
@@ -64,12 +147,13 @@ def finalize_pending_match(pending_match, match_id, broadcast_queue_update, crea
         return False
 
     broadcast_queue_update()
-    return create_lobby(players)
+    return create_lobby(players, queue_mode=pending_match.get('queue_mode'))
 
 
 def start_match_acceptance(
     *,
     players,
+    queue_mode,
     max_lobby_players,
     match_accept_countdown,
     pending_match,
@@ -85,6 +169,7 @@ def start_match_acceptance(
     tracked_players = list(players[:max_lobby_players])
     state = {
         'id': f"match_{int(__import__('time').time() * 1000)}",
+        'queue_mode': queue_mode,
         'players': tracked_players,
         'accepted': {player: False for player in tracked_players},
         'countdown': match_accept_countdown
@@ -94,7 +179,8 @@ def start_match_acceptance(
     set_pending_match(state)
     import logging
     logging.getLogger(__name__).info(
-        "Starting match acceptance: id=%s players=%s countdown=%s",
+        "Starting match acceptance: mode=%s id=%s players=%s countdown=%s",
+        queue_mode,
         match_id,
         tracked_players,
         match_accept_countdown
@@ -108,7 +194,8 @@ def start_match_acceptance(
                 return
             if all(state['accepted'].get(player) for player in state['players']):
                 logging.getLogger(__name__).info(
-                    "Match acceptance completed early: id=%s players=%s",
+                    "Match acceptance completed early: mode=%s id=%s players=%s",
+                    queue_mode,
                     match_id,
                     state['players']
                 )
@@ -134,7 +221,8 @@ def start_match_acceptance(
 
         if not all_accepted:
             logging.getLogger(__name__).warning(
-                "Match acceptance timed out: id=%s missing=%s",
+                "Match acceptance timed out: mode=%s id=%s missing=%s",
+                queue_mode,
                 match_id,
                 not_accepted
             )
@@ -163,28 +251,47 @@ def update_queue_state(
 
         if broadcast:
             current_state = {
-                'playersInQueue': len(matchmaking_queue),
-                'queue': list(matchmaking_queue)
+                'queueModes': {
+                    mode_id: {
+                        'playersInQueue': len(queue),
+                        'queue': list(queue)
+                    }
+                    for mode_id, queue in matchmaking_queue.items()
+                }
             }
             socketio.emit(socket_events['QUEUE']['UPDATE'], current_state, broadcast=True)
 
 
-def check_queue_and_start_countdown(*, queue_lock, pending_match, matchmaking_queue, max_lobby_players, start_match_acceptance):
-    players = None
+def check_queue_and_start_countdown(
+    *,
+    queue_lock,
+    pending_match,
+    matchmaking_queue,
+    queue_modes,
+    lobbies,
+    server_capacity,
+    start_match_acceptance
+):
+    queued_modes = []
 
     with queue_lock:
-        if pending_match:
+        if not has_available_server_capacity(lobbies, pending_match, server_capacity=server_capacity):
             return
-        if len(matchmaking_queue) >= max_lobby_players:
-            players = list(matchmaking_queue[:max_lobby_players])
+        for mode_id, config in queue_modes.items():
+            queue = get_queue_for_mode(matchmaking_queue, mode_id)
+            if get_pending_for_mode(pending_match, mode_id):
+                continue
+            if len(queue) >= config['max_players']:
+                queued_modes.append((mode_id, list(queue[:config['max_players']])))
 
-    if players:
-        start_match_acceptance(players)
+    for mode_id, players in queued_modes:
+        start_match_acceptance(players, queue_mode=mode_id)
 
 
-def add_to_queue(username, matchmaking_queue, upsert_player_activity, save_queue):
-    if username not in matchmaking_queue:
-        matchmaking_queue.append(username)
+def add_to_queue(username, matchmaking_queue, queue_mode, upsert_player_activity, save_queue):
+    queue = get_queue_for_mode(matchmaking_queue, queue_mode)
+    if username not in queue:
+        queue.append(username)
         upsert_player_activity(username, status='queued')
         save_queue()
         return True

@@ -1,52 +1,60 @@
 import { defineStore } from 'pinia'
-import { useSocketStore } from './socketStore'
 import { useAuthStore } from './authStore'
+import { useSocketStore } from './socketStore'
 import { SOCKET_EVENTS } from '../constants/socketEvents'
+import {
+  createDefaultMatchAcceptState,
+  createDefaultQueueModes,
+  createDefaultQueueState
+} from './state/queueState'
+import { runStoreSocketAction } from './helpers/storeSocketAction'
 
 export const useQueueStore = defineStore('queue', {
-  state: () => ({
-    inQueue: false,
-    playersInQueue: 0,
-    queueList: [],
-    openLobbies: [],
-    activeLobbies: [],
-    loading: false,
-    error: null,
-    lastSync: null,
-    countdown: null,
-    matchAccept: {
-      active: false,
-      cancelled: false,
-      cancelReason: '',
-      players: [],
-      acceptedPlayers: [],
-      acceptedCount: 0,
-      requiredCount: 0,
-      countdown: null,
-      hasAccepted: false
-    }
-  }),
+  state: () => createDefaultQueueState(),
+
+  getters: {
+    currentQueueConfig: (state) => (
+      state.queueMode ? state.queueModes[state.queueMode] || null : null
+    )
+  },
 
   actions: {
     updateQueueState(data) {
-      if (!data) return;
-      const authStore = useAuthStore();
-      console.debug('[queueStore] updateQueueState', {
-        inQueue: data.inQueue,
-        playersInQueue: data.playersInQueue,
-        countdown: data.countdown,
-        matchAccept: data.matchAccept
-      });
-      
-      this.inQueue = !!data.inQueue;
-      this.playersInQueue = data.playersInQueue || 0;
-      this.queueList = Array.isArray(data.queue) ? data.queue : [];
-      this.countdown = data.countdown || null;
+      if (!data) return
+      const authStore = useAuthStore()
+
+      const mergedQueueModes = createDefaultQueueModes()
+      const payloadModes = data.queueModes || {}
+      for (const [modeId, modePayload] of Object.entries(payloadModes)) {
+        mergedQueueModes[modeId] = {
+          ...(mergedQueueModes[modeId] || {}),
+          ...modePayload,
+          queue: Array.isArray(modePayload.queue) ? modePayload.queue : [],
+          playersInQueue: modePayload.playersInQueue || 0,
+          inQueue: !!modePayload.inQueue
+        }
+      }
+
+      this.queueModes = mergedQueueModes
+      this.inQueue = !!data.inQueue
+      this.queueMode = data.queueMode || null
+      this.serverCapacity = Number(data.serverCapacity) || 1
+      this.serverAvailable = data.serverAvailable !== false
+      this.activeLobbyCount = Number(data.activeLobbyCount) || 0
+      this.activePendingMatchCount = Number(data.activePendingMatchCount) || 0
+
+      const activeMode = this.queueMode ? this.queueModes[this.queueMode] : null
+      this.maxPlayers = activeMode?.maxPlayers || data.maxPlayers || 0
+      this.playersInQueue = activeMode?.playersInQueue || data.playersInQueue || 0
+      this.queueList = Array.isArray(activeMode?.queue) ? activeMode.queue : (Array.isArray(data.queue) ? data.queue : [])
+      this.countdown = data.countdown || null
+
       if (data.matchAccept?.active) {
         this.matchAccept = {
           active: true,
           cancelled: false,
           cancelReason: '',
+          queueMode: data.matchAccept.queueMode || null,
           players: Array.isArray(data.matchAccept.players) ? data.matchAccept.players : [],
           acceptedPlayers: Array.isArray(data.matchAccept.acceptedPlayers) ? data.matchAccept.acceptedPlayers : [],
           acceptedCount: data.matchAccept.acceptedCount || 0,
@@ -55,115 +63,89 @@ export const useQueueStore = defineStore('queue', {
           hasAccepted: Array.isArray(data.matchAccept.acceptedPlayers)
             ? data.matchAccept.acceptedPlayers.includes(authStore.username)
             : !!data.matchAccept.hasAccepted
-        };
+        }
       } else {
-        this.resetMatchAccept();
+        this.resetMatchAccept()
       }
-      this.error = null;
-      this.lastSync = Date.now();
+
+      this.error = null
+      this.lastSync = Date.now()
     },
 
     resetMatchAccept() {
-      this.matchAccept = {
-        active: false,
-        cancelled: false,
-        cancelReason: '',
-        players: [],
-        acceptedPlayers: [],
-        acceptedCount: 0,
-        requiredCount: 0,
-        countdown: null,
-        hasAccepted: false
-      };
+      this.matchAccept = createDefaultMatchAcceptState()
     },
 
     setMatchAcceptCancelled(reason = 'Match cancelled') {
       this.matchAccept = {
-        active: false,
+        ...createDefaultMatchAcceptState(),
         cancelled: true,
-        cancelReason: reason,
-        players: [],
-        acceptedPlayers: [],
-        acceptedCount: 0,
-        requiredCount: 0,
-        countdown: null,
-        hasAccepted: false
-      };
+        cancelReason: reason
+      }
     },
 
     updateOpenLobbies(list) {
-      this.openLobbies = Array.isArray(list) ? list : [];
+      this.openLobbies = Array.isArray(list) ? list : []
     },
 
     updateActiveLobbies(list) {
-      this.activeLobbies = Array.isArray(list) ? list : [];
+      this.activeLobbies = Array.isArray(list) ? list : []
     },
 
-    async joinQueue(username) {
-      this.loading = true;
-      try {
-        const socketStore = useSocketStore();
-        const response = await socketStore.emit(SOCKET_EVENTS.QUEUE.JOIN, { username });
-        this.updateQueueState(response);
-      } catch (error) {
-        this.error = error.message;
-        throw error;
-      } finally {
-        this.loading = false;
-      }
+    async joinQueue(username, queueMode) {
+      return runStoreSocketAction(this, {
+        event: SOCKET_EVENTS.QUEUE.JOIN,
+        payload: { username, queueMode },
+        fallbackMessage: 'Failed to join queue',
+        onSuccess: (response) => {
+          this.updateQueueState(response)
+        }
+      })
     },
 
-    async leaveQueue(username) {
-      this.loading = true;
-      try {
-        const socketStore = useSocketStore();
-        const response = await socketStore.emit(SOCKET_EVENTS.QUEUE.LEAVE, { username });
-        this.updateQueueState(response);
-      } catch (error) {
-        this.error = error.message;
-        throw error;
-      } finally {
-        this.loading = false;
-      }
+    async leaveQueue(username, queueMode = null) {
+      return runStoreSocketAction(this, {
+        event: SOCKET_EVENTS.QUEUE.LEAVE,
+        payload: { username, queueMode },
+        fallbackMessage: 'Failed to leave queue',
+        onSuccess: (response) => {
+          this.updateQueueState(response)
+        }
+      })
     },
 
     async syncWithServer(username) {
-      try {
-        const socketStore = useSocketStore();
-        const response = await socketStore.emit(SOCKET_EVENTS.QUEUE.STATUS, { username });
-        this.updateQueueState(response);
-      } catch (error) {
-        this.error = error.message;
-      }
+      await runStoreSocketAction(this, {
+        event: SOCKET_EVENTS.QUEUE.STATUS,
+        payload: { username },
+        setLoading: false,
+        swallowError: true,
+        fallbackMessage: 'Failed to sync queue',
+        onSuccess: (response) => {
+          this.updateQueueState(response)
+        }
+      })
     },
 
     resetQueue() {
-      this.inQueue = false;
-      this.playersInQueue = 0;
-      this.queueList = [];
-      this.openLobbies = [];
-      this.activeLobbies = [];
-      this.loading = false;
-      this.error = null;
-      this.lastSync = null;
-      this.countdown = null;
-      this.resetMatchAccept();
+      Object.assign(this, createDefaultQueueState())
     },
 
     async acceptMatch(username) {
-      this.loading = true;
+      this.loading = true
       try {
-        const authStore = useAuthStore();
-        const socketStore = useSocketStore();
-        console.debug('[queueStore] acceptMatch sending', { username });
-        const response = await socketStore.emit(SOCKET_EVENTS.QUEUE.ACCEPT_MATCH, { username });
-        console.debug('[queueStore] acceptMatch response', response);
+        const authStore = useAuthStore()
+        const socketStore = useSocketStore()
+        const response = await socketStore.emit(SOCKET_EVENTS.QUEUE.ACCEPT_MATCH, { username })
         if (!response?.success) {
-          throw new Error(response?.message || 'Failed to accept match');
+          throw new Error(response?.message || 'Failed to accept match')
         }
         if (response.matchAccept?.active) {
           this.matchAccept = {
             active: true,
+            cancelled: false,
+            cancelReason: '',
+            queueMode: response.matchAccept.queueMode || this.matchAccept.queueMode,
             players: Array.isArray(response.matchAccept.players) ? response.matchAccept.players : this.matchAccept.players,
             acceptedPlayers: Array.isArray(response.matchAccept.acceptedPlayers) ? response.matchAccept.acceptedPlayers : this.matchAccept.acceptedPlayers,
             acceptedCount: response.matchAccept.acceptedCount ?? this.matchAccept.acceptedCount,
@@ -172,17 +154,49 @@ export const useQueueStore = defineStore('queue', {
             hasAccepted: Array.isArray(response.matchAccept.acceptedPlayers)
               ? response.matchAccept.acceptedPlayers.includes(authStore.username)
               : true
-          };
+          }
         } else {
-          this.matchAccept.hasAccepted = true;
+          this.matchAccept.hasAccepted = true
         }
-        return response;
+        return response
       } catch (error) {
-        this.error = error.message;
-        throw error;
+        this.error = error.message
+        throw error
       } finally {
-        this.loading = false;
+        this.loading = false
       }
+    },
+
+    async seedQueue(count, queueMode) {
+      return runStoreSocketAction(this, {
+        event: SOCKET_EVENTS.QUEUE.SEED,
+        payload: { count, queueMode },
+        fallbackMessage: 'Failed to seed queue',
+        validate: (response) => {
+          if (!response?.success) {
+            throw new Error(response?.message || 'Failed to seed queue')
+          }
+        },
+        onSuccess: (response) => {
+          this.updateQueueState(response)
+        }
+      })
+    },
+
+    async clearQueue(queueMode = null) {
+      return runStoreSocketAction(this, {
+        event: SOCKET_EVENTS.QUEUE.CLEAR,
+        payload: { queueMode },
+        fallbackMessage: 'Failed to clear queue',
+        validate: (response) => {
+          if (!response?.success) {
+            throw new Error(response?.message || 'Failed to clear queue')
+          }
+        },
+        onSuccess: (response) => {
+          this.updateQueueState(response)
+        }
+      })
     }
   }
 })

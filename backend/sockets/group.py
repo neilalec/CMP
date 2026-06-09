@@ -1,5 +1,7 @@
 import time
 
+from services.queue import find_user_queue_mode, get_queue_for_mode
+
 
 def handle_group_create_event(
     data,
@@ -159,21 +161,28 @@ def handle_group_queue_event(
     group_lock,
     get_user_group,
     groups,
-    max_lobby_players,
+    queue_modes,
     user_has_steam_id,
     is_user_in_any_lobby,
     queue_lock,
     matchmaking_queue,
+    pending_match,
+    lobbies,
     upsert_player_activity,
     save_queue,
     broadcast_queue_update,
     check_queue_and_start_countdown,
-    build_queue_payload
+    build_queue_payload,
+    has_available_server_capacity
 ):
     try:
         username = data.get('username') if data else None
+        queue_mode = str((data or {}).get('queueMode') or 'skirmish').strip().lower()
+        queue_config = queue_modes.get(queue_mode)
         if not username:
             return {'success': False, 'message': 'Missing username'}
+        if not queue_config:
+            return {'success': False, 'message': 'Unknown queue mode'}
 
         with group_lock:
             code = get_user_group(username)
@@ -185,7 +194,7 @@ def handle_group_queue_event(
             if group['leader'] != username:
                 return {'success': False, 'message': 'Only the leader can queue the group'}
             members = list(group['members'])
-            if len(members) > (max_lobby_players // 2):
+            if len(members) > queue_config['team_size']:
                 return {'success': False, 'message': 'Group is too large to stay on one team'}
 
         missing_steam_ids = [member for member in members if not user_has_steam_id(member)]
@@ -199,13 +208,20 @@ def handle_group_queue_event(
             return {'success': False, 'message': 'A group member is already in a lobby'}
 
         with queue_lock:
-            if any(member in matchmaking_queue for member in members):
+            if not has_available_server_capacity(lobbies, pending_match, server_capacity=1):
+                return {
+                    'success': False,
+                    'message': 'A match is already using the only available server.',
+                    **build_queue_payload(username=username, queue_mode=queue_mode)
+                }
+            if any(find_user_queue_mode(matchmaking_queue, member) for member in members):
                 return {'success': False, 'message': 'A group member is already in the queue'}
-            if len(matchmaking_queue) + len(members) > max_lobby_players:
+            queue = get_queue_for_mode(matchmaking_queue, queue_mode)
+            if len(queue) + len(members) > queue_config['max_players']:
                 return {'success': False, 'message': 'Queue does not have enough slots'}
 
             for member in members:
-                matchmaking_queue.append(member)
+                queue.append(member)
                 upsert_player_activity(member, status='queued')
 
             save_queue()
@@ -213,7 +229,7 @@ def handle_group_queue_event(
         broadcast_queue_update()
         check_queue_and_start_countdown()
 
-        return build_queue_payload(username=username)
+        return build_queue_payload(username=username, queue_mode=queue_mode)
     except Exception as e:
         logger.error(f"Error queueing group: {str(e)}")
         return {'success': False, 'message': 'Failed to queue group'}
@@ -234,6 +250,7 @@ def handle_group_unqueue_event(
 ):
     try:
         username = data.get('username') if data else None
+        queue_mode = str((data or {}).get('queueMode') or '').strip().lower() or None
         if not username:
             return {'success': False, 'message': 'Missing username'}
 
@@ -250,9 +267,14 @@ def handle_group_unqueue_event(
 
         with queue_lock:
             removed = False
+            effective_mode = queue_mode
             for member in members:
-                if member in matchmaking_queue:
-                    matchmaking_queue.remove(member)
+                member_mode = find_user_queue_mode(matchmaking_queue, member)
+                if not effective_mode and member_mode:
+                    effective_mode = member_mode
+                queue = get_queue_for_mode(matchmaking_queue, member_mode) if member_mode else []
+                if member in queue:
+                    queue.remove(member)
                     removed = True
                 if member in player_activity:
                     player_activity[member]['status'] = 'authenticated'
@@ -264,8 +286,7 @@ def handle_group_unqueue_event(
 
         return {
             'success': True,
-            'playersInQueue': len(matchmaking_queue),
-            'queue': list(matchmaking_queue)
+            **build_queue_payload(username=username, queue_mode=effective_mode)
         }
     except Exception as e:
         logger.error(f"Error unqueueing group: {str(e)}")

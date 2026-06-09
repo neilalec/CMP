@@ -59,7 +59,7 @@ describe('QueueStore', () => {
 
         expect(socketStore.emit).toHaveBeenCalledWith(
             SOCKET_EVENTS.QUEUE.LEAVE,
-            { username: 'testuser' }
+            { username: 'testuser', queueMode: null }
         );
     });
 

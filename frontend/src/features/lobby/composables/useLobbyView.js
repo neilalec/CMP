@@ -1,22 +1,31 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '../../../stores/authStore';
+import { useGroupStore } from '../../../stores/groupStore';
 import { useLobbyStore } from '../../../stores/lobbyStore';
 import { useRootStore } from '../../../stores/rootStore';
 import { useSocketStore } from '../../../stores/socketStore';
 import { SOCKET_EVENTS } from '../../../constants/socketEvents';
 import { clearCurrentLobby } from '../../../utils/lobbyPersistence';
+import { API_BASE_URL } from '../../../config';
 
 export function useLobbyView() {
   const router = useRouter();
   const route = useRoute();
   const lobbyStore = useLobbyStore();
+  const groupStore = useGroupStore();
   const socketStore = useSocketStore();
   const rootStore = useRootStore();
   const authStore = useAuthStore();
   const isCountdownPaused = ref(false);
   const serverPresencePoll = ref(null);
+  const liveRollTimer = ref(null);
   const listeners = ref([]);
+  const handleCountdownPauseState = (data) => {
+    if (data && typeof data.paused === 'boolean') {
+      isCountdownPaused.value = data.paused;
+    }
+  };
 
   const AVAILABLE_MAPS = [
     'Al Basrah Skirmish v1',
@@ -25,19 +34,55 @@ export function useLobbyView() {
     "Fool's Road Skirmish v1",
     'Narva Skirmish v1'
   ];
+  const HOTDROP_MAPS = [
+    'HotDrop_SumariBala',
+    'HotDrop_Narva',
+    'HotDrop_Harju',
+    'HotDrop_Goose_Bay',
+    'HotDrop_BlackCoast',
+    'HotDrop_Fallujah',
+    'HotDrop_Mutaha',
+    'HotDrop_Chora',
+    'HotDrop_Yehorivka',
+    'HotDrop_Skorpo'
+  ];
 
-  const activeCountdown = computed(() => (lobbyStore.step === 2 ? lobbyStore.votingCountdown : null));
-  const activeCountdownLabel = computed(() => (lobbyStore.step === 2 ? 'Map selected in' : 'Match starting in'));
+  const activeCountdown = computed(() => {
+    if (lobbyStore.step === 2) return lobbyStore.votingCountdown;
+    if (lobbyStore.step === 3 && lobbyStore.liveRollCountdown !== null) return lobbyStore.liveRollCountdown;
+    return null;
+  });
+  const activeCountdownLabel = computed(() => (
+    lobbyStore.step === 3 ? 'Force Roll in' : 'Map selected in'
+  ));
   const phaseTitle = computed(() => {
     if (lobbyStore.loading) return 'Loading Lobby...';
     if (lobbyStore.step === 2) return 'Map Voting';
     if (lobbyStore.step === 3) return 'Match Ready';
     if (lobbyStore.step === 4) return 'Server Details';
+    if (lobbyStore.step === 5) return 'Score';
     return 'Lobby';
   });
-  const showPauseButton = computed(() => activeCountdown.value !== null);
-  const mapOptions = computed(() => (lobbyStore.mapPool?.length ? lobbyStore.mapPool : AVAILABLE_MAPS));
+  const lobbyPhase = computed(() => {
+    if (lobbyStore.step === 5) return 'complete';
+    if (lobbyStore.step === 4) return 'live';
+    if (lobbyStore.step === 3) return 'server';
+    return 'map';
+  });
+  const showPauseButton = computed(() => lobbyStore.step === 2 && activeCountdown.value !== null);
+  const mapOptions = computed(() => {
+    if (lobbyStore.mapPool?.length) return lobbyStore.mapPool;
+    const isHotdropLobby = (
+      lobbyStore.queueMode === 'hotdrop'
+      || (lobbyStore.queueLabel || '').toLowerCase().includes('hotdrop')
+      || lobbyStore.matchSizeLabel === '30v30'
+      || lobbyStore.maxPlayers === 60
+    );
+    if (isHotdropLobby) return HOTDROP_MAPS;
+    return AVAILABLE_MAPS;
+  });
   const isDev = import.meta.env.DEV;
+  const canAdminLobby = computed(() => !!authStore.isAdmin);
   const groupedTeam1 = computed(() => groupPlayers(lobbyStore.teams.team1));
   const groupedTeam2 = computed(() => groupPlayers(lobbyStore.teams.team2));
   const matchSizeLabel = computed(() => {
@@ -51,6 +96,10 @@ export function useLobbyView() {
     const left = Math.floor(total / 2);
     const right = total - left;
     return `${left}v${right}`;
+  });
+  const canAutoConnect = computed(() => {
+    const connectAddress = lobbyStore.serverDetails?.connectAddress || lobbyStore.serverDetails?.ip || '';
+    return !!connectAddress && (lobbyStore.step === 3 || lobbyStore.step === 4);
   });
 
   const groupPlayers = (players) => {
@@ -77,13 +126,21 @@ export function useLobbyView() {
   const getTeamLabel = (teamKey) => (teamKey === 'team1' ? 'BLUFOR' : 'OPFOR');
   const getServerPresence = (player) => lobbyStore.serverPresence?.[player] || null;
   const isServerConnected = (player) => !!getServerPresence(player)?.connected;
+  const isServerTeamAligned = (player) => {
+    const presence = getServerPresence(player);
+    if (!presence?.connected) return false;
+    return presence.teamAligned !== false;
+  };
   const getConnectionFlagClass = (player) => {
     if (lobbyStore.serverPresenceAvailable === false) return 'is-unavailable';
-    return isServerConnected(player) ? 'is-connected' : 'is-missing';
+    if (!isServerConnected(player)) return 'is-missing';
+    return isServerTeamAligned(player) ? 'is-connected' : 'is-misaligned';
   };
+  const showConnectionStatus = computed(() => lobbyStore.step >= 3);
   const getConnectionLabel = (player) => {
-    if (lobbyStore.serverPresenceAvailable === false) return 'server unavailable';
-    return isServerConnected(player) ? 'connected' : 'not connected';
+    if (lobbyStore.serverPresenceAvailable === false) return 'Unavailable';
+    if (!isServerConnected(player)) return 'Missing';
+    return isServerTeamAligned(player) ? 'Connected' : 'Wrong team';
   };
 
   const fetchServerPresence = async () => {
@@ -119,6 +176,48 @@ export function useLobbyView() {
     }
   };
 
+  const updateLiveRollCountdown = () => {
+    if (lobbyStore.step !== 3 || !lobbyStore.liveRollReadyAt) return;
+    const remaining = Math.max(0, Math.ceil(lobbyStore.liveRollReadyAt - (Date.now() / 1000)));
+    lobbyStore.updateLiveRollCountdown(remaining);
+  };
+
+  const startLiveRollTimer = () => {
+    if (liveRollTimer.value) clearInterval(liveRollTimer.value);
+    updateLiveRollCountdown();
+    liveRollTimer.value = setInterval(updateLiveRollCountdown, 1000);
+  };
+
+  const stopLiveRollTimer = () => {
+    if (liveRollTimer.value) {
+      clearInterval(liveRollTimer.value);
+      liveRollTimer.value = null;
+    }
+  };
+
+  const connectToServer = async () => {
+    const lobbyId = lobbyStore.lobbyId || route.params.lobbyId;
+    if (!lobbyId) return;
+    try {
+      const response = await fetch(`${API_BASE_URL}/lobbies/${lobbyId}/join-link`, {
+        headers: {
+          Authorization: `Bearer ${authStore.token}`
+        }
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload?.success || !payload?.join_url) {
+        throw new Error(payload?.message || 'Failed to build server join link');
+      }
+      window.location.href = payload.join_url;
+    } catch (error) {
+      rootStore.setError({
+        message: 'Failed to open Squad connect link',
+        details: error.message,
+        context: 'lobby-connect'
+      });
+    }
+  };
+
   const handleVoteMap = async (map) => {
     try {
       await socketStore.emit(SOCKET_EVENTS.LOBBY.VOTE_MAP, {
@@ -136,6 +235,12 @@ export function useLobbyView() {
   };
 
   const handleLeaveLobby = async () => {
+    const leaveGroupToo = !!groupStore.inGroup;
+    const confirmed = window.confirm(
+      leaveGroupToo ? 'Leave lobby and group?' : 'Leave lobby?'
+    );
+    if (!confirmed) return;
+
     try {
       const lobbyId = lobbyStore.lobbyId || route.params.lobbyId;
       if (!lobbyId) return;
@@ -144,9 +249,24 @@ export function useLobbyView() {
         username: authStore.username
       });
       if (response?.success) {
+        let groupLeaveError = null;
         lobbyStore.leaveLobby();
         clearCurrentLobby();
+        if (leaveGroupToo) {
+          try {
+            await groupStore.leaveGroup(authStore.username);
+          } catch (error) {
+            groupLeaveError = error;
+          }
+        }
         router.push('/');
+        if (groupLeaveError) {
+          rootStore.setError({
+            message: 'Left lobby but failed to leave group',
+            details: groupLeaveError.message,
+            context: 'group-leave-after-lobby'
+          });
+        }
       } else {
         throw new Error(response?.message || 'Failed to leave lobby');
       }
@@ -207,6 +327,29 @@ export function useLobbyView() {
     }
   };
 
+  const deleteLobby = async () => {
+    const confirmed = window.confirm('Delete this lobby and release its server allocation?');
+    if (!confirmed) return;
+
+    try {
+      const response = await socketStore.emit(SOCKET_EVENTS.LOBBY.DELETE, {
+        lobby_id: lobbyStore.lobbyId || route.params.lobbyId
+      });
+      if (!response?.success) {
+        throw new Error(response?.message || 'Failed to delete lobby');
+      }
+      lobbyStore.leaveLobby();
+      clearCurrentLobby();
+      router.push('/');
+    } catch (error) {
+      rootStore.setError({
+        message: 'Failed to delete lobby',
+        details: error.message,
+        context: 'lobby-delete'
+      });
+    }
+  };
+
   onMounted(async () => {
     const lobbyId = route.params.lobbyId;
     if (lobbyStore.lobbyId && lobbyStore.lobbyId !== lobbyId) {
@@ -230,6 +373,12 @@ export function useLobbyView() {
               lobbyStore.updateTeams(data.teams);
             }
             lobbyStore.updateLobbyState(data);
+            if (data.live_roll_ready_at || lobbyStore.liveRollReadyAt) {
+              startLiveRollTimer();
+            }
+            if (data.step && data.step !== 3) {
+              stopLiveRollTimer();
+            }
           }
         },
         {
@@ -251,10 +400,15 @@ export function useLobbyView() {
           handler: async (data) => {
             await socketStore.emit(SOCKET_EVENTS.LOBBY.GET_DATA, { lobby_id: lobbyId });
             lobbyStore.updateLobbyState({
-              selectedMap: data.map,
+              selected_map: data.map,
               step: 3,
-              votingCountdown: null
+              voting_countdown: null,
+              server_details: data.server_details,
+              server_details_provided_at: data.server_details_provided_at,
+              live_roll_ready_at: data.live_roll_ready_at,
+              live_roll_countdown: data.live_roll_countdown
             });
+            startLiveRollTimer();
           }
         },
         {
@@ -291,11 +445,7 @@ export function useLobbyView() {
         listeners.value.push({ event, handler });
       });
 
-      socketStore.on(SOCKET_EVENTS.COUNTDOWN.PAUSE_STATE, (data) => {
-        if (data && typeof data.paused === 'boolean') {
-          isCountdownPaused.value = data.paused;
-        }
-      });
+      socketStore.on(SOCKET_EVENTS.COUNTDOWN.PAUSE_STATE, handleCountdownPauseState);
 
       try {
         const response = await socketStore.emit(SOCKET_EVENTS.COUNTDOWN.STATUS);
@@ -314,6 +464,9 @@ export function useLobbyView() {
 
       if (joinResponse?.success) {
         lobbyStore.updateLobbyState(joinResponse.data);
+        if (joinResponse.data?.live_roll_ready_at || lobbyStore.liveRollReadyAt) {
+          startLiveRollTimer();
+        }
         startServerPresencePolling();
       } else {
         throw new Error(joinResponse?.message || 'Failed to join lobby');
@@ -334,16 +487,20 @@ export function useLobbyView() {
 
   onBeforeUnmount(() => {
     stopServerPresencePolling();
+    stopLiveRollTimer();
     listeners.value.forEach(({ event, handler }) => socketStore.off(event, handler));
     listeners.value = [];
     lobbyStore.reset();
-    socketStore.off(SOCKET_EVENTS.COUNTDOWN.PAUSE_STATE);
+    socketStore.off(SOCKET_EVENTS.COUNTDOWN.PAUSE_STATE, handleCountdownPauseState);
   });
 
   return {
     activeCountdown,
     activeCountdownLabel,
     authStore,
+    canAdminLobby,
+    canAutoConnect,
+    connectToServer,
     getConnectionFlagClass,
     getConnectionLabel,
     getTeamLabel,
@@ -356,12 +513,16 @@ export function useLobbyView() {
     isCurrentUser,
     isDev,
     lobbyStore,
+    lobbyPhase,
     mapOptions,
     matchSizeLabel,
     phaseTitle,
+    showConnectionStatus,
     showPauseButton,
     skipPhase,
     toggleCountdownPause,
     prevPhase
+    ,
+    deleteLobby
   };
 }

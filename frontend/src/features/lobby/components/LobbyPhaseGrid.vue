@@ -40,6 +40,7 @@ defineProps({
 .phase-center {
   display: flex;
   justify-content: center;
+  align-items: flex-start;
 }
 
 .match-ready-layout {
@@ -48,6 +49,12 @@ defineProps({
 
 .server-details-layout {
   min-height: 420px;
+  align-items: center;
+}
+
+.match-ready-layout .phase-center,
+.server-details-layout .phase-center {
+  align-items: center;
 }
 
 @media (max-width: 1200px) {

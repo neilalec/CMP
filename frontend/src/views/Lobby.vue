@@ -5,11 +5,16 @@ import LobbyMatchInfo from '../features/lobby/components/LobbyMatchInfo.vue';
 import LobbyMapVoteList from '../features/lobby/components/LobbyMapVoteList.vue';
 import LobbyPhaseGrid from '../features/lobby/components/LobbyPhaseGrid.vue';
 import LobbyPhaseHeader from '../features/lobby/components/LobbyPhaseHeader.vue';
+import MatchPhaseTracker from '../features/match/components/MatchPhaseTracker.vue';
 
 const {
   activeCountdown,
   activeCountdownLabel,
   authStore,
+  canAdminLobby,
+  canAutoConnect,
+  connectToServer,
+  deleteLobby,
   getConnectionFlagClass,
   getConnectionLabel,
   getTeamLabel,
@@ -22,16 +27,16 @@ const {
   isCurrentUser,
   isDev,
   lobbyStore,
+  lobbyPhase,
   mapOptions,
   matchSizeLabel,
   phaseTitle,
+  showConnectionStatus,
   showPauseButton,
   skipPhase,
   toggleCountdownPause,
   prevPhase
 } = useLobbyView();
-
- 
 </script>
 
 <template>
@@ -44,14 +49,30 @@ const {
         :announcement="lobbyStore.announcement"
         :show-pause-button="showPauseButton"
         :is-countdown-paused="isCountdownPaused"
+        :can-admin="canAdminLobby"
         :is-dev="isDev"
         @pause="toggleCountdownPause"
         @skip="skipPhase"
         @prev="prevPhase"
         @leave="handleLeaveLobby"
+        @delete="deleteLobby"
       />
 
-      <div class="lobby-panel">
+      <div class="lobby-tracker window-panel">
+        <div class="window-titlebar">
+          <span class="window-titlebar-label">Match Progress</span>
+          <span class="window-titlebar-meta">{{ matchSizeLabel || 'Lobby' }}</span>
+        </div>
+        <div class="lobby-tracker-body">
+          <MatchPhaseTracker :current-phase="lobbyPhase" />
+        </div>
+      </div>
+
+      <div class="lobby-panel window-panel">
+        <div class="window-titlebar">
+          <span class="window-titlebar-label">Teams</span>
+          <span class="window-titlebar-meta">{{ lobbyStore.selectedMap || phaseTitle }}</span>
+        </div>
         <div v-if="lobbyStore.loading" class="loading">
           Loading lobby...
         </div>
@@ -67,6 +88,7 @@ const {
                 :is-captain="isCaptain"
                 :get-connection-flag-class="getConnectionFlagClass"
                 :get-connection-label="getConnectionLabel"
+                :show-connection-status="showConnectionStatus"
               />
             </template>
             <template #center>
@@ -86,12 +108,13 @@ const {
                 :is-captain="isCaptain"
                 :get-connection-flag-class="getConnectionFlagClass"
                 :get-connection-label="getConnectionLabel"
+                :show-connection-status="showConnectionStatus"
               />
             </template>
           </LobbyPhaseGrid>
         </div>
 
-        <div v-else-if="lobbyStore.step === 3" class="lobby-section">
+        <div v-else-if="lobbyStore.step >= 3" class="lobby-section">
           <LobbyPhaseGrid layout-class="match-ready-layout">
             <template #left>
               <LobbyTeamColumn
@@ -102,14 +125,18 @@ const {
                 :is-captain="isCaptain"
                 :get-connection-flag-class="getConnectionFlagClass"
                 :get-connection-label="getConnectionLabel"
+                :show-connection-status="showConnectionStatus"
               />
             </template>
             <template #center>
               <LobbyMatchInfo
                 :match-size-label="matchSizeLabel"
                 :selected-map="lobbyStore.selectedMap"
-                server-prefix="Server IP"
-                :server-label="lobbyStore.serverDetails?.ip || '192.168.1.100'"
+                server-prefix="Connect Address"
+                :server-details="lobbyStore.serverDetails"
+                :auto-connect-available="lobbyStore.step === 3 || lobbyStore.step === 4"
+                :auto-connect-enabled="canAutoConnect"
+                @auto-connect="connectToServer"
               />
             </template>
             <template #right>
@@ -121,41 +148,7 @@ const {
                 :is-captain="isCaptain"
                 :get-connection-flag-class="getConnectionFlagClass"
                 :get-connection-label="getConnectionLabel"
-              />
-            </template>
-          </LobbyPhaseGrid>
-        </div>
-
-        <div v-else-if="lobbyStore.step === 4" class="lobby-section">
-          <LobbyPhaseGrid layout-class="server-details-layout">
-            <template #left>
-              <LobbyTeamColumn
-                team-key="team1"
-                :team-label="getTeamLabel('team1')"
-                :groups="groupedTeam1"
-                :is-current-user="isCurrentUser"
-                :is-captain="isCaptain"
-                :get-connection-flag-class="getConnectionFlagClass"
-                :get-connection-label="getConnectionLabel"
-              />
-            </template>
-            <template #center>
-              <LobbyMatchInfo
-                :match-size-label="matchSizeLabel"
-                :selected-map="lobbyStore.selectedMap"
-                server-prefix="Server"
-                :server-label="lobbyStore.serverDetails?.ip || lobbyStore.serverDetails?.bridge_response?.serverName || 'Live server'"
-              />
-            </template>
-            <template #right>
-              <LobbyTeamColumn
-                team-key="team2"
-                :team-label="getTeamLabel('team2')"
-                :groups="groupedTeam2"
-                :is-current-user="isCurrentUser"
-                :is-captain="isCaptain"
-                :get-connection-flag-class="getConnectionFlagClass"
-                :get-connection-label="getConnectionLabel"
+                :show-connection-status="showConnectionStatus"
               />
             </template>
           </LobbyPhaseGrid>
@@ -193,8 +186,8 @@ const {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  align-items: center;
   justify-content: flex-start;
+  overflow: hidden;
 }
 
 .lobby-section {
@@ -209,6 +202,15 @@ const {
   --teams-offset: 0px;
 }
 
+.lobby-tracker {
+  width: min(100%, 920px);
+  margin: 4px auto 0;
+}
+
+.lobby-tracker-body {
+  padding: 12px clamp(14px, 3vw, 24px);
+}
+
 .loading {
   text-align: center;
   padding: 20px;
@@ -220,21 +222,6 @@ const {
   color: inherit;
 }
 
-.selected-map {
-  font-size: 1.2em;
-  font-weight: bold;
-  color: #4CAF50;
-  text-align: center;
-  margin: 20px 0;
-}
-
-.transition-message {
-  text-align: center;
-  margin-top: 20px;
-  color: #888888;
-  font-style: italic;
-}
-
 @media (max-width: 1200px) {
   .lobby-section {
     --middle-column-width: 240px;
@@ -242,4 +229,3 @@ const {
   }
 }
 </style>
-  

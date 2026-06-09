@@ -7,8 +7,12 @@ def cleanup_player(
     emit,
     save_queue
 ):
-    if username in matchmaking_queue:
-        matchmaking_queue.remove(username)
+    removed_from_queue = False
+    for queue in matchmaking_queue.values():
+        if username in queue:
+            queue.remove(username)
+            removed_from_queue = True
+    if removed_from_queue:
         save_queue()
 
     if username in player_activity:
@@ -44,8 +48,9 @@ def cleanup_stale_players(
                         and current_time - data.get('last_seen', 0) > stale_timeout
                     ):
                         logger.info(f"Removing stale player {username}")
-                        if username in matchmaking_queue:
-                            matchmaking_queue.remove(username)
+                        for queue in matchmaking_queue.values():
+                            if username in queue:
+                                queue.remove(username)
                         del player_activity[username]
                         broadcast_queue_update()
         except Exception as e:

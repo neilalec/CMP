@@ -24,13 +24,17 @@ defineProps({
     type: Boolean,
     default: false
   },
+  canAdmin: {
+    type: Boolean,
+    default: false
+  },
   isDev: {
     type: Boolean,
     default: false
   }
 })
 
-defineEmits(['pause', 'skip', 'prev', 'leave'])
+defineEmits(['pause', 'skip', 'prev', 'leave', 'delete'])
 </script>
 
 <template>
@@ -43,20 +47,31 @@ defineEmits(['pause', 'skip', 'prev', 'leave'])
       <p v-if="announcement" class="lobby-announcement">
         {{ announcement }}
       </p>
-      <div class="countdown-actions">
-        <button v-if="showPauseButton" class="pause-button" @click="$emit('pause')">
-          {{ isCountdownPaused ? 'Unpause Countdown' : 'Pause Countdown' }}
-        </button>
-        <button v-if="isDev" class="skip-button" @click="$emit('prev')">
-          Previous Phase
-        </button>
-        <button v-if="showPauseButton || isDev" class="skip-button" @click="$emit('skip')">
-          Skip Phase
-        </button>
+      <div class="lobby-actions action-row">
         <button class="leave-lobby-button" @click="$emit('leave')">
-          Leave Lobby
+          Leave
         </button>
       </div>
+      <section v-if="canAdmin && (showPauseButton || isDev)" class="admin-lobby-controls window-panel">
+        <div class="window-titlebar">
+          <span class="window-titlebar-label">Admin</span>
+          <span class="window-titlebar-meta">Lobby</span>
+        </div>
+        <div class="admin-lobby-body">
+          <button v-if="showPauseButton" class="pause-button" @click="$emit('pause')">
+            {{ isCountdownPaused ? 'Unpause' : 'Pause' }}
+          </button>
+          <button v-if="isDev" class="skip-button" @click="$emit('prev')">
+            Previous
+          </button>
+          <button class="skip-button" @click="$emit('skip')">
+            Skip
+          </button>
+          <button class="delete-lobby-button" @click="$emit('delete')">
+            Delete Lobby
+          </button>
+        </div>
+      </section>
     </div>
   </div>
 </template>
@@ -64,24 +79,30 @@ defineEmits(['pause', 'skip', 'prev', 'leave'])
 <style scoped>
 .lobby-header {
   width: 100%;
+  padding: 18px clamp(14px, 3vw, 24px) 0;
 }
 
 .lobby-title {
   color: inherit;
-  font-weight: 500;
-  margin: 28px 0 12px;
+  font-weight: 750;
+  margin: 10px 0 12px;
   text-align: center;
+  font-size: clamp(2rem, 4.4vw, 4rem);
+  line-height: 1.02;
+  letter-spacing: -0.035em;
 }
 
 .countdown {
   display: block;
-  font-size: 1.2em;
-  color: #4CAF50;
-  font-weight: bold;
+  font-size: 0.95rem;
+  color: var(--accent-strong);
+  font-weight: 800;
   margin: 1rem auto 0;
   text-align: center;
   width: 100%;
   max-width: 520px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .countdown.is-hidden {
@@ -89,7 +110,7 @@ defineEmits(['pause', 'skip', 'prev', 'leave'])
 }
 
 .countdown-slot {
-  min-height: 80px;
+  min-height: 92px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -98,7 +119,7 @@ defineEmits(['pause', 'skip', 'prev', 'leave'])
 
 .lobby-announcement {
   margin: 0.4rem 0 0;
-  color: #7ed957;
+  color: var(--accent-strong);
   font-weight: 600;
   text-align: center;
 }
@@ -107,34 +128,78 @@ defineEmits(['pause', 'skip', 'prev', 'leave'])
   margin-top: 0;
 }
 
-.countdown-actions {
+.lobby-actions {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   flex-wrap: wrap;
   justify-content: center;
+  margin-top: 10px;
 }
 
-.countdown-actions button {
-  min-width: 148px;
+.lobby-actions button {
+  min-width: 138px;
+}
+
+.admin-lobby-controls {
+  width: min(100%, 520px);
+  margin-top: 10px;
+  overflow: hidden;
+}
+
+.admin-lobby-body {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px;
+  flex-wrap: wrap;
+  background: var(--panel-bg-muted);
+}
+
+.admin-lobby-body button {
+  min-width: 110px;
+  margin: 0;
 }
 
 .pause-button,
 .skip-button,
 .leave-lobby-button {
   margin-top: 0.5rem;
-  padding: 0.6rem 1.2rem;
-  background: #3b3f45;
+  min-height: 40px;
+  padding: 0.62rem 1rem;
+  background: var(--control-bg);
   color: inherit;
-  border: none;
-  border-radius: 4px;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: background-color 0.2s;
+  font-weight: 800;
+  transition: background-color 0.12s ease, border-color 0.12s ease, transform 0.08s ease;
+  box-shadow: var(--surface-shadow);
+}
+
+.pause-button {
+  background: var(--accent-soft);
+  border-color: var(--accent-border);
+  color: var(--accent-strong);
+}
+
+.leave-lobby-button {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.delete-lobby-button {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
 }
 
 .pause-button:hover,
 .skip-button:hover,
-.leave-lobby-button:hover {
-  background: #4a4f56;
+.leave-lobby-button:hover,
+.delete-lobby-button:hover {
+  background: var(--control-bg-hover);
+  transform: translateY(-1px);
 }
 
 @media (max-width: 640px) {
@@ -142,11 +207,13 @@ defineEmits(['pause', 'skip', 'prev', 'leave'])
     margin-top: 18px;
   }
 
-  .countdown-actions {
+  .lobby-actions,
+  .admin-lobby-body {
     width: 100%;
   }
 
-  .countdown-actions button {
+  .lobby-actions button,
+  .admin-lobby-body button {
     width: 100%;
   }
 }

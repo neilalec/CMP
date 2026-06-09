@@ -1,4 +1,5 @@
 <script setup>
+import { computed } from 'vue';
 import { RouterLink, RouterView } from 'vue-router';
 import { useRouter, useRoute } from 'vue-router';
 import { useAuthStore } from './stores/authStore';
@@ -8,6 +9,9 @@ import { useLobbyStore } from './stores/lobbyStore';
 import { useQueueStore } from './stores/queueStore';
 import { useGroupStore } from './stores/groupStore';
 import { useAppSession } from './features/app/composables/useAppSession';
+import { useThemeMode } from './features/app/composables/useThemeMode';
+import { useMatchAcceptChime } from './features/app/composables/useMatchAcceptChime';
+import MatchAcceptModal from './features/app/components/MatchAcceptModal.vue';
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -17,6 +21,7 @@ const lobbyStore = useLobbyStore();
 const queueStore = useQueueStore();
 const groupStore = useGroupStore();
 const route = useRoute();
+const { isDarkMode } = useThemeMode();
 const {
   isInLobby,
   currentLobbyId,
@@ -30,6 +35,7 @@ const {
   handleProfile,
   handleGroup,
   handleAcceptMatch,
+  handleCloseMatchAccept,
   handleDismissMatchAccept
 } = useAppSession({
   router,
@@ -41,99 +47,143 @@ const {
   queueStore,
   groupStore
 });
+
+const acceptedMatchPlayers = computed(() => queueStore.matchAccept.acceptedPlayers || []);
+const waitingMatchPlayers = computed(() => {
+  const accepted = new Set(acceptedMatchPlayers.value);
+  return (queueStore.matchAccept.players || []).filter((player) => !accepted.has(player));
+});
+
+useMatchAcceptChime({
+  queueStore,
+  authStore,
+  isMatchAcceptParticipant
+});
+
+const currentWindowTitle = computed(() => {
+  if (route.path.startsWith('/lobby/')) return 'Lobby';
+  if (route.path.startsWith('/play') || route.path === '/' || route.path.startsWith('/queue')) return 'Play';
+  if (route.path.startsWith('/lobbies')) return 'Lobbies';
+  if (route.path.startsWith('/results')) return 'Results';
+  if (route.path.startsWith('/group')) return 'Group';
+  if (route.path.startsWith('/profile')) return 'Profile';
+  if (route.path.startsWith('/admin')) return 'Admin';
+  if (route.path.startsWith('/auth')) return 'Authentication';
+  return 'Play';
+});
+
 </script>
 
 <template>
   <div class="app">
     <template v-if="authStore.isLoggedIn">
       <div class="app-shell" :class="{ 'in-lobby': isInLobby }">
-        <aside class="app-left">
-          <RouterLink class="side-link" to="/">
-            <span class="nav-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" role="img">
-                <path d="M3 11.5L12 4l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" fill="currentColor" />
-              </svg>
-            </span>
-            <span class="nav-label">Home</span>
-          </RouterLink>
-          <RouterLink class="side-link" :to="playRoute">
-            <span class="nav-icon" :class="{ 'in-queue': queueStore.inQueue }" aria-hidden="true">
-              <svg viewBox="0 0 24 24" role="img">
-                <polygon points="4,5 12,12 4,19" fill="#4a4f56" stroke="currentColor" stroke-width="1.6" />
-                <polygon points="12,5 20,12 12,19" fill="#4a4f56" stroke="currentColor" stroke-width="1.6" />
-              </svg>
-            </span>
-            <span class="nav-label">Play</span>
-          </RouterLink>
-          <RouterLink class="side-link" to="/lobbies">
-            <span class="nav-icon">&#9673;</span>
-            <span class="nav-label">Lobbies</span>
-          </RouterLink>
-      </aside>
+        <aside class="app-left window-panel">
+          <div class="window-titlebar">
+            <span class="window-titlebar-label">Navigate</span>
+          </div>
+          <div class="sidebar-body">
+            <RouterLink class="side-link" :to="playRoute">
+              <span class="nav-icon" :class="{ 'in-queue': queueStore.inQueue }" aria-hidden="true">
+                <svg viewBox="0 0 24 24" role="img">
+                  <polygon points="4,5 12,12 4,19" fill="#959ca6" stroke="currentColor" stroke-width="1.6" />
+                  <polygon points="12,5 20,12 12,19" fill="#959ca6" stroke="currentColor" stroke-width="1.6" />
+                </svg>
+              </span>
+              <span class="nav-label">Play</span>
+              <span v-if="queueStore.inQueue" class="queue-spinner" aria-hidden="true"></span>
+            </RouterLink>
+            <RouterLink class="side-link" to="/lobbies">
+              <span class="nav-icon">&#9673;</span>
+              <span class="nav-label">Lobbies</span>
+            </RouterLink>
+            <RouterLink class="side-link" to="/results">
+              <span class="nav-icon">R</span>
+              <span class="nav-label">Results</span>
+            </RouterLink>
+          </div>
+        </aside>
 
-        <main class="app-main">
-          <RouterView />
+        <main class="app-main window-panel">
+          <div class="window-titlebar">
+            <span class="window-titlebar-label">Competitive Matchmaking Platform</span>
+            <span class="window-titlebar-meta">{{ currentWindowTitle }}</span>
+          </div>
+          <div class="main-window-body">
+            <RouterView />
+          </div>
         </main>
 
-        <aside class="app-right">
-          <button class="profile-button" type="button" title="Profile page coming soon" @click="handleProfile">
-            <span class="nav-icon profile-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" role="img">
-                <circle cx="12" cy="8" r="4" fill="currentColor" />
-                <path d="M4 20c0-4 4-6 8-6s8 2 8 6" fill="currentColor" />
-              </svg>
-            </span>
-            <span class="nav-label current-user">{{ authStore.username }}</span>
-          </button>
-          <button
-            class="group-button"
-            :class="{ 'in-group': groupStore.inGroup }"
-            type="button"
-            title="Group page"
-            @click="handleGroup"
-          >
-            <span class="nav-icon group-icon" aria-hidden="true">
-              <svg viewBox="0 0 28 22" role="img">
-                <circle cx="8" cy="7" r="3" fill="currentColor" />
-                <circle cx="20" cy="7" r="3" fill="currentColor" />
-                <path d="M2 21c0-3 3-5 6-5s6 2 6 5" fill="currentColor" />
-                <path d="M14 21c0-3 3-5 6-5s6 2 6 5" fill="currentColor" />
-              </svg>
-            </span>
-            <span class="nav-label">Group</span>
-          </button>
+        <aside class="app-right window-panel">
+          <div class="window-titlebar">
+            <span class="window-titlebar-label">Session</span>
+          </div>
+          <div class="sidebar-body">
+            <button class="profile-button" type="button" title="Profile page" @click="handleProfile">
+              <span class="nav-icon profile-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" role="img">
+                  <circle cx="12" cy="8" r="4" fill="currentColor" />
+                  <path d="M4 20c0-4 4-6 8-6s8 2 8 6" fill="currentColor" />
+                </svg>
+              </span>
+              <span class="nav-label current-user">{{ authStore.username }}</span>
+            </button>
+            <button
+              class="group-button"
+              :class="{ 'in-group': groupStore.inGroup }"
+              type="button"
+              title="Group page"
+              @click="handleGroup"
+            >
+              <span class="nav-icon group-icon" aria-hidden="true">
+                <svg viewBox="0 0 28 22" role="img">
+                  <circle cx="8" cy="7" r="3" fill="currentColor" />
+                  <circle cx="20" cy="7" r="3" fill="currentColor" />
+                  <path d="M2 21c0-3 3-5 6-5s6 2 6 5" fill="currentColor" />
+                  <path d="M14 21c0-3 3-5 6-5s6 2 6 5" fill="currentColor" />
+                </svg>
+              </span>
+              <span class="nav-label">Group</span>
+            </button>
+            <button
+              v-if="authStore.isAdmin"
+              class="admin-button"
+              type="button"
+              title="Admin diagnostics"
+              @click="router.push('/admin')"
+            >
+              <span class="nav-icon admin-icon" aria-hidden="true">A</span>
+              <span class="nav-label">Admin</span>
+            </button>
+            <button
+              class="theme-button"
+              type="button"
+              :aria-pressed="isDarkMode"
+              :title="isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'"
+              @click="isDarkMode = !isDarkMode"
+            >
+              <span class="nav-icon theme-icon" aria-hidden="true">{{ isDarkMode ? 'L' : 'D' }}</span>
+              <span class="nav-label">{{ isDarkMode ? 'Light' : 'Dark' }}</span>
+            </button>
+          </div>
         </aside>
       </div>
 
-      <div v-if="isMatchAcceptParticipant" class="match-accept-overlay">
-        <div class="match-accept-modal">
-          <h2>{{ isMatchAcceptCancelled ? 'Match Cancelled' : 'Match Found' }}</h2>
-          <p v-if="isMatchAcceptCancelled">
-            {{ queueStore.matchAccept.cancelReason || 'Not everyone accepted the match.' }}
-          </p>
-          <p v-else>Everyone in the queue must accept before the lobby is created.</p>
-          <p v-if="!isMatchAcceptCancelled" class="match-accept-countdown">
-            Accept within {{ queueStore.matchAccept.countdown ?? 0 }}s
-          </p>
-          <p v-if="!isMatchAcceptCancelled" class="match-accept-progress">
-            Accepted {{ queueStore.matchAccept.acceptedCount }}/{{ queueStore.matchAccept.requiredCount }}
-          </p>
-          <button
-            class="match-accept-button"
-            type="button"
-            @click="isMatchAcceptCancelled ? handleDismissMatchAccept() : handleAcceptMatch()"
-            :disabled="!isMatchAcceptCancelled && (queueStore.loading || queueStore.matchAccept.hasAccepted)"
-          >
-            {{
-              isMatchAcceptCancelled
-                ? 'OK'
-                : (queueStore.matchAccept.hasAccepted
-                  ? 'Accepted'
-                  : (queueStore.loading ? 'Accepting...' : 'Accept Match'))
-            }}
-          </button>
-        </div>
-      </div>
+      <MatchAcceptModal
+        :active="isMatchAcceptParticipant"
+        :is-cancelled="isMatchAcceptCancelled"
+        :cancel-reason="queueStore.matchAccept.cancelReason"
+        :countdown="queueStore.matchAccept.countdown ?? 0"
+        :accepted-count="queueStore.matchAccept.acceptedCount"
+        :required-count="queueStore.matchAccept.requiredCount"
+        :accepted-players="acceptedMatchPlayers"
+        :waiting-players="waitingMatchPlayers"
+        :loading="queueStore.loading"
+        :has-accepted="queueStore.matchAccept.hasAccepted"
+        @accept="handleAcceptMatch"
+        @close="handleCloseMatchAccept"
+        @dismiss="handleDismissMatchAccept"
+      />
     </template>
 
     <div v-else class="auth-shell">
@@ -148,7 +198,6 @@ const {
 
 <style scoped>
 .app {
-  font-family: Arial, sans-serif;
   color: inherit;
   min-height: 100vh;
   min-height: 100dvh;
@@ -168,27 +217,13 @@ const {
   min-height: 100vh;
   min-height: 100dvh;
   height: auto;
-  --nav-icon-box: 36px;
-  --nav-collapsed: 40px;
-  --nav-right-width: 56px;
-  --nav-collapsed-right: var(--nav-right-width);
-  --nav-offset: calc((var(--nav-collapsed) - var(--nav-icon-box)) / 2);
-  --nav-link-pad: 0.3rem;
-  --nav-hover-bg: #4d4d4d;
-  --nav-hover-width: calc(100% - (var(--nav-link-pad) + var(--nav-offset)) - 6px);
+  --nav-icon-box: 32px;
+  --nav-column-width: 168px;
   background: var(--surface);
-  border-radius: 0;
-  box-shadow: none;
   display: grid;
-  grid-template-columns: 120px minmax(0, 1fr) var(--nav-right-width);
-  transition: grid-template-columns 0.7s ease;
-  gap: 0;
-  padding: 0;
-}
-
-.app-shell.in-lobby {
-  grid-template-columns: 52px minmax(0, 1fr) var(--nav-right-width);
-  --nav-hover-width: var(--nav-icon-box);
+  grid-template-columns: var(--nav-column-width) minmax(0, 1fr) var(--nav-column-width);
+  gap: 12px;
+  padding: 12px;
 }
 
 .auth-shell {
@@ -205,288 +240,58 @@ const {
   position: fixed;
   bottom: 20px;
   right: 20px;
-  background: #ff4444;
-  color: white;
+  background: var(--danger-soft);
+  color: var(--danger);
   padding: 1rem;
-  border-radius: 4px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-}
-
-.match-accept-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(6, 12, 20, 0.72);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 40;
-  padding: 24px;
-}
-
-.match-accept-modal {
-  width: min(100%, 420px);
-  padding: 28px 24px;
-  background: #16202a;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 16px;
-  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.42);
-  text-align: center;
-}
-
-.match-accept-modal h2 {
-  margin: 0 0 10px;
-}
-
-.match-accept-modal p {
-  margin: 0;
-}
-
-.match-accept-countdown {
-  margin-top: 14px;
-  color: #7ed957;
-  font-weight: 700;
-}
-
-.match-accept-progress {
-  margin-top: 8px;
-  color: rgba(255, 255, 255, 0.82);
-}
-
-.match-accept-button {
-  margin-top: 20px;
-  width: 100%;
-  padding: 0.85rem 1.2rem;
-  background: #2f8f47;
-  border: 1px solid #2f8f47;
-}
-
-.match-accept-button:hover {
-  background: #38a453;
-  border-color: #38a453;
-}
-
-.match-accept-button:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-}
-
-button {
-  padding: 0.5rem 1rem;
-  cursor: pointer;
-  background: transparent;
-  color: inherit;
-  border: 1px solid transparent;
-  border-radius: 4px;
-  transition: background-color 0.2s, border-color 0.2s;
-}
-
-button:hover {
-  background: #3d3d3d;
-  border-color: #3d3d3d;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--danger);
+  box-shadow: var(--surface-shadow), var(--window-shadow);
 }
 
 .app-left {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  align-items: stretch;
-  justify-content: flex-start;
-  padding: clamp(24px, 18vh, 24vh) 0px 20px;
-  border-right: 1px solid var(--surface-border);
+  min-height: 0;
+  position: sticky;
+  top: 12px;
+  height: calc(100dvh - 24px);
+  align-self: start;
 }
 
 .side-link {
-  display: grid;
-  grid-template-columns: var(--nav-collapsed) 1fr;
-  column-gap: 8px;
+  display: flex;
   align-items: center;
+  gap: 10px;
   justify-content: flex-start;
-  padding: 0 var(--nav-link-pad);
-  height: 36px;
-  color: inherit;
-  border-radius: 4px;
-  border: 1px solid transparent;
+  min-height: 44px;
+  padding: 0 10px;
+  color: var(--text-main);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--control-border);
   text-decoration: none;
-  transition: background-color 0.2s, border-color 0.2s;
-}
-
-.side-link:hover {
-  background: transparent;
-  border-color: transparent;
-}
-
-.app-left .side-link,
-.app-left .lobby-id-button {
-  display: grid;
-  grid-template-columns: var(--nav-collapsed) 1fr;
-  column-gap: 8px;
-  align-items: center;
-}
-
-.app-left .nav-icon {
-  justify-self: center;
+  background: var(--control-bg);
+  box-shadow: var(--surface-shadow);
+  transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease;
 }
 
 .nav-label {
   display: inline-block;
   white-space: nowrap;
-  transition: opacity 0.2s ease, max-width 0.2s ease;
-  max-width: 0;
-  opacity: 0;
-  overflow: hidden;
-}
-
-.app-shell:not(.in-lobby) {
-  grid-template-columns: 150px minmax(0, 1fr) var(--nav-right-width);
-}
-
-.app-left .side-link,
-.app-left .lobby-id-button {
-  position: relative;
-}
-
-.app-left .side-link::before,
-.app-left .lobby-id-button::before {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: calc(var(--nav-link-pad) + var(--nav-offset));
-  transform: translateY(-50%);
-  width: var(--nav-hover-width);
-  height: 36px;
-  background: var(--nav-hover-bg);
-  border-radius: 4px;
-  opacity: 0;
-  transition: opacity 0.2s;
-  z-index: 0;
-  pointer-events: none;
-}
-
-.app-left .side-link:hover::before,
-.app-left .lobby-id-button:hover::before {
-  opacity: 1;
-}
-
-.app-left .side-link > *,
-.app-left .lobby-id-button > * {
-  position: relative;
-  z-index: 1; 
-}
-
-.app-shell:not(.in-lobby) .app-left .nav-label {
-  max-width: 140px;
-  opacity: 1;
-}
-
-.app-shell.in-lobby .app-left .nav-label {
-  transition-delay: 0s;
-}
-
-
-.app-right .nav-label {
-  opacity: 0;
-  pointer-events: none;
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  background: #2d2d2d;
-  border: 1px solid #3d3d3d;
-  border-radius: 4px;
-  padding: 2px 5px;
-  max-width: none;
-  right: calc(100% + 6px);
-}
-
-.app-right .profile-button:hover .nav-label,
-.app-right .group-button:hover .nav-label {
-  opacity: 1;
-}
-
-
-.in-lobby .side-link,
-.in-lobby .profile-button,
-.in-lobby .lobby-id-button {
-  position: relative;
-}
-
-.in-lobby .nav-label {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  background: #2d2d2d;
-  border: 1px solid #3d3d3d;
-  border-radius: 4px;
-  padding: 2px 5px;
-  opacity: 0;
-  pointer-events: none;
-  max-width: none;
-  transition: opacity 0.2s ease;
-}
-
-.in-lobby .app-left .nav-label {
-  left: calc(100% + 6px);
-}
-
-.in-lobby .app-right .nav-label {
-  right: calc(100% + 6px);
-}
-
-.in-lobby .side-link:hover .nav-label,
-.in-lobby .profile-button:hover .nav-label,
-.in-lobby .lobby-id-button:hover .nav-label {
-  opacity: 1;
-}
-
-.app-right .profile-button:hover,
-.app-right .group-button:hover {
-  background: transparent;
-  border-color: transparent;
-}
-
-.app-right .profile-button:hover .nav-icon,
-.app-right .group-button:hover .nav-icon {
-  background: var(--nav-hover-bg);
-  border-radius: 4px;
-}
-
-/* Use the same hover bubble in both views */
-.app-left .side-link {
-  position: relative;
-}
-
-/* Match hover bubble brightness across views (right column icons) */
-.app-right .profile-button:hover .nav-icon,
-.app-right .group-button:hover .nav-icon {
-  opacity: 1;
 }
 
 .app-main {
-  display: block;
-  flex: 1;
+  display: flex;
+  flex-direction: column;
   padding: 0;
   min-width: 0;
-  background: var(--panel-bg);
   overflow-y: auto;
   overflow-x: hidden;
-  scrollbar-width: thin;
-  scrollbar-color: #3a3a3a #1f1f1f;
 }
 
-.app-main::-webkit-scrollbar {
-  width: 10px;
-}
-
-.app-main::-webkit-scrollbar-track {
-  background: #1f1f1f;
-}
-
-.app-main::-webkit-scrollbar-thumb {
-  background: #3a3a3a;
-  border-radius: 6px;
-}
-
-.app-main::-webkit-scrollbar-thumb:hover {
-  background: #4a4a4a;
+.main-window-body {
+  flex: 1;
+  min-height: 0;
+  background: linear-gradient(180deg, var(--app-bg-soft) 0%, var(--app-bg) 100%);
 }
 
 .app-actions {
@@ -498,45 +303,36 @@ button:hover {
 .app-right {
   display: flex;
   flex-direction: column;
-  align-items: stretch;
-  justify-content: flex-start;
-  gap: 16px;
-  padding: clamp(24px, 18vh, 24vh) 0px 16px;
-  border-left: 1px solid var(--surface-border);
-  position: relative;
-  width: var(--nav-right-width);
+  min-height: 0;
+  position: sticky;
+  top: 12px;
+  height: calc(100dvh - 24px);
+  align-self: start;
 }
 
-.app-right .profile-button {
-  position: relative;
+.app-right .profile-button,
+.app-right .group-button,
+.app-right .admin-button,
+.app-right .theme-button {
   width: 100%;
-  display: grid;
-  grid-template-columns: var(--nav-collapsed-right) 1fr;
-  column-gap: 8px;
+  display: flex;
   align-items: center;
-  justify-content: flex-start;
-  padding: 0 0rem;
-  height: 36px;
-  box-sizing: border-box;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 1px solid var(--control-border);
+  background: var(--control-bg);
+  box-shadow: var(--surface-shadow);
   text-align: left;
 }
 
-.app-right .nav-icon {
-  justify-self: center;
-}
-
-.app-right .group-button {
-  position: relative;
-  width: 100%;
-  display: grid;
-  grid-template-columns: var(--nav-collapsed-right) 1fr;
-  column-gap: 8px;
-  align-items: center;
-  justify-content: flex-start;
-  padding: 0 0rem;
-  height: 36px;
-  box-sizing: border-box;
-  text-align: left;
+.sidebar-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  flex: 1;
+  min-height: 0;
 }
 
 .lobby-dropdown {
@@ -550,25 +346,19 @@ button:hover {
 
 .lobby-id-button {
   font-weight: 700;
+  gap: 8px;
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 8px;
-  flex-direction: row;
   max-width: 100%;
-  padding: 0 0.3rem;
-  height: 36px;
-  background: #16202a;
-  border: 1px solid transparent;
+  min-height: 44px;
+  padding: 0 10px;
+  background: transparent;
+  border: 1px solid var(--surface-border);
 }
 
 .app-left .lobby-id-button {
   width: 100%;
-}
-
-.lobby-id-button:hover {
-  background: #22303c;
-  border-color: #22303c;
 }
 
 .lobby-label {
@@ -585,10 +375,11 @@ button:hover {
   top: 100%;
   left: 0;
   transform: none;
-  margin-top: 0;
-  background: #2d2d2d;
-  border: 1px solid #3d3d3d;
-  border-radius: 6px;
+  margin-top: 6px;
+  background: var(--panel-bg-strong);
+  border: 1px solid var(--surface-border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--surface-shadow), var(--window-shadow);
   padding: 8px;
   z-index: 10;
   min-width: 200px;
@@ -610,28 +401,46 @@ button:hover {
 .profile-button {
   font-weight: 700;
   padding: 0 0.3rem;
-  height: 36px;
+  height: 38px;
 }
 
-.group-button {
+.group-button,
+.admin-button,
+.theme-button {
   font-weight: 700;
   padding: 0 0.3rem;
-  height: 36px;
+  height: 38px;
+}
+
+.theme-button {
+  margin-top: auto;
+}
+
+.theme-icon {
+  font-family: var(--font-mono);
+  font-size: 1.1rem;
 }
 
 .group-button.in-group .nav-icon {
-  color: #7ed957;
+  color: var(--accent-strong);
+}
+
+.admin-button .nav-icon {
+  color: var(--warning);
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  font-weight: 800;
 }
 
 .nav-icon {
-  margin-right: 0;
-  opacity: 0.8;
-  font-size: 1.7em;
+  opacity: 1;
+  font-size: 1.4em;
   width: var(--nav-icon-box);
   height: var(--nav-icon-box);
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  color: currentColor;
 }
 
 .nav-icon svg {
@@ -645,88 +454,94 @@ button:hover {
 }
 
 .nav-icon.in-queue {
-  color: #7ed957;
+  color: var(--accent-strong);
+}
+
+.side-link:hover,
+.profile-button:hover,
+.group-button:hover,
+.admin-button:hover,
+.theme-button:hover,
+.lobby-id-button:hover,
+.side-link.router-link-active {
+  background: var(--control-bg-hover);
+  border-color: var(--surface-border-strong);
+  color: var(--text-main);
+  text-decoration: none;
+}
+
+.side-link:has(.queue-spinner) {
+  background: var(--accent-soft);
+  border-color: var(--accent-border);
+  color: var(--accent-strong);
+}
+
+.side-link:has(.queue-spinner):hover,
+.side-link:has(.queue-spinner).router-link-active {
+  background: var(--accent-soft);
+  border-color: var(--accent-strong);
+}
+
+.queue-spinner {
+  width: 13px;
+  height: 13px;
+  margin-left: auto;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: queue-spin 0.9s steps(8) infinite;
+}
+
+@keyframes queue-spin {
+  to {
+    transform: rotate(1turn);
+  }
 }
 
 @media (max-width: 1024px) {
-  .app-shell,
-  .app-shell:not(.in-lobby) {
-    grid-template-columns: 92px minmax(0, 1fr) var(--nav-right-width);
-  }
-
-  .app-left,
-  .app-right {
-    padding-top: 32px;
+  .app-shell {
+    --nav-column-width: 148px;
   }
 }
 
 @media (max-width: 768px) {
-  .app-shell,
-  .app-shell.in-lobby,
-  .app-shell:not(.in-lobby) {
+  .app-shell {
     grid-template-columns: 1fr;
     grid-template-rows: auto minmax(0, 1fr) auto;
     min-height: 100vh;
     min-height: 100dvh;
+    gap: 10px;
+    padding: 10px;
   }
 
   .app-left,
   .app-right {
-    flex-direction: row;
-    justify-content: center;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 8px;
-    padding: 12px 14px;
-    border: none;
     width: 100%;
-  }
-
-  .app-left {
-    border-bottom: 1px solid var(--surface-border);
-  }
-
-  .app-right {
-    border-top: 1px solid var(--surface-border);
+    position: static;
+    height: auto;
   }
 
   .app-left .side-link,
   .app-left .lobby-id-button,
   .app-right .profile-button,
-  .app-right .group-button {
+  .app-right .group-button,
+  .app-right .admin-button,
+  .app-right .theme-button {
     width: auto;
     min-width: 0;
-    display: inline-grid;
-    grid-template-columns: var(--nav-icon-box) auto;
-    column-gap: 8px;
+    display: inline-flex;
+    gap: 8px;
     padding: 0 10px;
   }
 
-  .nav-label,
-  .app-shell:not(.in-lobby) .app-left .nav-label,
-  .app-shell.in-lobby .app-left .nav-label,
-  .app-right .nav-label,
-  .in-lobby .app-right .nav-label {
-    position: static;
-    max-width: 140px;
-    opacity: 1;
-    overflow: visible;
-    pointer-events: auto;
-    transform: none;
-    background: transparent;
-    border: none;
-    padding: 0;
-    right: auto;
+  .sidebar-body {
+    flex-direction: row;
+    justify-content: center;
+    flex-wrap: wrap;
   }
 
-  .app-left .side-link::before,
-  .app-left .lobby-id-button::before {
-    display: none;
-  }
-
-  .app-right .profile-button:hover .nav-icon,
-  .app-right .group-button:hover .nav-icon {
-    background: transparent;
+  .theme-button {
+    margin-top: 0;
   }
 }
 
@@ -738,10 +553,15 @@ button:hover {
   .app-left .side-link,
   .app-left .lobby-id-button,
   .app-right .profile-button,
-  .app-right .group-button {
+  .app-right .group-button,
+  .app-right .admin-button,
+  .app-right .theme-button {
     width: 100%;
     justify-content: center;
   }
+
 }
 
 </style>
+
+

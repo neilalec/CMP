@@ -102,7 +102,7 @@ export default class SquadServer extends EventEmitter {
       host: this.options.rconHost || this.options.host,
       port: this.options.rconPort,
       password: this.options.rconPassword,
-      autoReconnectInterval: this.options.rconAutoReconnectInterval
+      autoReconnectDelay: this.options.rconAutoReconnectInterval
     });
 
     this.rcon.on('CHAT_MESSAGE', async (data) => {
@@ -476,13 +476,15 @@ export default class SquadServer extends EventEmitter {
         );
 
       this.emit('UPDATED_PLAYER_INFORMATION');
+      return true;
     } catch (err) {
       Logger.verbose('SquadServer', 1, 'Failed to update player list.', err);
+      return false;
+    } finally {
+      Logger.verbose('SquadServer', 1, `Updated player list.`);
+
+      this.updatePlayerListTimeout = setTimeout(this.updatePlayerList, this.updatePlayerListInterval);
     }
-
-    Logger.verbose('SquadServer', 1, `Updated player list.`);
-
-    this.updatePlayerListTimeout = setTimeout(this.updatePlayerList, this.updatePlayerListInterval);
   }
 
   async updateSquadList() {
@@ -595,16 +597,18 @@ export default class SquadServer extends EventEmitter {
 
       this.emit('UPDATED_A2S_INFORMATION', info);
       this.emit('UPDATED_SERVER_INFORMATION', info);
+      return true;
     } catch (err) {
       Logger.verbose('SquadServer', 1, 'Failed to update server information.', err);
+      return false;
+    } finally {
+      Logger.verbose('SquadServer', 1, `Updated server information.`);
+
+      this.updateA2SInformationTimeout = setTimeout(
+        this.updateA2SInformation,
+        this.updateA2SInformationInterval
+      );
     }
-
-    Logger.verbose('SquadServer', 1, `Updated server information.`);
-
-    this.updateA2SInformationTimeout = setTimeout(
-      this.updateA2SInformation,
-      this.updateA2SInformationInterval
-    );
   }
 
   async getPlayerByCondition(condition, forceUpdate = false, retry = true) {

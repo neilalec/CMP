@@ -7,7 +7,10 @@
   ],
   "env": {
     "test": {
-      "plugins": ["@babel/plugin-transform-modules-commonjs"]
+      "plugins": [
+        "./tests/transformImportMetaEnv.cjs",
+        "@babel/plugin-transform-modules-commonjs"
+      ]
     }
   }
 } 

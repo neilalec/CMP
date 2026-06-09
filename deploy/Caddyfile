@@ -1,8 +1,4 @@
-http://cmp.zapto.org {
-    redir https://cmp.zapto.org{uri} permanent
-}
-
-https://cmp.zapto.org {
+(cmp_app) {
     handle /api/* {
         uri strip_prefix /api
         reverse_proxy backend:5000
@@ -15,4 +11,20 @@ https://cmp.zapto.org {
     handle {
         reverse_proxy frontend:80
     }
+}
+
+http://cmp.zapto.org {
+    redir https://cmp.zapto.org{uri} permanent
+}
+
+https://cmp.zapto.org {
+    import cmp_app
+}
+
+http://localhost {
+    import cmp_app
+}
+
+https://localhost {
+    import cmp_app
 }
