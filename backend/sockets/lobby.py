@@ -1,6 +1,9 @@
 import random
 import time
 
+from app_state import MAP_VOTE_COUNTDOWN
+from state.lobby import build_player_profile_map
+
 
 def select_map_from_votes(lobby, all_skirmish_maps):
     if lobby.get('map_votes'):
@@ -110,12 +113,25 @@ def handle_join_lobby_event(
             is_lobby_member = username in lobby['players']
             was_disconnected = username in lobby.get('disconnected_players', set())
             has_open_slot = len(lobby['players']) < max_players
+            is_finalized = lobby.get('step') == 5
+
+            if allow_new and not is_lobby_member and not was_disconnected and is_finalized:
+                return {
+                    'success': False,
+                    'message': 'This lobby has finished and is closed to new players.'
+                }
 
             if not is_lobby_member and not (is_rejoin and was_disconnected) and not (allow_new and has_open_slot):
                 logger.warning(f"Unauthorized lobby join attempt by {username}")
                 return {
                     'success': False,
                     'message': 'Not authorized to join this lobby'
+                }
+
+            if allow_new and not is_lobby_member and not was_disconnected and get_user_group(username):
+                return {
+                    'success': False,
+                    'message': 'Leave your group before joining an open lobby directly.'
                 }
 
             if was_disconnected:
@@ -155,6 +171,7 @@ def handle_join_lobby_event(
                 emit('lobby_update', {
                     'lobby_id': lobby_id,
                     'players': lobby['players'],
+                    'player_profiles': build_player_profile_map(lobby['players']),
                     'teams': lobby['teams'],
                     'captains': lobby.get('captains'),
                     'step': lobby['step'],
@@ -184,6 +201,7 @@ def handle_join_lobby_event(
             lobby_state = {
                 'lobby_id': lobby_id,
                 'players': lobby['players'],
+                'player_profiles': build_player_profile_map(lobby['players']),
                 'teams': lobby['teams'],
                 'captains': lobby.get('captains'),
                 'step': lobby['step'],
@@ -195,7 +213,10 @@ def handle_join_lobby_event(
                 'match_size_label': lobby.get('match_size_label'),
                 'max_players': max_players,
                 'server_details': lobby.get('server_details'),
+                'team_labels': lobby.get('team_labels', {}),
                 'server_details_provided_at': lobby.get('server_details_provided_at'),
+                'live_started_at': lobby.get('live_started_at'),
+                'live_match_max_seconds': lobby.get('live_match_max_seconds'),
                 'live_roll_ready_at': lobby.get('live_roll_ready_at'),
                 'live_roll_countdown': lobby.get('live_roll_countdown'),
                 'map_pool': lobby.get('map_pool', []),
@@ -294,6 +315,7 @@ def handle_leave_lobby_event(
                 socketio.emit('lobby_update', {
                     'lobby_id': lobby_id,
                     'players': lobby['players'],
+                    'player_profiles': build_player_profile_map(lobby['players']),
                     'teams': lobby['teams'],
                     'captains': lobby.get('captains'),
                     'step': lobby.get('step', 1),
@@ -412,6 +434,7 @@ def handle_skip_phase_event(
     socketio,
     start_live_roll_monitor,
     get_server_connection_details,
+    get_selected_map_team_labels,
     ready_grace_seconds,
     get_username_by_sid,
     is_admin_user,
@@ -435,6 +458,10 @@ def handle_skip_phase_event(
             selected_map, vote_counts = select_map_from_votes_fn(lobby)
             lobby['selected_map'] = selected_map
             lobby['server_details'] = get_server_connection_details(server_id=lobby.get('server_id'))
+            lobby['team_labels'] = get_selected_map_team_labels(
+                selected_map,
+                server_id=lobby.get('server_id')
+            )
             lobby['server_details_provided_at'] = time.time()
             lobby['live_roll_ready_at'] = lobby['server_details_provided_at'] + ready_grace_seconds
             lobby['live_roll_countdown'] = ready_grace_seconds
@@ -456,7 +483,8 @@ def handle_skip_phase_event(
                 record_lobby_event(lobby_id, 'phase_skipped_to_server', {
                     'selected_map': selected_map,
                     'vote_counts': vote_counts,
-                    'server_details': lobby.get('server_details')
+                    'server_details': lobby.get('server_details'),
+                    'team_labels': lobby.get('team_labels', {})
                 }, created_at=lobby['server_details_provided_at'])
             socketio.emit('lobby_update', {
                 'lobby_id': lobby_id,
@@ -464,6 +492,7 @@ def handle_skip_phase_event(
                 'step': 3,
                 'vote_counts': vote_counts,
                 'server_details': lobby.get('server_details'),
+                'team_labels': lobby.get('team_labels', {}),
                 'server_details_provided_at': lobby.get('server_details_provided_at'),
                 'live_roll_ready_at': lobby.get('live_roll_ready_at'),
                 'live_roll_countdown': lobby.get('live_roll_countdown'),
@@ -533,13 +562,14 @@ def handle_prev_phase_event(
         if lobby['step'] == 2:
             lobby['selected_map'] = None
             lobby['server_details'] = None
+            lobby['team_labels'] = {}
             lobby['server_details_provided_at'] = None
             lobby['live_roll_ready_at'] = None
             lobby['live_roll_countdown'] = None
             lobby['announcement'] = None
             lobby['map_votes'] = {}
             lobby['vote_counts'] = {}
-            lobby['voting_countdown'] = 30
+            lobby['voting_countdown'] = MAP_VOTE_COUNTDOWN
 
         if record_lobby_event:
             record_lobby_event(lobby_id, 'phase_reverted', {
@@ -551,11 +581,15 @@ def handle_prev_phase_event(
             'lobby_id': lobby_id,
             'step': lobby['step'],
             'players': lobby.get('players'),
+            'player_profiles': build_player_profile_map(lobby.get('players')),
             'teams': lobby.get('teams'),
             'captains': lobby.get('captains'),
             'selected_map': lobby.get('selected_map'),
             'server_details': lobby.get('server_details'),
+            'team_labels': lobby.get('team_labels', {}),
             'server_details_provided_at': lobby.get('server_details_provided_at'),
+            'live_started_at': lobby.get('live_started_at'),
+            'live_match_max_seconds': lobby.get('live_match_max_seconds'),
             'live_roll_ready_at': lobby.get('live_roll_ready_at'),
             'live_roll_countdown': lobby.get('live_roll_countdown'),
             'announcement': lobby.get('announcement'),
@@ -591,6 +625,7 @@ def handle_get_lobby_data_event(data, *, lobbies, emit, socket_events):
         emit(socket_events['LOBBY']['DATA'], {
             'lobby_id': lobby_id,
             'players': lobby['players'],
+            'player_profiles': build_player_profile_map(lobby['players']),
             'teams': lobby['teams'],
             'captains': lobby.get('captains'),
             'map_pool': lobby.get('map_pool', []),
@@ -606,6 +641,7 @@ def handle_get_lobby_data_event(data, *, lobbies, emit, socket_events):
             'map_votes': lobby.get('map_votes', {}),
             'vote_counts': lobby.get('vote_counts', {}),
             'server_details': lobby.get('server_details'),
+            'team_labels': lobby.get('team_labels', {}),
             'server_details_provided_at': lobby.get('server_details_provided_at'),
             'live_roll_ready_at': lobby.get('live_roll_ready_at'),
             'live_roll_countdown': lobby.get('live_roll_countdown'),
@@ -666,6 +702,10 @@ def vote_map_event(data, *, request, logger, lobbies, socketio, get_username_by_
         logger.info(f"Current votes in lobby {lobby_id}:")
         logger.info(f"Map votes: {lobby['map_votes']}")
         logger.info(f"Vote counts: {vote_counts}")
+
+        save_runtime_state = getattr(__import__('app'), 'save_runtime_state', None)
+        if save_runtime_state:
+            save_runtime_state()
 
         current_countdown = lobby.get('voting_countdown', 15)
 

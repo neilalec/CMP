@@ -2,7 +2,7 @@ import signal
 import sys
 
 
-def signal_handler(app_state, save_queue):
+def signal_handler(app_state, save_queue, save_runtime_state=None):
     def _handler(sig, frame):
         print('\nShutting down server...')
 
@@ -19,6 +19,11 @@ def signal_handler(app_state, save_queue):
             save_queue()
         except Exception:
             pass
+        try:
+            if save_runtime_state:
+                save_runtime_state()
+        except Exception:
+            pass
 
         print('Shutdown complete')
         sys.exit(0)
@@ -32,6 +37,7 @@ def start_server(
     cleanup_on_start,
     start_periodic_tasks,
     save_queue,
+    save_runtime_state=None,
     host,
     port,
     logger
@@ -40,7 +46,7 @@ def start_server(
     start_periodic_tasks()
     logger.info("Starting server...")
 
-    handler = signal_handler(app_state, save_queue)
+    handler = signal_handler(app_state, save_queue, save_runtime_state)
     signal.signal(signal.SIGINT, handler)
     signal.signal(signal.SIGTERM, handler)
 

@@ -1,0 +1,5 @@
+{
+  "terminal.integrated.env.linux": {
+    "XDG_DATA_HOME": "${workspaceFolder}/.rtk-data"
+  }
+}

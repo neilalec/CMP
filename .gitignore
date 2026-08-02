@@ -1,5 +1,6 @@
 backend/matchmaking.log
 matchmaking.log
+.env
 .coverage
 __pycache__/
 *.py[cod]
@@ -17,6 +18,14 @@ backend/*.sqlite3
 squadjs/node_modules/
 squadjs/config.json
 squadjs/*.tmp
+tools/**/node_modules/
+data/
+backups/
+*.log
+*.db
+*.sqlite
+*.sqlite3
+*.tmp
 backend/.env
 frontend/.env
 frontend/node_modules/

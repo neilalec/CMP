@@ -6,7 +6,7 @@ from functools import wraps
 
 import eventlet
 
-from app_state import DEFAULT_QUEUE_MODE, MATCH_ACCEPT_COUNTDOWN, MAX_LOBBY_PLAYERS, QUEUE_MODES
+from app_state import DEFAULT_QUEUE_MODE, MAP_VOTE_COUNTDOWN, MATCH_ACCEPT_COUNTDOWN, MAX_LOBBY_PLAYERS, QUEUE_MODES
 from services.queue import (
     add_to_queue as add_to_queue_service,
     build_queue_payload as build_queue_payload_service,
@@ -55,15 +55,46 @@ def get_queue_config(queue_mode):
 
 
 def build_lobby_map_pool(queue_config):
-    full_pool = list(queue_config['map_pool'])
+    full_pool = list(queue_config.get('vote_pool') or queue_config['map_pool'])
+    if queue_config.get('vote_pool'):
+        return full_pool
     queue_identity = ' '.join([
         str(queue_config.get('id') or ''),
         str(queue_config.get('label') or ''),
         str(queue_config.get('short_label') or '')
     ]).strip().lower()
-    if queue_config.get('id') == 'hotdrop' or 'hotdrop' in queue_identity or queue_config.get('max_players') == 60:
+    if (
+        queue_config.get('id') == 'hotdrop'
+        or str(queue_config.get('id') or '').startswith('sec')
+        or 'hotdrop' in queue_identity
+        or 'esports cup' in queue_identity
+        or queue_config.get('max_players') == 60
+    ):
         return full_pool
     return random.sample(full_pool, k=min(5, len(full_pool)))
+
+
+def resolve_selected_map_variant(selected_map, queue_config):
+    variants = (queue_config or {}).get('map_variants') or {}
+    options = variants.get(selected_map)
+    if options:
+        return random.choice(list(options))
+    return selected_map
+
+
+def select_map_from_votes(lobby):
+    queue_config = get_queue_config(lobby.get('queue_mode'))
+    if lobby.get('map_votes'):
+        vote_counts = {}
+        for username, map_choice in lobby['map_votes'].items():
+            vote_counts[map_choice] = vote_counts.get(map_choice, 0) + 1
+        max_votes = max(vote_counts.values())
+        winning_maps = [map_name for map_name, votes in vote_counts.items() if votes == max_votes]
+        voted_map = random.choice(winning_maps)
+        return resolve_selected_map_variant(voted_map, queue_config), vote_counts
+    pool = lobby.get('map_pool') or build_lobby_map_pool(queue_config)
+    voted_map = random.choice(pool)
+    return resolve_selected_map_variant(voted_map, queue_config), {}
 
 
 def save_queue(queue=None):
@@ -167,16 +198,16 @@ def finalize_pending_match(match_id):
         match_id,
         current_pending_match.get('id') if current_pending_match else None
     )
-    success = finalize_pending_match_service(
+    lobby_id = finalize_pending_match_service(
         current_pending_match,
         match_id,
         broadcast_queue_update,
         create_lobby
     )
-    if success:
+    if lobby_id:
         app.pending_match[current_pending_match.get('queue_mode')] = None
         app.logger.info("Pending match cleared: match_id=%s", match_id)
-    return success
+    return lobby_id
 
 
 def start_match_acceptance(players, queue_mode):
@@ -260,11 +291,17 @@ def add_to_queue(username, queue_mode):
 def start_map_voting(lobby_id):
     app = _app()
     try:
-        countdown = 30
         lobby = app.lobbies.get(lobby_id)
         if not lobby:
             app.logger.error(f"Lobby {lobby_id} not found when starting map vote")
             return
+        saved_countdown = lobby.get('voting_countdown')
+        try:
+            countdown = int(saved_countdown)
+        except (TypeError, ValueError):
+            countdown = MAP_VOTE_COUNTDOWN
+        if countdown < 0 or countdown > MAP_VOTE_COUNTDOWN:
+            countdown = MAP_VOTE_COUNTDOWN
 
         lobby['countdown_token'] = lobby.get('countdown_token', 0) + 1
         countdown_token = lobby['countdown_token']
@@ -312,19 +349,16 @@ def start_map_voting(lobby_id):
         if lobby.get('countdown_token') != countdown_token:
             return
 
-        vote_counts = {}
-        if lobby['map_votes']:
-            for username, map_choice in lobby['map_votes'].items():
-                vote_counts[map_choice] = vote_counts.get(map_choice, 0) + 1
-            max_votes = max(vote_counts.values())
-            winning_maps = [map_name for map_name, votes in vote_counts.items() if votes == max_votes]
-            selected_map = random.choice(winning_maps)
-        else:
-            fallback_pool = lobby.get('map_pool') or list(get_queue_config(lobby.get('queue_mode'))['map_pool'])
-            selected_map = random.choice(fallback_pool)
+        selected_map, vote_counts = select_map_from_votes(lobby)
 
         lobby['selected_map'] = selected_map
-        lobby['server_details'] = app.get_server_connection_details()
+        lobby['server_details'] = lobby.get('server_details') or app.get_server_connection_details(
+            server_id=lobby.get('server_id')
+        )
+        lobby['team_labels'] = app.get_selected_map_team_labels(
+            selected_map,
+            server_id=lobby.get('server_id')
+        )
         lobby['server_details_provided_at'] = time.time()
         lobby['live_roll_ready_at'] = lobby['server_details_provided_at'] + app.LIVE_ROLL_READY_GRACE_SECONDS
         lobby['live_roll_countdown'] = app.LIVE_ROLL_READY_GRACE_SECONDS
@@ -347,7 +381,8 @@ def start_map_voting(lobby_id):
         app.record_lobby_event(lobby_id, 'map_selected', {
             'selected_map': selected_map,
             'vote_counts': vote_counts,
-            'server_details': lobby.get('server_details')
+            'server_details': lobby.get('server_details'),
+            'team_labels': lobby.get('team_labels', {})
         }, created_at=lobby['server_details_provided_at'])
 
         app.socketio.emit('lobby_update', {
@@ -357,6 +392,7 @@ def start_map_voting(lobby_id):
             'voting_countdown': None,
             'vote_counts': vote_counts,
             'server_details': lobby.get('server_details'),
+            'team_labels': lobby.get('team_labels', {}),
             'server_details_provided_at': lobby.get('server_details_provided_at'),
             'live_roll_ready_at': lobby.get('live_roll_ready_at'),
             'live_roll_countdown': lobby.get('live_roll_countdown'),
@@ -374,6 +410,7 @@ def start_map_voting(lobby_id):
             'voting_countdown': None,
             'vote_counts': vote_counts,
             'server_details': lobby.get('server_details'),
+            'team_labels': lobby.get('team_labels', {}),
             'queue_mode': lobby.get('queue_mode'),
             'queue_label': lobby.get('queue_label'),
             'match_size_label': lobby.get('match_size_label'),
@@ -429,19 +466,6 @@ def select_captains(teams):
     return {'team1': None, 'team2': None}
 
 
-def select_map_from_votes(lobby):
-    if lobby.get('map_votes'):
-        vote_counts = {}
-        for username, map_choice in lobby['map_votes'].items():
-            vote_counts[map_choice] = vote_counts.get(map_choice, 0) + 1
-        max_votes = max(vote_counts.values())
-        winning_maps = [map_name for map_name, votes in vote_counts.items() if votes == max_votes]
-        selected_map = random.choice(winning_maps)
-        return selected_map, vote_counts
-    pool = lobby.get('map_pool') or list(get_queue_config(lobby.get('queue_mode'))['map_pool'])
-    return random.choice(pool), {}
-
-
 def create_lobby(players_override=None, queue_mode=None):
     app = _app()
     resolved_queue_mode = queue_mode
@@ -488,10 +512,11 @@ def create_lobby(players_override=None, queue_mode=None):
             'step': 2,
             'selected_map': None,
             'server_details': app.get_server_connection_details(server_id=(allocated_server or {}).get('id')),
+            'team_labels': {},
             'countdown_active': False,
             'map_votes': {},
             'map_pool': map_pool,
-            'voting_countdown': 30,
+            'voting_countdown': MAP_VOTE_COUNTDOWN,
             'countdown': None,
             'countdown_token': 0,
             'player_groups': get_player_groups(players),
@@ -559,7 +584,7 @@ def create_lobby(players_override=None, queue_mode=None):
             emit_active_lobby_sync(player, lobby_id)
         eventlet.spawn(start_map_voting, lobby_id)
         app.broadcast_open_lobbies_update()
-        return True
+        return lobby_id
     except Exception as e:
         app.logger.error(f"Error creating lobby: {str(e)}")
         if 'lobby_id' in locals() and lobby_id in app.lobbies:

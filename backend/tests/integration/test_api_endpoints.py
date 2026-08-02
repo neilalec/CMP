@@ -10,10 +10,27 @@ def test_health_check(flask_app):
     client = flask_app.test_client()
     response = client.get('/')
     assert response.status_code == 200
-    assert 'CMP SocketIO backend running' in response.data.decode()
+    assert 'SocketIO backend running' in response.data.decode()
 
-def test_socket_login(socket_client):
+
+def test_api_health_aliases(flask_app, monkeypatch):
+    monkeypatch.setattr(backend_app, 'get_database_health', lambda: {'ok': True})
+    monkeypatch.setattr(backend_app, 'get_bridge_health', lambda: {'ok': True})
+
+    client = flask_app.test_client()
+
+    health_response = client.get('/api/health')
+    assert health_response.status_code == 200
+    assert health_response.get_json()['status'] == 'ok'
+
+    live_response = client.get('/api/health/live')
+    assert live_response.status_code == 200
+    assert live_response.get_json()['status'] == 'ok'
+
+def test_socket_login(socket_client, monkeypatch):
     """Test login via socket"""
+    monkeypatch.setattr(backend_app, 'PASSWORD_AUTH_ENABLED', True)
+
     response = socket_client.emit(SOCKET_EVENTS['AUTH']['LOGIN'], {
         'username': 'neil',
         'password': '123'
@@ -24,8 +41,10 @@ def test_socket_login(socket_client):
     assert is_password_hash(users['neil']['password'])
     assert users['neil']['password'] != '123'
 
-def test_socket_register(socket_client):
+def test_socket_register(socket_client, monkeypatch):
     """Test register via socket"""
+    monkeypatch.setattr(backend_app, 'PASSWORD_AUTH_ENABLED', True)
+
     response = socket_client.emit(SOCKET_EVENTS['AUTH']['REGISTER'], {
         'username': 'testregister',  # Can use fixed name since test_users gives clean state
         'password': 'newpass'
@@ -82,6 +101,7 @@ def test_password_registration_disabled(socket_client, monkeypatch):
 
 def test_socket_login_rate_limit(socket_client, monkeypatch):
     reset_rate_limits()
+    monkeypatch.setattr(backend_app, 'PASSWORD_AUTH_ENABLED', True)
     monkeypatch.setattr(backend_app, 'AUTH_LOGIN_MAX_ATTEMPTS', 1)
     monkeypatch.setattr(backend_app, 'AUTH_RATE_LIMIT_WINDOW_SECONDS', 60)
 

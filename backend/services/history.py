@@ -1,4 +1,6 @@
 import json
+import time
+from services.queue import get_server_availability
 from typing import Any
 
 
@@ -118,44 +120,84 @@ def save_completed_match(get_db_connection, lobby_id, lobby, *, completed_at):
         conn.commit()
 
 
-def fetch_completed_matches(get_db_connection, *, limit=20):
+def _row_to_completed_match_payload(row):
+    return {
+        'id': row['id'],
+        'lobby_id': row['lobby_id'],
+        'selected_map': row['selected_map'],
+        'server_name': row['server_name'],
+        'created_at': row['created_at'],
+        'live_started_at': row['live_started_at'],
+        'completed_at': row['completed_at'],
+        'players': _from_json(row['players_json'], []),
+        'teams': _from_json(row['teams_json'], {}),
+        'server_details': _from_json(row['server_details_json'], {}),
+        'round_result': _from_json(row['round_result_json'], {})
+    }
+
+
+def _match_has_player(match, username):
+    username = str(username or '').strip()
+    if not username:
+        return True
+    return username in (match.get('players') or [])
+
+
+def _match_has_score(match):
+    round_result = match.get('round_result') or {}
+    if round_result.get('partial'):
+        return False
+    winner = round_result.get('winner') if isinstance(round_result.get('winner'), dict) else {}
+    loser = round_result.get('loser') if isinstance(round_result.get('loser'), dict) else {}
+    try:
+        int(winner.get('tickets'))
+        int(loser.get('tickets'))
+    except (TypeError, ValueError):
+        return False
+    return True
+
+
+_COMPLETED_MATCHES_SELECT_SQL = """
+    SELECT
+        id,
+        lobby_id,
+        selected_map,
+        server_name,
+        created_at,
+        live_started_at,
+        completed_at,
+        players_json,
+        teams_json,
+        server_details_json,
+        round_result_json
+    FROM completed_matches
+    ORDER BY completed_at DESC
+"""
+
+
+def fetch_completed_matches(get_db_connection, *, limit=20, username=None, scored_only=False):
+    username = str(username or '').strip()
+    scored_only = bool(scored_only)
+
     with get_db_connection() as conn:
-        rows = conn.execute(
-            """
-            SELECT
-                id,
-                lobby_id,
-                selected_map,
-                server_name,
-                created_at,
-                live_started_at,
-                completed_at,
-                players_json,
-                teams_json,
-                server_details_json,
-                round_result_json
-            FROM completed_matches
-            ORDER BY completed_at DESC
-            LIMIT ?
-            """,
-            (limit,)
-        ).fetchall()
+        if username or scored_only:
+            rows = conn.execute(_COMPLETED_MATCHES_SELECT_SQL).fetchall()
+        else:
+            rows = conn.execute(
+                f"{_COMPLETED_MATCHES_SELECT_SQL}\nLIMIT ?",
+                (limit,)
+            ).fetchall()
 
     matches = []
     for row in rows:
-        matches.append({
-            'id': row['id'],
-            'lobby_id': row['lobby_id'],
-            'selected_map': row['selected_map'],
-            'server_name': row['server_name'],
-            'created_at': row['created_at'],
-            'live_started_at': row['live_started_at'],
-            'completed_at': row['completed_at'],
-            'players': _from_json(row['players_json'], []),
-            'teams': _from_json(row['teams_json'], {}),
-            'server_details': _from_json(row['server_details_json'], {}),
-            'round_result': _from_json(row['round_result_json'], {})
-        })
+        match = _row_to_completed_match_payload(row)
+        if username and not _match_has_player(match, username):
+            continue
+        if scored_only and not _match_has_score(match):
+            continue
+        matches.append(match)
+        if len(matches) >= limit:
+            break
     return matches
 
 
@@ -209,6 +251,7 @@ def build_admin_diagnostics(
     *,
     get_database_health,
     get_bridge_health,
+    get_eos_runtime_status,
     get_server_connection_details,
     fetch_latest_round_result,
     fetch_lobby_audit_events,
@@ -217,7 +260,9 @@ def build_admin_diagnostics(
     queue_modes,
     matchmaking_queue,
     pending_match,
-    servers
+    servers,
+    automation_control=None,
+    admin_steam_ids=None
 ):
     try:
         server_details = get_server_connection_details()
@@ -270,11 +315,19 @@ def build_admin_diagnostics(
         }
 
     return {
-        'generatedAt': __import__('time').time(),
+        'generatedAt': time.time(),
         'database': get_database_health(),
         'bridge': get_bridge_health(),
+        'eos': get_eos_runtime_status(),
         'server': server_details,
+        'serverAvailability': get_server_availability(
+            lobbies,
+            pending_match,
+            server_capacity=len(servers or [])
+        ),
         'latestRoundResult': latest_round_result,
+        'automation': automation_control or {'mode': 'on'},
+        'adminSteamIds': sorted(admin_steam_ids or []),
         'queueSize': total_queue_size,
         'pendingMatch': first_pending_match,
         'queueModes': queue_state,

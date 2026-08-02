@@ -577,6 +577,8 @@ export default class SquadServer extends EventEmitter {
         gameVersion: data.GameVersion_s
       };
 
+      this.serverInfoRaw = data;
+      this.serverInfoRawKeys = Object.keys(data || {});
       this.serverName = info.serverName;
 
       this.maxPlayers = info.maxPlayers;
@@ -591,6 +593,8 @@ export default class SquadServer extends EventEmitter {
       this.matchTimeout = info.matchTimeout;
       this.matchStartTime = info.matchStartTime;
       this.gameVersion = info.gameVersion;
+      this.teamOne = info.teamOne;
+      this.teamTwo = info.teamTwo;
 
       if (!this.currentLayer) this.currentLayer = Layers.getLayerByClassname(info.currentLayer);
       if (!this.nextLayer) this.nextLayer = Layers.getLayerByClassname(info.nextLayer);

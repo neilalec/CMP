@@ -14,32 +14,22 @@ export function useProfileView() {
   const socketStore = useSocketStore();
   const rootStore = useRootStore();
   const router = useRouter();
+  const displayName = ref('');
   const steamId = ref('');
-  const loading = ref(false);
-  const savingSteamId = ref(false);
-
-  const isSteamIdLocked = computed(() => (
-    loading.value ||
-    savingSteamId.value ||
-    queueStore.inQueue ||
-    !!lobbyStore.lobbyId ||
-    authStore.steamIdLocked
-  ));
   const hasSteamId = computed(() => !!authStore.steamId);
 
   const loadProfile = async () => {
-    loading.value = true;
     try {
       const profile = await authStore.syncProfile();
+      displayName.value = profile?.display_name || authStore.playerName || '';
       steamId.value = profile?.steam_id || '';
     } catch (error) {
       rootStore.setError(error.message || 'Failed to load profile');
-    } finally {
-      loading.value = false;
     }
   };
 
   onMounted(async () => {
+    displayName.value = authStore.playerName || '';
     steamId.value = authStore.steamId || '';
     try {
       await queueStore.syncWithServer(authStore.username);
@@ -49,20 +39,9 @@ export function useProfileView() {
     await loadProfile();
   });
 
-  const saveSteamId = async () => {
-    savingSteamId.value = true;
-    rootStore.clearError();
-    try {
-      const profile = await authStore.updateSteamId(steamId.value);
-      steamId.value = profile?.steam_id || '';
-    } catch (error) {
-      rootStore.setError(error.message || 'Failed to save Steam ID');
-    } finally {
-      savingSteamId.value = false;
-    }
-  };
-
   const handleLogout = async () => {
+    if (!window.confirm('Are you sure you want to log out?')) return;
+
     try {
       await socketStore.cleanupSocket();
       lobbyStore.reset();
@@ -76,14 +55,21 @@ export function useProfileView() {
     }
   };
 
+  const handleDisplayNameSave = async () => {
+    try {
+      const profile = await authStore.updateDisplayName(displayName.value);
+      displayName.value = profile?.display_name || authStore.playerName || '';
+    } catch (error) {
+      rootStore.setError(error.message || 'Failed to update display name');
+    }
+  };
+
   return {
     authStore,
+    displayName,
+    handleDisplayNameSave,
     handleLogout,
     hasSteamId,
-    isSteamIdLocked,
-    saveSteamId,
-    savingSteamId,
-    socketStore,
     steamId
   };
 }

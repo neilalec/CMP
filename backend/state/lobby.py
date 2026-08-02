@@ -9,6 +9,8 @@ def _app():
 def is_user_in_any_lobby(username):
     app = _app()
     for lobby in app.lobbies.values():
+        if lobby.get('step') == 5:
+            continue
         if username in lobby.get('players', []):
             return True
     return False
@@ -19,6 +21,8 @@ def find_active_lobby_for_user(username):
     if not username:
         return None
     for lobby_id, lobby in app.lobbies.items():
+        if lobby.get('step') == 5:
+            continue
         if username in lobby.get('players', []):
             return lobby_id
     return None
@@ -88,16 +92,32 @@ def emit_active_lobby_sync(username, lobby_id):
     }, room=get_user_room(username))
 
 
+def build_player_profile_map(players):
+    app = _app()
+    profiles = {}
+    get_user_profile = getattr(app, 'get_user_profile', None)
+    for username in players or []:
+        profile = (get_user_profile(username) if get_user_profile else {}) or {}
+        profiles[username] = {
+            'display_name': profile.get('display_name') or username,
+            'steam_id': profile.get('steam_id') or ''
+        }
+    return profiles
+
+
 def get_open_lobbies():
     app = _app()
     open_lobbies = []
     for lobby_id, lobby in app.lobbies.items():
+        if lobby.get('step') == 5:
+            continue
         players = lobby.get('players', [])
         max_players = int(lobby.get('max_players') or app.MAX_LOBBY_PLAYERS)
         if len(players) < max_players:
             open_lobbies.append({
                 'lobby_id': lobby_id,
                 'players': players,
+                'player_profiles': build_player_profile_map(players),
                 'open_slots': max_players - len(players),
                 'max_players': max_players,
                 'queue_mode': lobby.get('queue_mode'),
@@ -113,6 +133,8 @@ def get_active_lobbies():
     app = _app()
     active = []
     for lobby_id, lobby in app.lobbies.items():
+        if lobby.get('step') == 5:
+            continue
         players = lobby.get('players', [])
         max_players = int(lobby.get('max_players') or app.MAX_LOBBY_PLAYERS)
         if len(players) < max_players:
@@ -120,6 +142,7 @@ def get_active_lobbies():
         active.append({
             'lobby_id': lobby_id,
             'players': players,
+            'player_profiles': build_player_profile_map(players),
             'open_slots': max(0, max_players - len(players)),
             'max_players': max_players,
             'queue_mode': lobby.get('queue_mode'),
@@ -142,6 +165,9 @@ def broadcast_open_lobbies_update():
             },
             room=None
         )
+        save_runtime_state = getattr(app, 'save_runtime_state', None)
+        if save_runtime_state:
+            save_runtime_state()
     except Exception as e:
         app.logger.error(f"Error in broadcast_open_lobbies_update: {str(e)}")
 
@@ -175,6 +201,7 @@ def get_match_accept_payload(username=None):
             'active': True,
             'queueMode': queue_mode,
             'players': list(pending.get('players', [])),
+            'playerProfiles': build_player_profile_map(pending.get('players', [])),
             'acceptedPlayers': accepted_players,
             'acceptedCount': len(accepted_players),
             'requiredCount': len(pending.get('players', [])),

@@ -28,6 +28,10 @@ const props = defineProps({
     type: Array,
     default: () => []
   },
+  playerProfiles: {
+    type: Object,
+    default: () => ({})
+  },
   waitingPlayers: {
     type: Array,
     default: () => []
@@ -43,6 +47,8 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['accept', 'close', 'dismiss'])
+
+const displayName = (player) => props.playerProfiles?.[player]?.display_name || player
 </script>
 
 <template>
@@ -74,8 +80,9 @@ const emit = defineEmits(['accept', 'close', 'dismiss'])
               v-for="player in acceptedPlayers"
               :key="`accepted-${player}`"
               class="match-player-chip is-accepted"
+              :title="player"
             >
-              {{ player }}
+              {{ displayName(player) }}
             </span>
             <span v-if="!acceptedPlayers.length" class="match-player-empty">None</span>
           </div>
@@ -85,8 +92,9 @@ const emit = defineEmits(['accept', 'close', 'dismiss'])
               v-for="player in waitingPlayers"
               :key="`waiting-${player}`"
               class="match-player-chip"
+              :title="player"
             >
-              {{ player }}
+              {{ displayName(player) }}
             </span>
             <span v-if="!waitingPlayers.length" class="match-player-empty">Ready</span>
           </div>

@@ -5,7 +5,6 @@ import LobbyMatchInfo from '../features/lobby/components/LobbyMatchInfo.vue';
 import LobbyMapVoteList from '../features/lobby/components/LobbyMapVoteList.vue';
 import LobbyPhaseGrid from '../features/lobby/components/LobbyPhaseGrid.vue';
 import LobbyPhaseHeader from '../features/lobby/components/LobbyPhaseHeader.vue';
-import MatchPhaseTracker from '../features/match/components/MatchPhaseTracker.vue';
 
 const {
   activeCountdown,
@@ -13,10 +12,13 @@ const {
   authStore,
   canAdminLobby,
   canAutoConnect,
+  canDirectConnect,
   connectToServer,
+  directConnectToServer,
   deleteLobby,
   getConnectionFlagClass,
   getConnectionLabel,
+  getPlayerDisplayName,
   getTeamLabel,
   groupedTeam1,
   groupedTeam2,
@@ -26,13 +28,14 @@ const {
   isCountdownPaused,
   isCurrentUser,
   isDev,
+  liveRollGraceSeconds,
+  liveRollRequiredCount,
+  liveRollRequiredPercent,
   lobbyStore,
-  lobbyPhase,
   mapOptions,
-  matchSizeLabel,
-  phaseTitle,
   showConnectionStatus,
   showPauseButton,
+  serverConnectedCount,
   skipPhase,
   toggleCountdownPause,
   prevPhase
@@ -43,10 +46,16 @@ const {
   <div class="lobby-page">
     <div class="lobby-shell content-panel">
       <LobbyPhaseHeader
-        :phase-title="phaseTitle"
         :active-countdown-label="activeCountdownLabel"
         :active-countdown="activeCountdown"
+        :connected-count="serverConnectedCount"
+        :required-after-grace-count="liveRollRequiredCount"
+        :ready-percent="liveRollRequiredPercent"
+        :ready-grace-seconds="liveRollGraceSeconds"
+        :ready-grace-remaining-seconds="lobbyStore.liveRollCountdown"
+        :total-players="lobbyStore.players.length"
         :announcement="lobbyStore.announcement"
+        :step="lobbyStore.step"
         :show-pause-button="showPauseButton"
         :is-countdown-paused="isCountdownPaused"
         :can-admin="canAdminLobby"
@@ -54,26 +63,11 @@ const {
         @pause="toggleCountdownPause"
         @skip="skipPhase"
         @prev="prevPhase"
-        @leave="handleLeaveLobby"
         @delete="deleteLobby"
       />
 
-      <div class="lobby-tracker window-panel">
-        <div class="window-titlebar">
-          <span class="window-titlebar-label">Match Progress</span>
-          <span class="window-titlebar-meta">{{ matchSizeLabel || 'Lobby' }}</span>
-        </div>
-        <div class="lobby-tracker-body">
-          <MatchPhaseTracker :current-phase="lobbyPhase" />
-        </div>
-      </div>
-
-      <div class="lobby-panel window-panel">
-        <div class="window-titlebar">
-          <span class="window-titlebar-label">Teams</span>
-          <span class="window-titlebar-meta">{{ lobbyStore.selectedMap || phaseTitle }}</span>
-        </div>
-        <div v-if="lobbyStore.loading" class="loading">
+      <div class="lobby-panel">
+        <div v-if="lobbyStore.loading" class="loading surface-card">
           Loading lobby...
         </div>
 
@@ -88,6 +82,7 @@ const {
                 :is-captain="isCaptain"
                 :get-connection-flag-class="getConnectionFlagClass"
                 :get-connection-label="getConnectionLabel"
+                :get-display-name="getPlayerDisplayName"
                 :show-connection-status="showConnectionStatus"
               />
             </template>
@@ -96,6 +91,7 @@ const {
                 :maps="mapOptions"
                 :selected-map="lobbyStore.mapVotes[authStore.username]"
                 :get-votes-for-map="lobbyStore.getVotesForMap"
+                :voted-count="Object.keys(lobbyStore.mapVotes || {}).length"
                 @vote="handleVoteMap"
               />
             </template>
@@ -108,6 +104,7 @@ const {
                 :is-captain="isCaptain"
                 :get-connection-flag-class="getConnectionFlagClass"
                 :get-connection-label="getConnectionLabel"
+                :get-display-name="getPlayerDisplayName"
                 :show-connection-status="showConnectionStatus"
               />
             </template>
@@ -125,18 +122,22 @@ const {
                 :is-captain="isCaptain"
                 :get-connection-flag-class="getConnectionFlagClass"
                 :get-connection-label="getConnectionLabel"
+                :get-display-name="getPlayerDisplayName"
                 :show-connection-status="showConnectionStatus"
               />
             </template>
             <template #center>
               <LobbyMatchInfo
-                :match-size-label="matchSizeLabel"
                 :selected-map="lobbyStore.selectedMap"
                 server-prefix="Connect Address"
                 :server-details="lobbyStore.serverDetails"
+                :can-admin="canAdminLobby"
                 :auto-connect-available="lobbyStore.step === 3 || lobbyStore.step === 4"
                 :auto-connect-enabled="canAutoConnect"
+                :direct-connect-available="lobbyStore.step === 3 || lobbyStore.step === 4"
+                :direct-connect-enabled="canDirectConnect"
                 @auto-connect="connectToServer"
+                @direct-connect="directConnectToServer"
               />
             </template>
             <template #right>
@@ -148,10 +149,19 @@ const {
                 :is-captain="isCaptain"
                 :get-connection-flag-class="getConnectionFlagClass"
                 :get-connection-label="getConnectionLabel"
+                :get-display-name="getPlayerDisplayName"
                 :show-connection-status="showConnectionStatus"
               />
             </template>
           </LobbyPhaseGrid>
+        </div>
+
+        <div v-if="!lobbyStore.loading" class="leave-lobby-card window-panel">
+          <div class="leave-lobby-card-body panel-body">
+            <button class="leave-lobby-button" type="button" @click="handleLeaveLobby">
+              Leave Lobby
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -179,36 +189,30 @@ const {
   position: relative;
   padding: 0px 0px 20px;
   align-self: stretch;
+  overflow: visible;
 }
 
 .lobby-panel {
   width: 100%;
+  max-width: 100%;
+  margin-inline: 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .lobby-section {
-  padding: clamp(16px, 3vw, 30px);
+  padding: clamp(14px, 2.2vw, 24px);
   width: 100%;
   min-height: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  --middle-column-width: 280px;
-  --phase-column-gap: clamp(20px, 3vw, 56px);
+  --middle-column-width: 300px;
+  --phase-column-gap: clamp(12px, 1.6vw, 18px);
   --teams-offset: 0px;
-}
-
-.lobby-tracker {
-  width: min(100%, 920px);
-  margin: 4px auto 0;
-}
-
-.lobby-tracker-body {
-  padding: 12px clamp(14px, 3vw, 24px);
 }
 
 .loading {
@@ -222,10 +226,41 @@ const {
   color: inherit;
 }
 
+.leave-lobby-card {
+  width: auto;
+  margin: 4px auto 0;
+  overflow: visible;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.leave-lobby-card-body {
+  display: flex;
+  justify-content: center;
+  padding: 0;
+  background: transparent;
+}
+
+.leave-lobby-button {
+  width: 200px;
+  min-height: 34px;
+  background: var(--control-bg);
+  border-color: var(--control-border);
+  color: inherit;
+}
+
 @media (max-width: 1200px) {
   .lobby-section {
-    --middle-column-width: 240px;
-    --phase-column-gap: 24px;
+    --middle-column-width: 280px;
+    --phase-column-gap: 12px;
+  }
+}
+
+@media (max-width: 768px) {
+  .lobby-panel {
+    width: 100%;
+    margin-inline: 0;
   }
 }
 </style>

@@ -2,7 +2,6 @@ import { computed, onMounted, onBeforeUnmount, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '../../../stores/authStore';
 import { useGroupStore } from '../../../stores/groupStore';
-import { useLobbyStore } from '../../../stores/lobbyStore';
 import { useQueueStore } from '../../../stores/queueStore';
 import { useRootStore } from '../../../stores/rootStore';
 import { useSocketStore } from '../../../stores/socketStore';
@@ -15,48 +14,33 @@ export function useHomeView() {
   const queueStore = useQueueStore();
   const socketStore = useSocketStore();
   const authStore = useAuthStore();
-  const lobbyStore = useLobbyStore();
   const groupStore = useGroupStore();
   const rootStore = useRootStore();
 
   const loading = ref(false);
+  let isDisposed = false;
   const isDev = import.meta.env.DEV;
-  const canManageQueueTools = computed(() => isDev && !!authStore.isAdmin);
-  const queueModes = computed(() => Object.values(queueStore.queueModes || {}));
+  const queueDisplayOrder = ['balt26', 'ocbt15', 'outofthebox40', 'sec26', 'sec36', 'sec46'];
+  const canManageQueueTools = computed(() => !!authStore.isAdmin);
+  const queueModes = computed(() => (
+    queueDisplayOrder
+      .map((modeId) => queueStore.queueModes?.[modeId])
+      .filter(Boolean)
+  ));
 
-  const isInLobby = computed(() => !!lobbyStore.lobbyId || !!getCurrentLobbyId());
+  const isInLobby = computed(() => !!getCurrentLobbyId());
   const isInGroup = computed(() => groupStore.inGroup);
+  const canBypassSteamIdForLocalDev = computed(() => (
+    isDev && authStore.username?.trim().toLowerCase() === 'sam'
+  ));
   const isGroupLeader = computed(() => {
     if (!groupStore.leader || !authStore.username) return false;
     return groupStore.leader.toLowerCase() === authStore.username.toLowerCase();
   });
-  const dashboardPhase = computed(() => {
-    if (isInLobby.value) return 'map';
-    if (queueStore.matchAccept.active || queueStore.matchAccept.cancelled) return 'accept';
-    return 'queue';
-  });
-  const profileStatusLabel = computed(() => (authStore.hasSteamId ? 'Steam ID ready' : 'Steam ID required'));
-  const groupStatusLabel = computed(() => {
-    if (!isInGroup.value) return 'Solo queue ready';
-    if (isGroupLeader.value) return `Leading ${groupStore.members.length} player group`;
-    return `Grouped with ${groupStore.leader || 'leader'}`;
-  });
-  const lobbyStatusLabel = computed(() => {
-    const open = queueStore.openLobbies.length;
-    const active = queueStore.activeLobbies.length;
-    return `${open} open / ${active} active`;
-  });
   const currentQueueMode = computed(() => queueStore.queueMode);
   const serverAvailable = computed(() => queueStore.serverAvailable);
-  const activeView = computed(() => {
-    if (route.path === '/play' || route.path === '/') return 'queue';
-    if (route.path === '/lobbies') return 'lobbies';
-    return 'queue';
-  });
-
-  const handleQueueUpdate = (data) => {
-    queueStore.updateQueueState(data);
-  };
+  const serverAvailabilityReason = computed(() => queueStore.serverAvailabilityReason);
+  const activeView = computed(() => (route.path.startsWith('/lobbies') ? 'lobbies' : 'queue'));
 
   const handleOpenLobbiesUpdate = (data) => {
     if (data?.openLobbies) {
@@ -69,8 +53,10 @@ export function useHomeView() {
 
   onMounted(async () => {
     while (!socketStore.isConnected) {
+      if (isDisposed) return;
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
+    if (isDisposed) return;
 
     try {
       await authStore.syncProfile();
@@ -79,9 +65,11 @@ export function useHomeView() {
     }
 
     await queueStore.syncWithServer(authStore.username);
+    if (isDisposed) return;
 
     try {
       const openLobbies = await socketStore.emit(SOCKET_EVENTS.OPEN_LOBBIES.STATUS);
+      if (isDisposed) return;
       if (openLobbies?.openLobbies) {
         queueStore.updateOpenLobbies(openLobbies.openLobbies);
       }
@@ -92,12 +80,11 @@ export function useHomeView() {
       // ignore
     }
 
-    socketStore.on(SOCKET_EVENTS.QUEUE.UPDATE, handleQueueUpdate);
     socketStore.on(SOCKET_EVENTS.OPEN_LOBBIES.UPDATE, handleOpenLobbiesUpdate);
   });
 
   onBeforeUnmount(() => {
-    socketStore.off(SOCKET_EVENTS.QUEUE.UPDATE, handleQueueUpdate);
+    isDisposed = true;
     socketStore.off(SOCKET_EVENTS.OPEN_LOBBIES.UPDATE, handleOpenLobbiesUpdate);
   });
 
@@ -117,7 +104,7 @@ export function useHomeView() {
       rootStore.setError('You are already in a lobby. Return to the lobby to continue.');
       return;
     }
-    if (!authStore.hasSteamId) {
+    if (!authStore.hasSteamId && !canBypassSteamIdForLocalDev.value) {
       rootStore.setError('Set your Steam ID in your profile before joining the queue.');
       return;
     }
@@ -197,6 +184,29 @@ export function useHomeView() {
     }
   };
 
+  const deleteLobby = async (lobbyId) => {
+    if (!authStore.isAdmin) {
+      rootStore.setError('Admin access required.');
+      return;
+    }
+    const confirmed = window.confirm('Delete this lobby and release its server allocation?');
+    if (!confirmed) return;
+
+    loading.value = true;
+    try {
+      const response = await socketStore.emit(SOCKET_EVENTS.LOBBY.DELETE, {
+        lobby_id: lobbyId
+      });
+      if (!response?.success) {
+        throw new Error(response?.message || 'Failed to delete lobby');
+      }
+    } catch (error) {
+      rootStore.setError(error.message || 'Failed to delete lobby');
+    } finally {
+      loading.value = false;
+    }
+  };
+
   const seedQueue = async (queueMode, count = null) => {
     if (!canManageQueueTools.value) {
       rootStore.setError('Admin access required.');
@@ -242,16 +252,13 @@ export function useHomeView() {
     activeView,
     authStore,
     canManageQueueTools,
+    canBypassSteamIdForLocalDev,
     clearQueue,
     currentQueueMode,
-    dashboardPhase,
+    deleteLobby,
     getLobbyLabel,
     getQueueProgressPercent,
     groupStore,
-    groupStatusLabel,
-    handleOpenLobbiesUpdate,
-    handleQueueUpdate,
-    isDev,
     isGroupLeader,
     isInGroup,
     isInLobby,
@@ -259,11 +266,10 @@ export function useHomeView() {
     joinOpenLobby,
     joinQueue,
     leaveQueue,
-    lobbyStatusLabel,
     loading,
-    profileStatusLabel,
     queueModes,
     serverAvailable,
+    serverAvailabilityReason,
     seedQueue,
     queueStore
   };

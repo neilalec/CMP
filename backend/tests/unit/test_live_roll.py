@@ -1,17 +1,27 @@
 from services.live_roll import (
+    start_live_roll_monitor,
     round_result_has_layer_data,
     get_round_result_layer,
     get_live_roll_readiness,
     get_live_roll_retry_state,
     get_team_swap_retry_state,
     get_live_broadcast_retry_state,
+    get_live_match_timer_status,
+    get_live_started_at_from_layer_status,
+    has_selected_layer_started_after_roll,
     mark_live_roll_change_attempt,
+    mark_live_roll_broadcast_attempt,
     mark_live_broadcast_attempt,
     mark_team_swap_attempt,
     round_result_matches_selected_map,
+    get_unauthorized_connected_players,
+    has_live_roll_ready_override,
+    should_end_live_match,
     should_finalize_live_lobby,
     should_team_swap_block_live_roll,
-    schedule_live_broadcast
+    schedule_live_broadcast,
+    has_live_layer_transitioned_away,
+    build_unresolved_round_result
 )
 from services.bridge import (
     get_server_layer_status,
@@ -80,9 +90,10 @@ def test_live_roll_ready_after_grace_period_at_ninety_percent():
 
     assert readiness['ready'] is True
     assert readiness['graceReady'] is True
+    assert readiness['forceReady'] is True
 
 
-def test_live_roll_not_ready_below_ninety_percent_after_grace_period():
+def test_live_roll_force_ready_after_grace_period_below_threshold():
     readiness = get_live_roll_readiness(
         {'server_details_provided_at': 1000},
         build_presence(total_players=60, connected_players=53, aligned_players=53),
@@ -91,8 +102,39 @@ def test_live_roll_not_ready_below_ninety_percent_after_grace_period():
         now=2000
     )
 
-    assert readiness['ready'] is False
+    assert readiness['ready'] is True
+    assert readiness['forceReady'] is True
+    assert readiness['graceReady'] is False
     assert readiness['requiredAfterGrace'] == 54
+
+
+def test_live_roll_force_timer_does_not_ignore_wrong_side_players():
+    readiness = get_live_roll_readiness(
+        {'server_details_provided_at': 1000},
+        build_presence(total_players=60, connected_players=53, aligned_players=52),
+        ready_ratio=0.9,
+        ready_grace_seconds=600,
+        now=2000
+    )
+
+    assert readiness['ready'] is False
+    assert readiness['forceReady'] is True
+    assert readiness['connectedPlayersAligned'] is False
+    assert readiness['connectedCount'] == 53
+    assert readiness['alignedCount'] == 52
+
+
+def test_live_roll_not_ready_below_threshold_before_force_timer():
+    readiness = get_live_roll_readiness(
+        {'server_details_provided_at': 1000},
+        build_presence(total_players=60, connected_players=53, aligned_players=53),
+        ready_ratio=0.9,
+        ready_grace_seconds=600,
+        now=1599
+    )
+
+    assert readiness['ready'] is False
+    assert readiness['forceReady'] is False
 
 
 def test_live_roll_remaining_grace_uses_server_details_timestamp():
@@ -116,6 +158,28 @@ def test_mark_live_roll_change_attempt_tracks_attempt_count_and_time():
     assert lobby['live_roll_change_attempts'] == 1
     assert lobby['live_roll_last_change_attempt_at'] == 1234
     assert lobby['live_roll_command_response'] == {'ok': True}
+
+
+def test_mark_live_roll_broadcast_attempt_tracks_success():
+    lobby = {}
+
+    mark_live_roll_broadcast_attempt(lobby, {'ok': True}, now=1234)
+
+    assert lobby['live_roll_broadcast_sent'] is True
+    assert lobby['live_roll_broadcast_attempts'] == 1
+    assert lobby['live_roll_broadcast_last_attempt_at'] == 1234
+    assert lobby['live_roll_broadcast_response'] == {'ok': True}
+    assert lobby['live_roll_broadcast_error'] is None
+
+
+def test_mark_live_roll_broadcast_attempt_tracks_failure():
+    lobby = {}
+
+    mark_live_roll_broadcast_attempt(lobby, error=RuntimeError('rcon down'), now=1234)
+
+    assert lobby['live_roll_broadcast_attempts'] == 1
+    assert lobby['live_roll_broadcast_last_attempt_at'] == 1234
+    assert lobby['live_roll_broadcast_error'] == 'rcon down'
 
 
 def test_live_broadcast_retry_state_allows_first_attempt():
@@ -143,6 +207,57 @@ def test_schedule_live_broadcast_sets_ready_time():
     schedule_live_broadcast(lobby, delay_seconds=10, now=1000)
 
     assert lobby['live_broadcast_ready_at'] == 1010
+
+
+def test_selected_layer_start_requires_match_started_after_roll_command():
+    lobby = {
+        'live_roll_last_change_attempt_at': 2000
+    }
+    layer_status = {
+        'currentMatches': True,
+        'serverInfo': {
+            'matchStartTime': '1970-01-01T00:30:00Z'
+        }
+    }
+
+    assert has_selected_layer_started_after_roll(lobby, layer_status) is False
+
+
+def test_selected_layer_start_accepts_match_started_after_roll_command():
+    lobby = {
+        'live_roll_last_change_attempt_at': 2000
+    }
+    layer_status = {
+        'currentMatches': True,
+        'serverInfo': {
+            'matchStartTime': '1970-01-01T00:33:30Z'
+        }
+    }
+
+    assert has_selected_layer_started_after_roll(lobby, layer_status) is True
+
+
+def test_live_started_at_uses_server_match_start_time():
+    layer_status = {
+        'currentMatches': True,
+        'serverInfo': {
+            'matchStartTime': '1970-01-01T00:33:30Z',
+            'playtimeSeconds': 30
+        }
+    }
+
+    assert get_live_started_at_from_layer_status(layer_status, now=2100) == 2010
+
+
+def test_live_started_at_falls_back_to_playtime_when_match_start_missing():
+    layer_status = {
+        'currentMatches': True,
+        'serverInfo': {
+            'playtimeSeconds': 30
+        }
+    }
+
+    assert get_live_started_at_from_layer_status(layer_status, now=2100) == 2070
 
 
 def test_live_broadcast_retry_state_waits_until_ready_time():
@@ -286,6 +401,30 @@ def test_team_swap_does_not_block_after_lobby_is_live():
     }) is False
 
 
+def test_live_roll_ready_override_matches_connected_username():
+    assert has_live_roll_ready_override(
+        enabled=True,
+        connected_usernames=['Neil'],
+        override_username='neil'
+    ) is True
+
+
+def test_live_roll_ready_override_matches_connected_steam_id():
+    assert has_live_roll_ready_override(
+        enabled=True,
+        connected_steam_ids=['76561198124553635'],
+        override_steam_id='76561198124553635'
+    ) is True
+
+
+def test_live_roll_ready_override_requires_flag():
+    assert has_live_roll_ready_override(
+        enabled=False,
+        connected_usernames=['neil'],
+        override_username='neil'
+    ) is False
+
+
 def test_round_result_matches_selected_map_from_winner_layer():
     assert round_result_matches_selected_map(
         {
@@ -386,6 +525,34 @@ def test_should_finalize_live_lobby_after_live_started():
     ) is True
 
 
+def test_should_finalize_live_lobby_accepts_s3o_scoreboard_after_map_selected():
+    assert should_finalize_live_lobby(
+        {
+            'server_details_provided_at': 1000,
+            'live_started_at': 1030
+        },
+        {
+            'observedAt': 1015,
+            'winner': {'layer': 'S3O_36_Harju_AAS_v3'}
+        },
+        'S3O_36_Harju_AAS_v3'
+    ) is True
+
+
+def test_should_not_finalize_live_lobby_from_scoreboard_before_map_selected():
+    assert should_finalize_live_lobby(
+        {
+            'server_details_provided_at': 1000,
+            'live_started_at': 1030
+        },
+        {
+            'observedAt': 995,
+            'winner': {'layer': 'S3O_36_Harju_AAS_v3'}
+        },
+        'S3O_36_Harju_AAS_v3'
+    ) is False
+
+
 def test_should_finalize_live_lobby_with_sparse_round_end_after_live_started():
     assert should_finalize_live_lobby(
         {'live_started_at': 1000},
@@ -413,3 +580,243 @@ def test_should_finalize_hotdrop_round_when_log_layer_uses_spaces():
         },
         'HotDrop_SumariBala'
     ) is True
+
+
+def test_live_match_timer_never_ends_match_from_app_clock():
+    assert should_end_live_match(
+        {
+            'selected_map': 'Logar Valley Skirmish v1',
+            'live_roll_done': True,
+            'live_started_at': 1000
+        },
+        max_seconds=3600,
+        now=4600
+    ) is False
+    assert should_end_live_match(
+        {
+            'selected_map': 'Logar Valley Skirmish v1',
+            'live_roll_done': True,
+            'live_started_at': 1000
+        },
+        max_seconds=3600,
+        now=4599
+    ) is False
+
+
+def test_live_match_timer_observes_server_playtime_without_ending():
+    status = get_live_match_timer_status(
+        {
+            'selected_map': 'Logar Valley Skirmish v1',
+            'live_roll_done': True,
+            'live_started_at': 1000
+        },
+        max_seconds=3600,
+        layer_status={
+            'currentMatches': True,
+            'serverInfo': {
+                'playtimeSeconds': 3600
+            }
+        },
+        now=1005
+    )
+
+    assert status['shouldEnd'] is False
+    assert status['elapsedSeconds'] == 3600
+    assert status['source'] == 'server_playtime'
+    assert status['remainingSeconds'] is None
+
+
+def test_live_match_timer_does_not_fall_back_to_cmp_wall_clock():
+    status = get_live_match_timer_status(
+        {
+            'selected_map': 'Logar Valley Skirmish v1',
+            'live_roll_done': True,
+            'live_started_at': 1000
+        },
+        max_seconds=3600,
+        layer_status={
+            'currentMatches': True,
+            'serverInfo': {}
+        },
+        now=4599
+    )
+
+    assert status['shouldEnd'] is False
+    assert status['elapsedSeconds'] is None
+    assert status['source'] is None
+
+
+def test_live_match_timer_ignores_non_skirmish_layers():
+    assert should_end_live_match(
+        {
+            'selected_map': 'S3O_36_Harju_AAS_v3',
+            'live_roll_done': True,
+            'live_started_at': 1000
+        },
+        max_seconds=3600,
+        now=5000
+    ) is False
+
+
+def test_live_match_timer_does_not_refire_after_end_sent():
+    assert should_end_live_match(
+        {
+            'selected_map': 'Logar Valley Skirmish v1',
+            'live_roll_done': True,
+            'live_started_at': 1000,
+            'live_match_end_sent': True
+        },
+        max_seconds=3600,
+        now=5000
+    ) is False
+
+
+def test_live_layer_transitioned_away_detects_known_non_matching_current_layer():
+    assert has_live_layer_transitioned_away(
+        {'live_roll_done': True},
+        {'currentMatches': False, 'currentLayer': 'Narva_Skirmish_v1'}
+    ) is True
+    assert has_live_layer_transitioned_away(
+        {'live_roll_done': True},
+        {'currentMatches': True, 'currentLayer': 'Logar_Skirmish_v1'}
+    ) is False
+
+
+def test_unresolved_round_result_marks_admin_end_draw_fallback():
+    result = build_unresolved_round_result(
+        {'live_started_at': 1000},
+        'Logar_Skirmish_v1',
+        source='test',
+        now=4600
+    )
+
+    assert result['draw'] is True
+    assert result['unresolved'] is True
+    assert result['partial'] is True
+    assert result['winner'] is None
+    assert result['loser'] is None
+    assert result['layer'] == 'Logar_Skirmish_v1'
+    assert result['observedAt'] == 4600
+
+
+def test_get_unauthorized_connected_players_returns_kickable_players_only():
+    assert get_unauthorized_connected_players({
+        'unauthorizedPlayers': [
+            {'serverName': 'neil', 'steam_id': '76561198124553635'},
+            {'serverName': 'unknown'},
+            {'serverName': 'eos-player', 'eosID': 'EOS123'}
+        ]
+    }) == [
+        {'serverName': 'neil', 'steam_id': '76561198124553635'},
+        {'serverName': 'eos-player', 'eosID': 'EOS123'}
+    ]
+
+
+def test_finalized_lobby_releases_server_immediately_and_expires(monkeypatch):
+    import services.live_roll as live_roll_module
+
+    class DummyServer:
+        def __init__(self):
+            self.left_rooms = []
+
+        def leave_room(self, sid, room):
+            self.left_rooms.append((sid, room))
+
+    class DummySocketIO:
+        def __init__(self):
+            self.emits = []
+            self.server = DummyServer()
+
+        def emit(self, event, payload=None, **kwargs):
+            self.emits.append((event, payload, kwargs))
+
+    monkeypatch.setattr(live_roll_module.eventlet, 'spawn', lambda fn, *args, **kwargs: fn(*args, **kwargs))
+
+    lobby_id = 'lobby_final'
+    lobbies = {
+        lobby_id: {
+            'players': ['alice'],
+            'teams': {'team1': ['alice'], 'team2': []},
+            'step': 3,
+            'selected_map': 'OutoftheBox_Tallil',
+            'server_id': 1,
+            'server_details_provided_at': 1000,
+        }
+    }
+    socketio = DummySocketIO()
+    events = []
+    saved_matches = []
+    released = []
+    kicked = []
+    synced = []
+    saved_runtime = []
+    player_activity = {
+        'alice': {
+            'status': 'in_lobby',
+            'lobby_id': lobby_id,
+            'last_seen': 1000,
+        }
+    }
+
+    def build_presence(_lobby_id, tolerate_bridge_unavailable=False):
+        return {
+            'players': [
+                {
+                    'username': 'alice',
+                    'steam_id': '76561198000000001',
+                    'eosID': 'EOS_ALICE',
+                    'connected': True,
+                    'teamAligned': True,
+                }
+            ],
+            'connected': ['alice'],
+            'connectedSteamIds': ['76561198000000001'],
+            'aligned': ['alice'],
+            'mismatched': [],
+            'missing': [],
+            'unauthorizedPlayers': [],
+        }
+
+    start_live_roll_monitor(
+        lobby_id,
+        lobbies,
+        socketio,
+        build_lobby_server_presence=build_presence,
+        pause_aware_sleep=lambda _seconds: None,
+        broadcast_server_message=lambda _message: {'ok': True},
+        change_server_to_selected_map=lambda _selected_map: {'ok': True},
+        set_next_server_map=lambda _selected_map: {'ok': True},
+        force_player_to_expected_team=lambda _steam_id: {'ok': True},
+        get_server_layer_status=lambda _selected_map: {'currentMatches': True},
+        get_server_connection_details=lambda: {},
+        fetch_latest_round_result=lambda: {
+            'observedAt': 1100,
+            'layer': 'OutoftheBox_Tallil',
+            'winner': {'team': '1', 'tickets': 10},
+            'loser': {'team': '2', 'tickets': 0},
+        },
+        record_lobby_event=lambda _lobby_id, event_type, payload=None, created_at=None: events.append((event_type, payload)),
+        save_completed_match=lambda _lobby_id, lobby, completed_at: saved_matches.append((_lobby_id, completed_at, dict(lobby))),
+        kick_player_from_server=lambda player_id, reason, lobby_id=None: kicked.append((player_id, reason, lobby_id)),
+        release_server_allocation=lambda _lobby_id, reason=None: released.append((_lobby_id, reason)),
+        broadcast_open_lobbies_update=lambda: None,
+        broadcast_queue_update=lambda: None,
+        player_activity=player_activity,
+        get_player_sids=lambda username: [f'{username}-sid'],
+        emit_active_lobby_sync=lambda username, active_lobby_id: synced.append((username, active_lobby_id)),
+        finalized_cleanup_delay_seconds=300,
+        save_runtime_state=lambda: saved_runtime.append(True),
+    )
+
+    assert saved_matches
+    assert released[0] == (lobby_id, 'match_completed')
+    assert released == [(lobby_id, 'match_completed')]
+    assert lobby_id not in lobbies
+    assert player_activity['alice']['status'] == 'authenticated'
+    assert 'lobby_id' not in player_activity['alice']
+    assert synced == [('alice', None)]
+    assert socketio.server.left_rooms == [('alice-sid', lobby_id)]
+    assert kicked == [('EOS_ALICE', 'Match complete.', lobby_id)]
+    assert 'server_released' in [event_type for event_type, _payload in events]
+    assert 'finalized_lobby_expired' in [event_type for event_type, _payload in events]
+    assert saved_runtime

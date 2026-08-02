@@ -290,6 +290,11 @@ Before exposing this beyond your LAN:
 
 - rotate sensitive credentials if they may have been exposed
 - keep real secrets only in local runtime files
+- set `STEAM_WEB_API_KEY` so Steam display names resolve instead of falling back to `steam_########`
 - verify `FRONTEND_ORIGINS` for public URLs
 - confirm health is `ok`
 - confirm login, queue, lobby, and SquadJS presence all work over LAN first
+- confirm queue fulfilment pauses while the only match server is in use
+- stop and restart the Squad server once to confirm the web app stays online and SquadJS reconnects
+- test admin-only lobby controls with a non-admin account and confirm they are rejected server-side
+- run `.\scripts\backup-production.ps1` and verify the backup zip before relying on the deployment

@@ -34,3 +34,28 @@ def handle_update_steam_id_event(
     except Exception as e:
         logger.error(f"Error in handle_update_steam_id: {str(e)}")
         return {'success': False, 'message': 'Failed to update Steam ID'}
+
+
+def handle_update_display_name_event(
+    data,
+    update_display_name,
+    get_user_record,
+    save_users,
+    users,
+    get_user_profile,
+    logger
+):
+    try:
+        username = data.get('username') if data else None
+        display_name = data.get('display_name') if data else None
+        return update_display_name(
+            username,
+            display_name,
+            get_user_record,
+            save_users,
+            users,
+            get_user_profile
+        )
+    except Exception as e:
+        logger.error(f"Error in handle_update_display_name: {str(e)}")
+        return {'success': False, 'message': 'Failed to update display name'}

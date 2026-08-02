@@ -1,5 +1,5 @@
 #IMPORTS AND INITIAL SETUP
-import eventlet, json, logging, random, os, sys
+import eventlet, json, logging, random, os, sys, time
 from dotenv import load_dotenv
 eventlet.monkey_patch()
 sys.modules.setdefault('app', sys.modules[__name__])
@@ -25,12 +25,16 @@ from app_state import (
     GROUP_CODE_ALPHABET,
     GROUP_CODE_LENGTH,
     JWT_ACCESS_TOKEN_EXPIRES_HOURS,
+    FINALIZED_LOBBY_CLEANUP_SECONDS,
     LIVE_ROLL_READY_GRACE_SECONDS,
+    LIVE_ROLL_READY_OVERRIDE_ENABLED,
+    LOBBY_DISCONNECT_GRACE_SECONDS,
     MAX_LOBBY_PLAYERS,
     PASSWORD_AUTH_ENABLED,
     QUEUE_MODES,
     SQUADJS_BRIDGE_TOKEN,
     SQUADJS_BRIDGE_URL,
+    STEAM_WEB_API_KEY,
     countdown_active,
     countdown_paused,
     countdown_pause_lock,
@@ -52,15 +56,18 @@ from app_core import (
     build_lobby_join_url,
     change_server_to_selected_map,
     create_server,
+    end_server_match,
     fetch_completed_matches,
     fetch_lobby_audit_events,
     get_admin_diagnostics,
+    get_automation_control,
     get_bridge_health,
     get_database_health,
     get_db_connection,
     get_history_counts,
     get_server_by_id,
     get_server_connection_details,
+    get_selected_map_team_labels,
     get_server_pool_capacity,
     get_user_profile,
     get_user_record,
@@ -69,19 +76,25 @@ from app_core import (
     list_servers,
     record_lobby_event,
     is_admin_user,
+    can_toggle_admin_mode,
     is_valid_steam_id,
+    kick_player_from_server,
     load_queue,
     load_users,
     migrate_legacy_json_files,
     normalize_user_record,
     release_server_allocation,
     run_server_health_check,
+    save_runtime_state,
     save_users,
     save_completed_match,
     set_server_enabled,
+    set_automation_mode,
+    set_self_admin_mode,
     squadjs_bridge_request,
     start_live_roll_monitor,
     test_server_connection,
+    update_display_name_service,
     user_has_steam_id,
     init_database,
     initialize_state
@@ -97,12 +110,14 @@ from services.bridge import fetch_connected_server_players as fetch_connected_se
 from services.queue import has_available_server_capacity
 from services.profile import (
     build_profile_status as build_profile_status_service,
+    update_display_name as update_display_name_service,
     update_steam_id as update_steam_id_service,
     is_valid_steam_id as is_valid_steam_id_service,
 )
 from runtime import (
     cleanup_on_start as cleanup_on_start_runtime,
     cleanup_stale_players as cleanup_stale_players_runtime,
+    periodic_runtime_state_persistence as periodic_runtime_state_persistence_runtime,
     periodic_queue_management as periodic_queue_management_runtime,
     start_periodic_tasks as start_periodic_tasks_runtime
 )
@@ -113,6 +128,7 @@ from state.group import (
     get_user_group
 )
 from state.lobby import (
+    build_player_profile_map,
     broadcast_open_lobbies_update,
     emit_active_lobby_sync,
     find_active_lobby_for_user,
@@ -138,9 +154,11 @@ from sockets.auth import (
 from sockets.group import (
     handle_group_create_event,
     handle_group_join_event,
+    handle_group_kick_event,
     handle_group_leave_event,
     handle_group_queue_event,
     handle_group_status_event,
+    handle_group_transfer_event,
     handle_group_unqueue_event,
 )
 from sockets.lobby import (
@@ -157,7 +175,11 @@ from sockets.lobby import (
     handle_toggle_countdown_pause_event,
     vote_map_event,
 )
-from sockets.profile import handle_profile_status_event, handle_update_steam_id_event
+from sockets.profile import (
+    handle_profile_status_event,
+    handle_update_display_name_event,
+    handle_update_steam_id_event
+)
 from sockets.queue import (
     handle_accept_match_event,
     handle_clear_queue_event,
@@ -251,6 +273,9 @@ def validate_auth_configuration():
 
     if not SQUADJS_BRIDGE_URL:
         raise RuntimeError('SQUADJS_BRIDGE_URL must be set in production')
+
+    if not STEAM_WEB_API_KEY:
+        raise RuntimeError('STEAM_WEB_API_KEY must be set in production so Steam display names can be resolved reliably')
 
     if not os.path.isabs(DATABASE_PATH):
         raise RuntimeError('DATABASE_PATH must be an absolute persistent path in production')
@@ -346,7 +371,9 @@ SOCKET_EVENTS =  {
     'GROUP': {
         'CREATE': 'group_create',
         'JOIN': 'group_join',
+        'KICK': 'group_kick',
         'LEAVE': 'group_leave',
+        'TRANSFER': 'group_transfer',
         'STATUS': 'group_status',
         'UPDATE': 'group_update',
         'QUEUE': 'group_queue',
@@ -355,6 +382,7 @@ SOCKET_EVENTS =  {
 
     'PROFILE': {
         'STATUS': 'profile_status',
+        'UPDATE_DISPLAY_NAME': 'profile_update_display_name',
         'UPDATE_STEAM_ID': 'profile_update_steam_id'
     },
 
@@ -396,6 +424,84 @@ create_lobby = matchmaking_module.create_lobby
 assign_teams = matchmaking_module.assign_teams
 select_captains = matchmaking_module.select_captains
 select_map_from_votes = matchmaking_module.select_map_from_votes
+
+
+def expire_restored_finalized_lobby(lobby_id, delay_seconds=0):
+    if delay_seconds > 0:
+        eventlet.sleep(delay_seconds)
+    lobby = lobbies.get(lobby_id)
+    if not lobby or lobby.get('step') != 5:
+        return
+
+    now = time.time()
+    for player in lobby.get('players') or []:
+        activity = player_activity.get(player)
+        if activity and activity.get('lobby_id') == lobby_id:
+            activity['lobby_id'] = None
+            activity['status'] = 'authenticated'
+            activity['last_seen'] = now
+        try:
+            emit_active_lobby_sync(player, None)
+        except Exception as exc:
+            logger.warning("Failed to clear active lobby sync for %s after restored finalized cleanup: %s", player, exc)
+
+    lobbies.pop(lobby_id, None)
+    save_runtime_state()
+    try:
+        broadcast_open_lobbies_update()
+    except Exception as exc:
+        logger.warning("Failed to broadcast open lobbies after restored finalized cleanup for %s: %s", lobby_id, exc)
+    try:
+        broadcast_queue_update()
+    except Exception as exc:
+        logger.warning("Failed to broadcast queue update after restored finalized cleanup for %s: %s", lobby_id, exc)
+    logger.info("Removed restored finalized lobby %s", lobby_id)
+
+
+def resume_restored_lobby_tasks():
+    restored_count = 0
+    finalized_cleanup_count = 0
+    state_changed = False
+    now = time.time()
+    for lobby_id, lobby in list(lobbies.items()):
+        step = lobby.get('step')
+        if step == 2:
+            eventlet.spawn(start_map_voting, lobby_id)
+            restored_count += 1
+        elif step in (3, 4) and lobby.get('selected_map'):
+            start_live_roll_monitor(lobby_id)
+            restored_count += 1
+        elif step == 5:
+            if not lobby.get('server_released_at'):
+                try:
+                    release_server_allocation(lobby_id, reason='restored_finalized_lobby')
+                    lobby['server_released_at'] = now
+                    state_changed = True
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to release server for restored finalized lobby %s: %s",
+                        lobby_id,
+                        exc,
+                    )
+
+            finalized_at = float(lobby.get('finalized_at') or 0)
+            if not finalized_at or now - finalized_at >= FINALIZED_LOBBY_CLEANUP_SECONDS:
+                expire_restored_finalized_lobby(lobby_id)
+                finalized_cleanup_count += 1
+                state_changed = True
+            else:
+                eventlet.spawn(
+                    expire_restored_finalized_lobby,
+                    lobby_id,
+                    max(0, FINALIZED_LOBBY_CLEANUP_SECONDS - (now - finalized_at))
+                )
+                restored_count += 1
+    if state_changed:
+        save_runtime_state()
+    if restored_count:
+        logger.info("Resumed background tasks for %s restored lobbies", restored_count)
+    if finalized_cleanup_count:
+        logger.info("Removed %s expired finalized restored lobbies", finalized_cleanup_count)
 
 #HELPER FUNCTIONS
 
@@ -466,9 +572,11 @@ APP_PUBLIC_EXPORTS = (
     'DEV_MODE',
     'FRONTEND_ORIGINS',
     'LIVE_ROLL_READY_GRACE_SECONDS',
+    'LIVE_ROLL_READY_OVERRIDE_ENABLED',
     'MAX_LOBBY_PLAYERS',
     'PASSWORD_AUTH_ENABLED',
     'QUEUE_MODES',
+    'STEAM_WEB_API_KEY',
     'SOCKET_EVENTS',
     'app',
     'allocate_server_for_lobby',
@@ -482,6 +590,7 @@ APP_PUBLIC_EXPORTS = (
     'build_profile_status_service',
     'build_queue_payload',
     'cancel_pending_match',
+    'can_toggle_admin_mode',
     'change_server_to_selected_map',
     'check_queue_and_start_countdown',
     'countdown_active',
@@ -498,6 +607,7 @@ APP_PUBLIC_EXPORTS = (
     'generate_group_code',
     'get_active_lobbies',
     'get_admin_diagnostics',
+    'get_automation_control',
     'get_server_by_id',
     'get_bridge_health',
     'get_database_health',
@@ -507,6 +617,7 @@ APP_PUBLIC_EXPORTS = (
     'get_player_groups',
     'get_player_sids',
     'get_server_connection_details',
+    'get_selected_map_team_labels',
     'get_server_pool_capacity',
     'get_user_group',
     'get_user_profile',
@@ -526,9 +637,11 @@ APP_PUBLIC_EXPORTS = (
     'handle_get_lobby_data_event',
     'handle_group_create_event',
     'handle_group_join_event',
+    'handle_group_kick_event',
     'handle_group_leave_event',
     'handle_group_queue_event',
     'handle_group_status_event',
+    'handle_group_transfer_event',
     'handle_group_unqueue_event',
     'handle_join_lobby_event',
     'handle_join_queue',
@@ -545,9 +658,12 @@ APP_PUBLIC_EXPORTS = (
     'handle_socket_data',
     'handle_start_lobby_event',
     'handle_toggle_countdown_pause_event',
+    'handle_update_display_name_event',
     'handle_update_steam_id_event',
     'hash_password',
+    'end_server_match',
     'is_admin_user',
+    'kick_player_from_server',
     'is_countdown_paused',
     'is_user_in_any_lobby',
     'join_room',
@@ -566,17 +682,21 @@ APP_PUBLIC_EXPORTS = (
     'remove_player_session',
     'request',
     'run_server_health_check',
+    'save_runtime_state',
     'save_queue',
     'save_users',
     'select_captains',
     'select_map_from_votes',
     'set_server_enabled',
+    'set_automation_mode',
+    'set_self_admin_mode',
     'set_countdown_paused',
     'socketio',
     'squadjs_bridge_request',
     'start_live_roll_monitor',
     'start_map_voting',
     'test_server_connection',
+    'update_display_name_service',
     'update_steam_id_service',
     'upsert_player_activity',
     'user_has_steam_id',
@@ -610,13 +730,30 @@ if __name__ == '__main__':
                 queue_lock=queue_lock,
                 player_activity=player_activity,
                 matchmaking_queue=matchmaking_queue,
+                lobbies=lobbies,
                 broadcast_queue_update=broadcast_queue_update,
+                broadcast_open_lobbies_update=broadcast_open_lobbies_update,
+                socketio=socketio,
+                build_player_profile_map=build_player_profile_map,
+                select_captains=select_captains,
+                emit_active_lobby_sync=emit_active_lobby_sync,
+                record_lobby_event=record_lobby_event,
+                release_server_allocation=release_server_allocation,
+                save_runtime_state=save_runtime_state,
+                lobby_disconnect_grace_seconds=LOBBY_DISCONNECT_GRACE_SECONDS,
                 logger=logger,
                 eventlet=eventlet
             ),
+            runtime_state_persistence_task=lambda: periodic_runtime_state_persistence_runtime(
+                save_runtime_state=save_runtime_state,
+                logger=logger,
+                eventlet=eventlet
+            ),
+            resume_lobby_tasks=resume_restored_lobby_tasks,
             logger=logger
         ),
         save_queue=save_queue,
+        save_runtime_state=save_runtime_state,
         host=BACKEND_HOST,
         port=BACKEND_PORT,
         logger=logger

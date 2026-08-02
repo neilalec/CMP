@@ -70,7 +70,9 @@ export const SOCKET_EVENTS = {
   GROUP: {
     CREATE: 'group_create',
     JOIN: 'group_join',
+    KICK: 'group_kick',
     LEAVE: 'group_leave',
+    TRANSFER: 'group_transfer',
     STATUS: 'group_status',
     UPDATE: 'group_update',
     QUEUE: 'group_queue',
@@ -79,6 +81,7 @@ export const SOCKET_EVENTS = {
 
   PROFILE: {
     STATUS: 'profile_status',
+    UPDATE_DISPLAY_NAME: 'profile_update_display_name',
     UPDATE_STEAM_ID: 'profile_update_steam_id'
   },
 

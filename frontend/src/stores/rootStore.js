@@ -7,6 +7,11 @@ export const useRootStore = defineStore('root', {
     loading: false,
     errorTimer: null
   }),
+
+  getters: {
+    globalError: (state) => state.currentError?.message || null,
+    globalErrorDetails: (state) => state.currentError?.details || null
+  },
   
   actions: {
     setError(error) {

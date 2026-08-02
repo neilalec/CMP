@@ -12,6 +12,7 @@ from services.steam_auth import (
     build_steam_login_url,
     extract_steam_id,
     frontend_origin_from_request,
+    fetch_steam_persona_name,
     get_steam_openid_verification_result,
     get_or_create_steam_user,
     load_steam_state,
@@ -23,6 +24,7 @@ def _http_backend_api():
 
     return SimpleNamespace(
         FRONTEND_ORIGINS=backend_app.FRONTEND_ORIGINS,
+        STEAM_WEB_API_KEY=backend_app.STEAM_WEB_API_KEY,
         app=backend_app.app,
         build_lobby_server_presence=backend_app.build_lobby_server_presence,
         build_lobby_join_url=backend_app.build_lobby_join_url,
@@ -33,8 +35,11 @@ def _http_backend_api():
         fetch_connected_server_players_service=backend_app.fetch_connected_server_players_service,
         find_active_lobby_for_user=backend_app.find_active_lobby_for_user,
         get_admin_diagnostics=backend_app.get_admin_diagnostics,
+        set_self_admin_mode=backend_app.set_self_admin_mode,
+        can_toggle_admin_mode=backend_app.can_toggle_admin_mode,
         get_bridge_health=backend_app.get_bridge_health,
         get_database_health=backend_app.get_database_health,
+        get_server_connection_details=backend_app.get_server_connection_details,
         get_user_profile=backend_app.get_user_profile,
         get_server_by_id=backend_app.get_server_by_id,
         handle_socket_data=backend_app.handle_socket_data,
@@ -46,6 +51,7 @@ def _http_backend_api():
         matchmaking_queue=backend_app.matchmaking_queue,
         run_server_health_check=backend_app.run_server_health_check,
         save_users=backend_app.save_users,
+        set_automation_mode=backend_app.set_automation_mode,
         set_server_enabled=backend_app.set_server_enabled,
         socketio=backend_app.socketio,
         squadjs_bridge_request=backend_app.squadjs_bridge_request,
@@ -106,9 +112,11 @@ def _socket_backend_api():
         handle_get_lobby_data_event=backend_app.handle_get_lobby_data_event,
         handle_group_create_event=backend_app.handle_group_create_event,
         handle_group_join_event=backend_app.handle_group_join_event,
+        handle_group_kick_event=backend_app.handle_group_kick_event,
         handle_group_leave_event=backend_app.handle_group_leave_event,
         handle_group_queue_event=backend_app.handle_group_queue_event,
         handle_group_status_event=backend_app.handle_group_status_event,
+        handle_group_transfer_event=backend_app.handle_group_transfer_event,
         handle_group_unqueue_event=backend_app.handle_group_unqueue_event,
         handle_join_lobby_event=backend_app.handle_join_lobby_event,
         handle_join_queue_event=backend_app.handle_join_queue_event,
@@ -124,6 +132,7 @@ def _socket_backend_api():
         handle_socket_data=backend_app.handle_socket_data,
         handle_start_lobby_event=backend_app.handle_start_lobby_event,
         handle_toggle_countdown_pause_event=backend_app.handle_toggle_countdown_pause_event,
+        handle_update_display_name_event=backend_app.handle_update_display_name_event,
         handle_update_steam_id_event=backend_app.handle_update_steam_id_event,
         hash_password=backend_app.hash_password,
         is_admin_user=backend_app.is_admin_user,
@@ -146,6 +155,7 @@ def _socket_backend_api():
         set_countdown_paused=backend_app.set_countdown_paused,
         socketio=backend_app.socketio,
         start_live_roll_monitor=backend_app.start_live_roll_monitor,
+        update_display_name_service=backend_app.update_display_name_service,
         update_steam_id_service=backend_app.update_steam_id_service,
         upsert_player_activity=backend_app.upsert_player_activity,
         user_has_steam_id=backend_app.user_has_steam_id,
@@ -198,6 +208,9 @@ def _group_socket_dependencies(backend):
         'user_to_group': backend.user_to_group,
         'broadcast_group_update': backend.broadcast_group_update,
         'get_group_payload': backend.get_group_payload,
+        'queue_lock': backend.queue_lock,
+        'matchmaking_queue': backend.matchmaking_queue,
+        'is_user_in_any_lobby': backend.is_user_in_any_lobby,
     }
 
 
@@ -227,9 +240,10 @@ def register_http_routes(app):
     @app.route('/')
     def index():
         backend = _http_backend_api()
-        return f"CMP SocketIO backend running. Frontend handled through Vue.js for origins: {', '.join(backend.FRONTEND_ORIGINS)}"
+        return f"SocketIO backend running. Frontend handled through Vue.js for origins: {', '.join(backend.FRONTEND_ORIGINS)}"
 
     @app.route('/health', methods=['GET'])
+    @app.route('/api/health', methods=['GET'])
     def health():
         backend = _http_backend_api()
         database = backend.get_database_health()
@@ -247,6 +261,7 @@ def register_http_routes(app):
         return jsonify(payload), (200 if ok else 503)
 
     @app.route('/health/live', methods=['GET'])
+    @app.route('/api/health/live', methods=['GET'])
     def health_live():
         return jsonify({
             'ok': True,
@@ -297,7 +312,36 @@ def register_http_routes(app):
         backend = _http_backend_api()
         if lobby_id not in backend.lobbies:
             return jsonify({'success': False, 'message': 'Lobby not found'}), 404
+        lobby = backend.lobbies.get(lobby_id) or {}
+        server_id = lobby.get('server_id')
+        if server_id:
+            try:
+                refreshed_details = backend.get_server_connection_details(server_id=server_id)
+                if refreshed_details:
+                    lobby['server_details'] = refreshed_details
+            except Exception as error:
+                backend.logger.warning(
+                    "Failed to refresh lobby join details for lobby_id=%s server_id=%s: %s",
+                    lobby_id,
+                    server_id,
+                    error,
+                )
+        server_details = lobby.get('server_details') or {}
         join_url = backend.build_lobby_join_url(lobby_id)
+        backend.logger.info(
+            "Lobby join link requested: lobby_id=%s server_name=%s steam_lobby_id=%s connect_address=%s join_url=%s",
+            lobby_id,
+            server_details.get('serverName')
+            or (server_details.get('bridge') or {}).get('serverName')
+            or '',
+            server_details.get('steamLobbyId')
+            or server_details.get('steam_lobby_id')
+            or '',
+            server_details.get('connectAddress')
+            or server_details.get('ip')
+            or '',
+            join_url or '',
+        )
         if not join_url:
             return jsonify({'success': False, 'message': 'Server connection details are not ready yet'}), 409
         return jsonify({
@@ -309,12 +353,44 @@ def register_http_routes(app):
     @jwt_required()
     def api_match_history():
         backend = _http_backend_api()
+        username = get_jwt_identity()
         limit = request.args.get('limit', default=20, type=int) or 20
         limit = max(1, min(limit, 100))
+        player = str(request.args.get('player', default='') or '').strip()
+        scored_only = str(request.args.get('scored', default='') or '').strip().lower() in {'1', 'true', 'yes'}
+        if player == 'me':
+            player = username
         return jsonify({
             'success': True,
-            'matches': backend.fetch_completed_matches(limit=limit)
+            'matches': backend.fetch_completed_matches(
+                limit=limit,
+                username=player or None,
+                scored_only=scored_only
+            )
         })
+
+    @app.route('/api/servers/test', methods=['POST'])
+    @jwt_required()
+    def api_servers_test():
+        backend = _http_backend_api()
+        payload = request.get_json(silent=True) or {}
+        try:
+            result = backend.test_server_connection(payload)
+            return jsonify({'success': True, 'result': result})
+        except Exception as error:
+            return jsonify({'success': False, 'message': str(error)}), 400
+
+    @app.route('/api/servers/submit', methods=['POST'])
+    @jwt_required()
+    def api_servers_submit():
+        backend = _http_backend_api()
+        username = get_jwt_identity()
+        payload = request.get_json(silent=True) or {}
+        try:
+            server = backend.create_server(payload, submitted_by=username)
+            return jsonify({'success': True, 'server': server}), 201
+        except Exception as error:
+            return jsonify({'success': False, 'message': str(error)}), 400
 
     @app.route('/api/admin/diagnostics', methods=['GET'])
     @jwt_required()
@@ -331,6 +407,34 @@ def register_http_routes(app):
             'success': True,
             'diagnostics': backend.get_admin_diagnostics()
         })
+
+    @app.route('/api/admin/self-mode', methods=['POST'])
+    @jwt_required()
+    def api_admin_self_mode():
+        backend = _http_backend_api()
+        username = get_jwt_identity()
+        if not backend.can_toggle_admin_mode(username):
+            return jsonify({'success': False, 'message': 'Root admin access required'}), 403
+        payload = request.get_json(silent=True) or {}
+        try:
+            profile = backend.set_self_admin_mode(username, bool(payload.get('enabled')))
+            return jsonify({'success': True, 'profile': profile})
+        except Exception as error:
+            return jsonify({'success': False, 'message': str(error)}), 400
+
+    @app.route('/api/admin/automation', methods=['POST'])
+    @jwt_required()
+    def api_admin_automation():
+        backend = _http_backend_api()
+        username = get_jwt_identity()
+        if not backend.is_admin_user(username):
+            return jsonify({'success': False, 'message': 'Admin access required'}), 403
+        payload = request.get_json(silent=True) or {}
+        try:
+            automation = backend.set_automation_mode(payload.get('mode'))
+            return jsonify({'success': True, 'automation': automation})
+        except Exception as error:
+            return jsonify({'success': False, 'message': str(error)}), 400
 
     @app.route('/api/admin/servers', methods=['GET'])
     @jwt_required()
@@ -479,10 +583,24 @@ def register_http_routes(app):
         if not steam_id:
             return jsonify({'success': False, 'message': 'Steam response did not include a valid SteamID64'}), 400
 
+        persona_name = ''
+        try:
+            persona_name = fetch_steam_persona_name(
+                steam_id,
+                api_key=getattr(backend, 'STEAM_WEB_API_KEY', '')
+            )
+        except Exception as error:
+            backend.logger.warning(
+                "Steam persona lookup failed for steam_id=%s: %s",
+                steam_id,
+                error
+            )
+
         username, created = get_or_create_steam_user(
             steam_id,
             users=backend.users,
-            save_users=backend.save_users
+            save_users=backend.save_users,
+            persona_name=persona_name
         )
         access_token = backend.create_access_token(identity=username)
         active_lobby_id = backend.find_active_lobby_for_user(username)
@@ -631,6 +749,20 @@ def register_socket_routes(socketio):
             backend.logger
         )
 
+    @socketio.on(_socket_backend_api().SOCKET_EVENTS['PROFILE']['UPDATE_DISPLAY_NAME'])
+    @_socket_backend_api().handle_socket_data
+    @_with_socket_backend
+    def handle_update_display_name(backend, data=None):
+        return backend.handle_update_display_name_event(
+            data,
+            backend.update_display_name_service,
+            backend.get_user_record,
+            backend.save_users,
+            backend.users,
+            backend.get_user_profile,
+            backend.logger
+        )
+
     @socketio.on(_socket_backend_api().SOCKET_EVENTS['QUEUE']['JOIN'])
     @_socket_backend_api().handle_socket_data
     @_with_socket_backend
@@ -686,7 +818,6 @@ def register_socket_routes(socketio):
             socketio=socketio,
             broadcast_queue_update=backend.broadcast_queue_update,
             logger=backend.logger,
-            dev_mode=backend.DEV_MODE,
             get_username_by_sid=backend.get_username_by_sid,
             is_admin_user=backend.is_admin_user,
             users=backend.users,
@@ -700,7 +831,10 @@ def register_socket_routes(socketio):
             build_queue_payload=backend.build_queue_payload,
             check_queue_and_start_countdown=backend.check_queue_and_start_countdown,
             get_pending_match=lambda queue_mode: backend.pending_match.get(queue_mode),
-            finalize_pending_match=backend.finalize_pending_match
+            finalize_pending_match=backend.finalize_pending_match,
+            group_lock=backend.group_lock,
+            groups=backend.groups,
+            user_to_group=backend.user_to_group
         )
 
     @socketio.on(_socket_backend_api().SOCKET_EVENTS['QUEUE']['CLEAR'])
@@ -714,7 +848,6 @@ def register_socket_routes(socketio):
             socketio=socketio,
             broadcast_queue_update=backend.broadcast_queue_update,
             logger=backend.logger,
-            dev_mode=backend.DEV_MODE,
             get_username_by_sid=backend.get_username_by_sid,
             is_admin_user=backend.is_admin_user,
             queue_lock=backend.queue_lock,
@@ -777,6 +910,43 @@ def register_socket_routes(socketio):
         return backend.handle_group_leave_event(
             data,
             leave_room=leave_room,
+            save_queue=backend.save_queue,
+            broadcast_queue_update=backend.broadcast_queue_update,
+            pending_match=backend.pending_match,
+            cancel_pending_match=backend.cancel_pending_match,
+            lobbies=backend.lobbies,
+            player_activity=backend.player_activity,
+            get_player_sids=backend.get_player_sids,
+            socketio=socketio,
+            broadcast_open_lobbies_update=backend.broadcast_open_lobbies_update,
+            emit_active_lobby_sync=backend.emit_active_lobby_sync,
+            select_captains=backend.select_captains,
+            record_lobby_event=backend.record_lobby_event,
+            release_server_allocation=backend.release_server_allocation,
+            **dependencies
+        )
+
+    @socketio.on(_socket_backend_api().SOCKET_EVENTS['GROUP']['KICK'])
+    @_socket_backend_api().handle_socket_data
+    @_with_socket_backend
+    def handle_group_kick(backend, data=None):
+        dependencies = _group_socket_dependencies(backend)
+        return backend.handle_group_kick_event(
+            data,
+            socketio=socketio,
+            socket_events=backend.SOCKET_EVENTS,
+            get_player_sids=backend.get_player_sids,
+            leave_room=leave_room,
+            **dependencies
+        )
+
+    @socketio.on(_socket_backend_api().SOCKET_EVENTS['GROUP']['TRANSFER'])
+    @_socket_backend_api().handle_socket_data
+    @_with_socket_backend
+    def handle_group_transfer(backend, data=None):
+        dependencies = _group_socket_dependencies(backend)
+        return backend.handle_group_transfer_event(
+            data,
             **dependencies
         )
 
@@ -977,6 +1147,7 @@ def register_socket_routes(socketio):
             select_map_from_votes_fn=backend.select_map_from_votes,
             start_live_roll_monitor=backend.start_live_roll_monitor,
             get_server_connection_details=backend.get_server_connection_details,
+            get_selected_map_team_labels=backend.get_selected_map_team_labels,
             ready_grace_seconds=backend.LIVE_ROLL_READY_GRACE_SECONDS,
             get_username_by_sid=backend.get_username_by_sid,
             is_admin_user=backend.is_admin_user,

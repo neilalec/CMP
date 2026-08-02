@@ -2,15 +2,7 @@
 import { computed } from 'vue';
 
 const props = defineProps({
-  matchSizeLabel: {
-    type: String,
-    default: ''
-  },
   selectedMap: {
-    type: String,
-    default: ''
-  },
-  serverLabel: {
     type: String,
     default: ''
   },
@@ -22,6 +14,10 @@ const props = defineProps({
     type: Object,
     default: null
   },
+  canAdmin: {
+    type: Boolean,
+    default: false
+  },
   autoConnectAvailable: {
     type: Boolean,
     default: false
@@ -29,10 +25,18 @@ const props = defineProps({
   autoConnectEnabled: {
     type: Boolean,
     default: false
+  },
+  directConnectAvailable: {
+    type: Boolean,
+    default: false
+  },
+  directConnectEnabled: {
+    type: Boolean,
+    default: false
   }
 });
 
-const emit = defineEmits(['auto-connect']);
+defineEmits(['auto-connect', 'direct-connect']);
 
 const serverName = computed(() => (
   props.serverDetails?.serverName
@@ -42,14 +46,6 @@ const serverName = computed(() => (
 ));
 
 const serverPassword = computed(() => props.serverDetails?.password || '');
-const connectAddress = computed(() => props.serverDetails?.connectAddress || props.serverDetails?.ip || '');
-const connectUrl = computed(() => {
-  if (!connectAddress.value) return '';
-  const command = serverPassword.value
-    ? `+connect ${connectAddress.value} +password ${serverPassword.value}`
-    : `+connect ${connectAddress.value}`;
-  return `steam://run/393380//${encodeURIComponent(command).replace(/%2B/g, '+')}`;
-});
 const roundResult = computed(() => props.serverDetails?.roundResult || null);
 const roundWinner = computed(() => roundResult.value?.winner || null);
 const roundLoser = computed(() => roundResult.value?.loser || null);
@@ -98,12 +94,26 @@ const ticketDifference = computed(() => {
   if (Number.isNaN(winnerTickets) || Number.isNaN(loserTickets)) return '';
   return String(winnerTickets - loserTickets);
 });
-const roundEndedAt = computed(() => roundResult.value?.time || '');
-const resultSummary = computed(() => {
-  if (!roundResult.value) return '';
-  if (resultIsUnresolved.value) return 'Draw / unresolved';
-  if (winningSummary.value && losingSummary.value) return 'Completed';
-  return 'Completed';
+const roundDurationSeconds = computed(() => {
+  const explicitDuration = Number(props.serverDetails?.roundDurationSeconds);
+  if (!Number.isNaN(explicitDuration) && explicitDuration >= 0) return explicitDuration;
+
+  const liveStartedAt = Number(props.serverDetails?.liveStartedAt);
+  const endedAt = Number(roundResult.value?.observedAt || roundResult.value?.capturedAt);
+  if (Number.isNaN(liveStartedAt) || Number.isNaN(endedAt) || endedAt < liveStartedAt) return null;
+  return endedAt - liveStartedAt;
+});
+const roundDuration = computed(() => {
+  if (roundDurationSeconds.value === null) return '';
+  const totalSeconds = Math.max(0, Math.round(roundDurationSeconds.value));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const parts = [];
+  if (hours) parts.push(`${hours}h`);
+  if (minutes || hours) parts.push(`${minutes}m`);
+  parts.push(`${seconds}s`);
+  return parts.join(' ');
 });
 const roundOutcome = computed(() => {
   if (resultIsUnresolved.value) {
@@ -119,12 +129,6 @@ const roundOutcome = computed(() => {
   if (roundResult.value) return 'No winner data.';
   return '';
 });
-const bridgeNote = computed(() => {
-  if (props.serverDetails?.bridgeAvailable === false) {
-    return 'Bridge offline.';
-  }
-  return '';
-});
 </script>
 
 <template>
@@ -133,53 +137,31 @@ const bridgeNote = computed(() => {
       <span class="window-titlebar-label">Match Summary</span>
     </div>
     <div class="match-info-body">
-      <div class="match-info-row">
-        <span>Map</span>
-        <strong>{{ roundLayer || selectedMap || 'Map TBD' }}</strong>
+      <div class="match-info-row info-row is-stacked">
+        <span class="info-row-label">Map</span>
+        <strong class="info-row-value">{{ roundLayer || selectedMap || 'Map TBD' }}</strong>
       </div>
-      <div class="match-info-row">
-        <span>Server Name</span>
-        <strong>{{ serverName || serverLabel || 'Server details pending' }}</strong>
+      <div class="match-info-row info-row is-stacked">
+        <span class="info-row-label">Server Name</span>
+        <strong class="info-row-value">{{ serverName || 'Server details pending' }}</strong>
       </div>
-      <div class="match-info-row">
-        <span>Password</span>
-        <strong>{{ serverPassword || 'No password configured' }}</strong>
+      <div class="match-info-row info-row is-stacked">
+        <span class="info-row-label">Password</span>
+        <strong class="info-row-value">{{ serverPassword || 'No password configured' }}</strong>
       </div>
-      <div v-if="connectAddress" class="match-info-row">
-        <span>{{ serverPrefix }}</span>
-        <a :href="connectUrl" class="server-link">{{ connectAddress }}</a>
+      <div v-if="winningSummary" class="match-info-row info-row is-stacked">
+        <span class="info-row-label">Winner</span>
+        <strong class="info-row-value">{{ winningSummary }}</strong>
       </div>
-      <button
-        v-if="autoConnectAvailable"
-        type="button"
-        class="match-connect-button"
-        :disabled="!autoConnectEnabled"
-        @click="emit('auto-connect')"
-      >
-        {{ autoConnectEnabled ? 'Auto Connect' : 'Waiting for server' }}
-      </button>
-      <div v-if="resultSummary" class="match-info-row">
-        <span>Result</span>
-        <strong>{{ resultSummary }}</strong>
+      <div v-if="losingSummary" class="match-info-row info-row is-stacked">
+        <span class="info-row-label">Loser</span>
+        <strong class="info-row-value">{{ losingSummary }}</strong>
       </div>
-      <div v-if="winningSummary" class="match-info-row">
-        <span>Winner</span>
-        <strong>{{ winningSummary }}</strong>
-      </div>
-      <div v-if="losingSummary" class="match-info-row">
-        <span>Loser</span>
-        <strong>{{ losingSummary }}</strong>
-      </div>
-      <div v-if="ticketDifference" class="match-info-row">
-        <span>Ticket Diff</span>
-        <strong>{{ ticketDifference }}</strong>
-      </div>
-      <div v-if="roundEndedAt" class="match-info-row">
-        <span>Round Ended</span>
-        <strong>{{ roundEndedAt }}</strong>
+      <div v-if="roundDuration" class="match-info-row info-row is-stacked">
+        <span class="info-row-label">Round Duration</span>
+        <strong class="info-row-value">{{ roundDuration }}</strong>
       </div>
       <p v-if="roundOutcome" class="match-info-note">{{ roundOutcome }}</p>
-      <p v-if="bridgeNote" class="match-info-note">{{ bridgeNote }}</p>
     </div>
   </div>
 </template>
@@ -201,54 +183,13 @@ const bridgeNote = computed(() => {
   padding: 14px;
 }
 
-.match-info-row {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  padding: 10px;
-  border-radius: var(--radius-sm);
-  background: var(--panel-bg-strong);
-  border: 1px solid var(--surface-border);
-  box-shadow: var(--surface-shadow);
-}
-
-.match-info-row + .match-info-row {
-  margin-top: 8px;
-}
-
-.match-info-row span {
-  color: var(--text-muted);
-  font-size: 0.76rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.match-info-row strong {
-  color: var(--text-main);
-  font-size: 1rem;
-  line-height: 1.25;
-  overflow-wrap: anywhere;
-}
-
-.server-link {
-  color: var(--text-main);
-  font-size: 1rem;
-  font-weight: 800;
-  line-height: 1.25;
-  overflow-wrap: anywhere;
-  text-decoration: none;
-}
-
-.server-link:hover,
-.server-link:focus-visible {
-  color: var(--accent-strong);
-  text-decoration: underline;
-}
-
 .match-connect-button {
   margin-top: 10px;
   width: 100%;
+}
+
+.match-connect-button-secondary {
+  margin-top: 8px;
 }
 
 .match-info-note {
@@ -271,7 +212,7 @@ const bridgeNote = computed(() => {
 }
 
 @media (max-width: 640px) {
-  .match-info-row strong {
+  .info-row-value {
     font-size: 1rem;
   }
 }

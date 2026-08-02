@@ -16,13 +16,17 @@ defineProps({
     type: Boolean,
     required: true
   },
+  isAdmin: {
+    type: Boolean,
+    default: false
+  },
   getLobbyLabel: {
     type: Function,
     required: true
   }
 })
 
-const emit = defineEmits(['join-lobby'])
+const emit = defineEmits(['join-lobby', 'delete-lobby'])
 </script>
 
 <template>
@@ -38,18 +42,28 @@ const emit = defineEmits(['join-lobby'])
             <div
               v-for="lobby in openLobbies"
                 :key="lobby.lobby_id"
-                class="open-lobby"
+                class="open-lobby info-row is-roomy"
             >
-              <div class="open-lobby-info">
+              <div class="open-lobby-info info-stack">
                 <strong>{{ getLobbyLabel(lobby) }}</strong>
-                <span>{{ lobby.players.length }}/{{ lobby.max_players }}</span>
+                <span class="info-row-meta">{{ lobby.players.length }}/{{ lobby.max_players }}</span>
               </div>
-              <button
-                @click="emit('join-lobby', lobby.lobby_id)"
-                :disabled="loading || isInLobby"
-              >
-                {{ isInLobby ? "You're in a Lobby" : 'Join Lobby' }}
-              </button>
+              <div class="open-lobby-actions">
+                <button
+                  v-if="isAdmin"
+                  class="delete-button"
+                  @click="emit('delete-lobby', lobby.lobby_id)"
+                  :disabled="loading"
+                >
+                  Delete
+                </button>
+                <button
+                  @click="emit('join-lobby', lobby.lobby_id)"
+                  :disabled="loading || isInLobby"
+                >
+                  {{ isInLobby ? "You're in a Lobby" : 'Join Lobby' }}
+                </button>
+              </div>
             </div>
           </div>
           <p v-else class="empty-state">None</p>
@@ -66,11 +80,20 @@ const emit = defineEmits(['join-lobby'])
             <div
               v-for="lobby in activeLobbies"
                 :key="lobby.lobby_id"
-                class="open-lobby"
+                class="open-lobby info-row is-roomy"
             >
-              <div class="open-lobby-info">
+              <div class="open-lobby-info info-stack">
                 <strong>{{ getLobbyLabel(lobby) }}</strong>
-                <span>{{ lobby.players.length }}/{{ lobby.max_players }}</span>
+                <span class="info-row-meta">{{ lobby.players.length }}/{{ lobby.max_players }}</span>
+              </div>
+              <div v-if="isAdmin" class="open-lobby-actions">
+                <button
+                  class="delete-button"
+                  @click="emit('delete-lobby', lobby.lobby_id)"
+                  :disabled="loading"
+                >
+                  Delete
+                </button>
               </div>
             </div>
           </div>
@@ -107,30 +130,19 @@ const emit = defineEmits(['join-lobby'])
 }
 
 .open-lobby {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 14px;
-  background: var(--panel-bg-strong);
-  border: 1px solid var(--surface-border);
-  border-radius: var(--radius-sm);
   margin-bottom: 10px;
-  box-shadow: var(--surface-shadow);
 }
 
 .open-lobby-info {
   text-align: left;
   color: inherit;
   font-size: 0.95em;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
 }
 
-.open-lobby-info span {
-  color: var(--text-muted);
-  font-size: 0.86rem;
+.open-lobby-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 button {
@@ -154,8 +166,16 @@ button:hover {
   transform: translateY(-1px);
 }
 
+.delete-button {
+  background: color-mix(in srgb, var(--danger-soft) 88%, var(--panel-bg) 12%);
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 28%, var(--surface-border));
+}
+
 button:disabled {
-  opacity: 0.5;
+  background: var(--control-bg-active);
+  color: var(--text-muted);
+  border-color: var(--control-border);
   cursor: not-allowed;
 }
 
@@ -172,6 +192,11 @@ button:disabled {
 
   .open-lobby-info {
     text-align: center;
+  }
+
+  .open-lobby-actions {
+    width: 100%;
+    flex-direction: column;
   }
 
   button {

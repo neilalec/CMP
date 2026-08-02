@@ -3,8 +3,7 @@ import { useSocketStore } from './socketStore';
 import { SOCKET_EVENTS } from '../constants/socketEvents';
 import {
   clearCurrentLobby,
-  setCurrentLobbyId,
-  setCurrentLobbyCaptains
+  setCurrentLobbyId
 } from '../utils/lobbyPersistence';
 import { createDefaultLobbyState } from './state/lobbyState';
 
@@ -58,6 +57,9 @@ export const useLobbyStore = defineStore('lobby', {
             }
           });
         }
+        assignFirstDefined(this, 'playerProfiles', data, ['player_profiles', 'playerProfiles'], (value) => (
+          value && typeof value === 'object' ? value : {}
+        ));
         assignFirstDefined(this, 'selectedMap', data, ['selected_map', 'map']);
         assignFirstDefined(this, 'queueMode', data, ['queue_mode', 'queueMode']);
         assignFirstDefined(this, 'queueLabel', data, ['queue_label', 'queueLabel']);
@@ -70,16 +72,22 @@ export const useLobbyStore = defineStore('lobby', {
           this.updateVotingCountdown(data.voting_countdown);
         }
         if (data.teams) this.teams = data.teams;
+        assignFirstDefined(this, 'teamLabels', data, ['team_labels', 'teamLabels'], (value) => (
+          value && typeof value === 'object' ? value : {}
+        ));
         if (data.player_groups) this.playerGroups = data.player_groups;
-        if (data.captains) {
-          this.captains = data.captains;
-          if (data.captains.team1 && data.captains.team2) {
-            setCurrentLobbyCaptains(data.captains);
-          }
-        }
+        if (data.captains) this.captains = data.captains;
         if (data.server_details) this.serverDetails = data.server_details;
         if (data.server_details === null) this.serverDetails = null;
         assignFirstDefined(this, 'serverDetailsProvidedAt', data, ['server_details_provided_at']);
+        assignFirstDefined(this, 'liveStartedAt', data, ['live_started_at', 'liveStartedAt']);
+        assignFirstDefined(this, 'liveMatchMaxSeconds', data, ['live_match_max_seconds', 'liveMatchMaxSeconds']);
+        if (!this.liveMatchMaxSeconds && this.serverDetails) {
+          this.liveMatchMaxSeconds = this.serverDetails.liveMatchMaxSeconds || this.serverDetails.live_match_max_seconds || null;
+        }
+        if (!this.liveStartedAt && this.serverDetails) {
+          this.liveStartedAt = this.serverDetails.liveStartedAt || this.serverDetails.live_started_at || null;
+        }
         assignFirstDefined(this, 'liveRollReadyAt', data, ['live_roll_ready_at']);
         assignFirstDefined(this, 'liveRollCountdown', data, ['live_roll_countdown']);
         assignFirstDefined(this, 'announcement', data, ['announcement']);
@@ -104,6 +112,7 @@ export const useLobbyStore = defineStore('lobby', {
 
     removePlayer(username) {
       this.players = this.players.filter(p => p !== username);
+      delete this.playerProfiles[username];
       delete this.playerStatuses[username];
       delete this.serverPresence[username];
       this.teams.team1 = this.teams.team1.filter(p => p !== username);
@@ -195,6 +204,10 @@ export const useLobbyStore = defineStore('lobby', {
 
     getVotesForMap: (state) => (map) => {
       return state.voteCounts[map] || 0;
+    },
+
+    getDisplayName: (state) => (username) => {
+      return state.playerProfiles?.[username]?.display_name || username;
     }
   }
 });

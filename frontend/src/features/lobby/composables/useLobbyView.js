@@ -8,6 +8,7 @@ import { useSocketStore } from '../../../stores/socketStore';
 import { SOCKET_EVENTS } from '../../../constants/socketEvents';
 import { clearCurrentLobby } from '../../../utils/lobbyPersistence';
 import { API_BASE_URL } from '../../../config';
+import { getLobbyPhaseTitle } from '../utils/lobbyPhase';
 
 export function useLobbyView() {
   const router = useRouter();
@@ -55,14 +56,10 @@ export function useLobbyView() {
   const activeCountdownLabel = computed(() => (
     lobbyStore.step === 3 ? 'Force Roll in' : 'Map selected in'
   ));
-  const phaseTitle = computed(() => {
-    if (lobbyStore.loading) return 'Loading Lobby...';
-    if (lobbyStore.step === 2) return 'Map Voting';
-    if (lobbyStore.step === 3) return 'Match Ready';
-    if (lobbyStore.step === 4) return 'Server Details';
-    if (lobbyStore.step === 5) return 'Score';
-    return 'Lobby';
-  });
+  const phaseTitle = computed(() => getLobbyPhaseTitle({
+    step: lobbyStore.step,
+    loading: lobbyStore.loading
+  }));
   const lobbyPhase = computed(() => {
     if (lobbyStore.step === 5) return 'complete';
     if (lobbyStore.step === 4) return 'live';
@@ -85,21 +82,35 @@ export function useLobbyView() {
   const canAdminLobby = computed(() => !!authStore.isAdmin);
   const groupedTeam1 = computed(() => groupPlayers(lobbyStore.teams.team1));
   const groupedTeam2 = computed(() => groupPlayers(lobbyStore.teams.team2));
-  const matchSizeLabel = computed(() => {
-    const team1Count = lobbyStore.teams?.team1?.length || 0;
-    const team2Count = lobbyStore.teams?.team2?.length || 0;
-    if (team1Count || team2Count) {
-      return `${team1Count}v${team2Count}`;
-    }
-    const total = lobbyStore.players?.length || 0;
-    if (!total) return '';
-    const left = Math.floor(total / 2);
-    const right = total - left;
-    return `${left}v${right}`;
+  const hasSteamLobbyId = computed(() => {
+    const rawSteamLobbyId = (
+      lobbyStore.serverDetails?.steamLobbyId
+      || lobbyStore.serverDetails?.steam_lobby_id
+      || ''
+    );
+    return /^\d{17,20}$/.test(String(rawSteamLobbyId).trim());
   });
   const canAutoConnect = computed(() => {
     const connectAddress = lobbyStore.serverDetails?.connectAddress || lobbyStore.serverDetails?.ip || '';
+    return (hasSteamLobbyId.value || !!connectAddress) && (lobbyStore.step === 3 || lobbyStore.step === 4);
+  });
+  const canDirectConnect = computed(() => {
+    const connectAddress = lobbyStore.serverDetails?.connectAddress || lobbyStore.serverDetails?.ip || '';
     return !!connectAddress && (lobbyStore.step === 3 || lobbyStore.step === 4);
+  });
+  const serverConnectedCount = computed(() => (
+    lobbyStore.players.filter((player) => lobbyStore.serverPresence?.[player]?.connected).length
+  ));
+  const liveRollRequiredPercent = 95;
+  const liveRollRequiredCount = computed(() => {
+    const total = lobbyStore.players.length;
+    return total > 0 ? Math.ceil(total * (liveRollRequiredPercent / 100)) : 0;
+  });
+  const liveRollGraceSeconds = computed(() => {
+    const providedAt = Number(lobbyStore.serverDetailsProvidedAt || 0);
+    const readyAt = Number(lobbyStore.liveRollReadyAt || 0);
+    const derivedSeconds = readyAt > providedAt ? Math.round(readyAt - providedAt) : 0;
+    return derivedSeconds || 600;
   });
 
   const groupPlayers = (players) => {
@@ -123,7 +134,10 @@ export function useLobbyView() {
 
   const isCaptain = (player, teamKey) => lobbyStore.captains?.[teamKey] === player;
   const isCurrentUser = (player) => player === authStore.username;
-  const getTeamLabel = (teamKey) => (teamKey === 'team1' ? 'BLUFOR' : 'OPFOR');
+  const getPlayerDisplayName = (player) => lobbyStore.getDisplayName(player);
+  const getTeamLabel = (teamKey) => {
+    return teamKey === 'team1' ? 'BLUFOR' : 'OPFOR';
+  };
   const getServerPresence = (player) => lobbyStore.serverPresence?.[player] || null;
   const isServerConnected = (player) => !!getServerPresence(player)?.connected;
   const isServerTeamAligned = (player) => {
@@ -218,6 +232,18 @@ export function useLobbyView() {
     }
   };
 
+  const directConnectToServer = () => {
+    const connectAddress = lobbyStore.serverDetails?.connectAddress || lobbyStore.serverDetails?.ip || '';
+    const serverPassword = lobbyStore.serverDetails?.password || '';
+    if (!connectAddress) return;
+
+    const joinUrl = serverPassword
+      ? `steam://connect/${connectAddress}/${encodeURIComponent(serverPassword)}`
+      : `steam://connect/${connectAddress}`;
+
+    window.location.href = joinUrl;
+  };
+
   const handleVoteMap = async (map) => {
     try {
       await socketStore.emit(SOCKET_EVENTS.LOBBY.VOTE_MAP, {
@@ -286,6 +312,9 @@ export function useLobbyView() {
       const response = await socketStore.emit(SOCKET_EVENTS.COUNTDOWN.TOGGLE_PAUSE, {
         paused: nextPaused
       });
+      if (!response?.success) {
+        throw new Error(response?.message || 'Failed to toggle countdown pause');
+      }
       if (response && typeof response.paused === 'boolean') {
         isCountdownPaused.value = response.paused;
       }
@@ -301,9 +330,12 @@ export function useLobbyView() {
 
   const skipPhase = async () => {
     try {
-      await socketStore.emit(SOCKET_EVENTS.LOBBY.SKIP_PHASE, {
+      const response = await socketStore.emit(SOCKET_EVENTS.LOBBY.SKIP_PHASE, {
         lobby_id: lobbyStore.lobbyId
       });
+      if (!response?.success) {
+        throw new Error(response?.message || 'Failed to skip phase');
+      }
     } catch (error) {
       rootStore.setError({
         message: 'Failed to skip phase',
@@ -315,9 +347,12 @@ export function useLobbyView() {
 
   const prevPhase = async () => {
     try {
-      await socketStore.emit(SOCKET_EVENTS.LOBBY.PREV_PHASE, {
+      const response = await socketStore.emit(SOCKET_EVENTS.LOBBY.PREV_PHASE, {
         lobby_id: lobbyStore.lobbyId
       });
+      if (!response?.success) {
+        throw new Error(response?.message || 'Failed to go back a phase');
+      }
     } catch (error) {
       rootStore.setError({
         message: 'Failed to go back a phase',
@@ -404,6 +439,7 @@ export function useLobbyView() {
               step: 3,
               voting_countdown: null,
               server_details: data.server_details,
+              team_labels: data.team_labels,
               server_details_provided_at: data.server_details_provided_at,
               live_roll_ready_at: data.live_roll_ready_at,
               live_roll_countdown: data.live_roll_countdown
@@ -500,9 +536,12 @@ export function useLobbyView() {
     authStore,
     canAdminLobby,
     canAutoConnect,
+    canDirectConnect,
     connectToServer,
+    directConnectToServer,
     getConnectionFlagClass,
     getConnectionLabel,
+    getPlayerDisplayName,
     getTeamLabel,
     groupedTeam1,
     groupedTeam2,
@@ -514,11 +553,14 @@ export function useLobbyView() {
     isDev,
     lobbyStore,
     lobbyPhase,
+    liveRollGraceSeconds,
+    liveRollRequiredCount,
+    liveRollRequiredPercent,
     mapOptions,
-    matchSizeLabel,
     phaseTitle,
     showConnectionStatus,
     showPauseButton,
+    serverConnectedCount,
     skipPhase,
     toggleCountdownPause,
     prevPhase

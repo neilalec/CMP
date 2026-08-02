@@ -7,32 +7,49 @@ SYNC_INTERVAL = 10
 countdown_active = False
 countdown_paused = False
 countdown_pause_lock = RLock()
-MATCH_ACCEPT_COUNTDOWN = int(os.getenv('MATCH_ACCEPT_COUNTDOWN', '30'))
-LIVE_ROLL_READY_RATIO = float(os.getenv('LIVE_ROLL_READY_RATIO', '0.9'))
+MATCH_ACCEPT_COUNTDOWN = int(os.getenv('MATCH_ACCEPT_COUNTDOWN', '90'))
+MAP_VOTE_COUNTDOWN = int(os.getenv('MAP_VOTE_COUNTDOWN', '60'))
+LIVE_ROLL_READY_RATIO = float(os.getenv('LIVE_ROLL_READY_RATIO', '0.95'))
 LIVE_ROLL_READY_GRACE_SECONDS = int(os.getenv('LIVE_ROLL_READY_GRACE_SECONDS', '600'))
 LIVE_ROLL_POLL_SECONDS = int(os.getenv('LIVE_ROLL_POLL_SECONDS', '5'))
 LIVE_ROLL_RETRY_SECONDS = int(os.getenv('LIVE_ROLL_RETRY_SECONDS', '15'))
 LIVE_ROLL_TEAM_SWAP_RETRY_SECONDS = int(os.getenv('LIVE_ROLL_TEAM_SWAP_RETRY_SECONDS', '10'))
+FINALIZED_LOBBY_CLEANUP_SECONDS = int(os.getenv('FINALIZED_LOBBY_CLEANUP_SECONDS', '300'))
+LIVE_MATCH_MAX_SECONDS = int(os.getenv('LIVE_MATCH_MAX_SECONDS', '3600'))
+LOBBY_DISCONNECT_GRACE_SECONDS = int(os.getenv('LOBBY_DISCONNECT_GRACE_SECONDS', '600'))
 ALL_SKIRMISH_MAPS = [
-    'Al Basrah Skirmish v1',
-    'Al Basrah Skirmish v2',
-    'Belaya Skirmish v1',
-    'Chora Skirmish v1',
-    "Fool's Road Skirmish v1",
-    "Fool's Road Skirmish v2",
-    'Gorodok Skirmish v1',
-    'Kamdesh Skirmish v1',
-    'Kohat Toi Skirmish v1',
-    'Kokan Skirmish v1',
-    'Logar Valley Skirmish v1',
-    'Mestia Skirmish v1',
-    'Narva Skirmish v1',
-    'Skorpo Skirmish v1',
-    'Sumari Skirmish v1',
-    'Tallil Outskirts Skirmish v1',
-    'Tallil Outskirts Skirmish v2',
-    'Yehorivka Skirmish v1',
-    'Yehorivka Skirmish v2'
+    'CSL_AlBasrahSkirmishv1',
+    'CSL_AlBasrahSkirmishv2',
+    'CSL_AlBasrahSkirmishv3',
+    'CSL_AnvilSkirmishv1',
+    'CSL_BlackCoastSkirmishv1',
+    'CSL_ChoraSkirmishv1',
+    'CSL_FallujahSkirmishv1',
+    'CSL_FallujahSkirmishv2',
+    'CSL_FoolsRoadSkirmishv1',
+    'CSL_FoolsRoadSkirmishv2',
+    'CSL_GooseBaySkirmishv1',
+    'CSL_GorodokSkirmishv1',
+    'CSL_HarjuSkirmishv1',
+    'CSL_HarjuSkirmishv2',
+    'CSL_KamdeshSkirmishv1',
+    'CSL_KohatSkirmishv1',
+    'CSL_KokanSkirmishv1',
+    'CSL_LashkarSkirmishv1',
+    'CSL_LogarSkirmishv1',
+    'CSL_ManicouaganSkirmishv1',
+    'CSL_ManicouaganSkirmishv2',
+    'CSL_ManicouaganSkirmishv3',
+    'CSL_MestiaSkirmishv1',
+    'CSL_MutahaSkirmishv1',
+    'CSL_NarvaSkirmishv1',
+    'CSL_SkorpoSkirmishv1',
+    'CSL_SumariSkirmishv1',
+    'CSL_TallilSkirmishv1',
+    'CSL_TallilSkirmishv2',
+    'CSL_TallilSkirmishv3',
+    'CSL_YehorivkaSkirmishv1',
+    'CSL_YehorivkaSkirmishv2',
 ]
 ALL_HOTDROP_MAPS = [
     'HotDrop_SumariBala',
@@ -46,10 +63,136 @@ ALL_HOTDROP_MAPS = [
     'HotDrop_Yehorivka',
     'HotDrop_Skorpo'
 ]
+ALL_SEC_26_MAPS = [
+    'SEC_26_Mutaha_TC',
+    'SEC_26_AlBasrah_AAS_v1',
+    'SEC_26_Narva_AAS_v1',
+    'SEC_26_Sumari_AAS_v1',
+    'SEC_26_Logar_AAS_v1',
+    'SEC_26_Harju_AAS_v1',
+    'SEC_26_Yehorivka_AAS_v1',
+    'SEC_26_Chora_AAS_v1',
+    'SEC_26_Fallujah_AAS_v1',
+    'SEC_26_BlackCoast_RAAS_v1',
+    'SEC_26_Gorodok_RAAS_v1',
+]
+ALL_SEC_36_MAPS = [
+    'SEC_36_Narva_TC',
+    'SEC_36_Mutaha_TC_v1',
+    'SEC_36_FoolsRoad_AAS_v1',
+    'SEC_36_Chora_AAS_v1',
+    'SEC_36_Manicouagan_AAS_v1',
+    'SEC_36_Logar_AAS_v1',
+    'SEC_36_Gorodok_AAS_v2',
+    'SEC_36_Mestia_AAS_v1',
+    'SEC_36_Kohat_AAS_v1',
+    'SEC_36_Yehorivka_RAAS_v1',
+]
+ALL_SEC_46_MAPS = [
+    'SEC_46_Narva_TC',
+    'SEC_46_Mutaha_TC_v1',
+    'SEC_46_FoolsRoad_AAS_v1',
+    'SEC_46_Chora_AAS_v1',
+    'SEC_46_Manicouagan_AAS_v1',
+    'SEC_46_Logar_AAS_v1',
+    'SEC_46_Gorodok_AAS_v2',
+    'SEC_46_Mestia_AAS_v1',
+    'SEC_46_Kohat_AAS_v1',
+    'SEC_46_Yehorivka_RAAS_v1',
+]
+ALL_RIVALS_36_MAPS = [
+    'Rivals_W1_FoolsRoad',
+    'Rivals_W2_BlackCoast',
+    'Rivals_W3_Kokan',
+    'Rivals_W4_Narva',
+    'Rivals_W5_AlBasrah',
+]
+ALL_OSI_40_MAPS = [
+    'OSI_W1_Chora',
+    'OSI_W2_Mutaha',
+    'OSI_W3_Harju',
+    'OSI_W4_Yehorivka',
+    'OSI_W5_BlackCoast',
+    'OSI_W6_AlBasrah',
+]
+ALL_S3O_MAPS = [
+    'S3O_36_Fallujah_AAS_v2',
+    'S3O_36_Harju_AAS_v3',
+    'S3O_36_Sanxian_AAS_v4',
+]
+ALL_OCBT_MAPS = [
+    'OCBT_UrbanQuarter_AAS_v1',
+    'OCBT_UrbanQuarter_AAS_v2',
+    'OCBT_UrbanQuarter_AAS_v3',
+    'OCBT_Oasis_AAS_v1',
+    'OCBT_Oasis_AAS_v2',
+    'OCBT_Oasis_AAS_v3',
+    'OCBT_Kalinovo_AAS_v1',
+    'OCBT_Kalinovo_AAS_v2',
+    'OCBT_Kalinovo_AAS_v3',
+    'OCBT_AzureIsland_AAS_v1',
+    'OCBT_AzureIsland_AAS_v2',
+    'OCBT_AzureIsland_AAS_v3',
+    'OCBT_AzureIsland_AAS_v4',
+    'OCBT_Shchyhliivka_AAS_v1',
+    'OCBT_Shchyhliivka_AAS_v2',
+    'OCBT_Shchyhliivka_AAS_v3',
+    'OCBT_Shchyhliivka_AAS_v4',
+]
+ALL_OCBT_VOTE_MAPS = [
+    'OCBT_UrbanQuarter',
+    'OCBT_Oasis',
+    'OCBT_Kalinovo',
+    'OCBT_AzureIsland',
+    'OCBT_Shchyhliivka',
+]
+OCBT_MAP_VARIANTS = {
+    'OCBT_UrbanQuarter': [
+        'OCBT_UrbanQuarter_AAS_v1',
+        'OCBT_UrbanQuarter_AAS_v2',
+        'OCBT_UrbanQuarter_AAS_v3',
+    ],
+    'OCBT_Oasis': [
+        'OCBT_Oasis_AAS_v1',
+        'OCBT_Oasis_AAS_v2',
+        'OCBT_Oasis_AAS_v3',
+    ],
+    'OCBT_Kalinovo': [
+        'OCBT_Kalinovo_AAS_v1',
+        'OCBT_Kalinovo_AAS_v2',
+        'OCBT_Kalinovo_AAS_v3',
+    ],
+    'OCBT_AzureIsland': [
+        'OCBT_AzureIsland_AAS_v1',
+        'OCBT_AzureIsland_AAS_v2',
+        'OCBT_AzureIsland_AAS_v3',
+        'OCBT_AzureIsland_AAS_v4',
+    ],
+    'OCBT_Shchyhliivka': [
+        'OCBT_Shchyhliivka_AAS_v1',
+        'OCBT_Shchyhliivka_AAS_v2',
+        'OCBT_Shchyhliivka_AAS_v3',
+        'OCBT_Shchyhliivka_AAS_v4',
+    ],
+}
+ALL_BALT_26_MAPS = [
+    'BALT_26_AlBasrah_AAS_v1',
+    'BALT_26_SANXIAN_PAAS_v1',
+]
+ALL_OUT_OF_THE_BOX_40_MAPS = [
+    'OutoftheBox_Tallil',
+    'OutoftheBox_Skorpo',
+    'OutoftheBox_Sanxian',
+    'OutoftheBox_PacificProvingGrounds',
+    'OutoftheBox_Mestia',
+    'OutoftheBox_Lashkar',
+    'OutoftheBox_Kohat',
+    'OutoftheBox_AlBasrah',
+]
 QUEUE_MODES = {
     'skirmish': {
         'id': 'skirmish',
-        'label': '20v20 Skirmish',
+        'label': '20v20 Skirmish Layers',
         'short_label': 'Skirmish',
         'max_players': 40,
         'team_size': 20,
@@ -62,6 +205,80 @@ QUEUE_MODES = {
         'max_players': 60,
         'team_size': 30,
         'map_pool': ALL_HOTDROP_MAPS,
+    },
+    'sec26': {
+        'id': 'sec26',
+        'label': '26v26 Squad Esports Cup',
+        'short_label': 'SEC 26',
+        'max_players': 52,
+        'team_size': 26,
+        'map_pool': ALL_SEC_26_MAPS,
+    },
+    'sec36': {
+        'id': 'sec36',
+        'label': '36v36 Squad Esports Cup',
+        'short_label': 'SEC 36',
+        'max_players': 72,
+        'team_size': 36,
+        'map_pool': ALL_SEC_36_MAPS,
+    },
+    'sec46': {
+        'id': 'sec46',
+        'label': '46v46 Squad Esports Cup',
+        'short_label': 'SEC 46',
+        'max_players': 92,
+        'team_size': 46,
+        'map_pool': ALL_SEC_46_MAPS,
+    },
+    's30': {
+        'id': 's30',
+        'label': '36v36 S3O Layers',
+        'short_label': 'S3O',
+        'max_players': 72,
+        'team_size': 36,
+        'map_pool': ALL_S3O_MAPS,
+    },
+    'rivals36': {
+        'id': 'rivals36',
+        'label': '36v36 Squad Rivals',
+        'short_label': 'Rivals',
+        'max_players': 72,
+        'team_size': 36,
+        'map_pool': ALL_RIVALS_36_MAPS,
+    },
+    'osi40': {
+        'id': 'osi40',
+        'label': '40v40 Offworld Squad Invitational',
+        'short_label': 'OSI',
+        'max_players': 80,
+        'team_size': 40,
+        'map_pool': ALL_OSI_40_MAPS,
+    },
+    'ocbt15': {
+        'id': 'ocbt15',
+        'label': '15v15 Open Clan Battle',
+        'short_label': 'OCBT',
+        'max_players': 30,
+        'team_size': 15,
+        'map_pool': ALL_OCBT_MAPS,
+        'vote_pool': ALL_OCBT_VOTE_MAPS,
+        'map_variants': OCBT_MAP_VARIANTS,
+    },
+    'balt26': {
+        'id': 'balt26',
+        'label': '26v26 Balt Layers',
+        'short_label': 'BALT',
+        'max_players': 52,
+        'team_size': 26,
+        'map_pool': ALL_BALT_26_MAPS,
+    },
+    'outofthebox40': {
+        'id': 'outofthebox40',
+        'label': '30v30 Out of The Box Layers',
+        'short_label': 'OOTB',
+        'max_players': 60,
+        'team_size': 30,
+        'map_pool': ALL_OUT_OF_THE_BOX_40_MAPS,
     }
 }
 DEFAULT_QUEUE_MODE = 'skirmish'
@@ -72,7 +289,10 @@ LEGACY_QUEUE_FILE = os.path.join(BASE_DIR, 'queue.json')
 LEGACY_USERS_FILE = os.path.join(BASE_DIR, 'users.json')
 DATABASE_PATH = os.getenv('DATABASE_PATH', os.path.join(BASE_DIR, 'app.db'))
 DEV_MODE = os.getenv('CMP_DEV_MODE', '0') == '1'
-DEV_LIVE_ROLL_OVERRIDE_USERNAME = os.getenv('DEV_LIVE_ROLL_OVERRIDE_USERNAME', 'neil').strip().lower()
+ADMIN_TEAM_ENFORCEMENT_BYPASS_ENABLED = os.getenv('ADMIN_TEAM_ENFORCEMENT_BYPASS_ENABLED', '1') == '1'
+LIVE_ROLL_READY_OVERRIDE_ENABLED = DEV_MODE or os.getenv('LIVE_ROLL_READY_OVERRIDE_ENABLED', '0') == '1'
+DEV_LIVE_ROLL_OVERRIDE_USERNAME = os.getenv('DEV_LIVE_ROLL_OVERRIDE_USERNAME', '').strip().lower()
+DEV_LIVE_ROLL_OVERRIDE_STEAM_ID = os.getenv('DEV_LIVE_ROLL_OVERRIDE_STEAM_ID', '').strip()
 PASSWORD_AUTH_ENABLED = os.getenv(
     'CMP_PASSWORD_AUTH_ENABLED',
     '1' if DEV_MODE else '0'
@@ -86,6 +306,7 @@ SQUADJS_BRIDGE_TOKEN = os.getenv('SQUADJS_BRIDGE_TOKEN', '')
 SQUAD_SERVER_NAME = os.getenv('SQUAD_SERVER_NAME', '').strip()
 SQUAD_SERVER_PASSWORD = os.getenv('SQUAD_SERVER_PASSWORD', '').strip()
 SQUAD_SERVER_CONNECT_ADDRESS = os.getenv('SQUAD_SERVER_CONNECT_ADDRESS', '').strip()
+STEAM_WEB_API_KEY = os.getenv('STEAM_WEB_API_KEY', '').strip()
 FRONTEND_ORIGINS = [
     origin.strip()
     for origin in os.getenv('FRONTEND_ORIGINS', 'http://localhost:5173').split(',')
@@ -100,6 +321,12 @@ ADMIN_STEAM_IDS = {
     for steam_id in os.getenv('ADMIN_STEAM_IDS', '').split(',')
     if steam_id.strip()
 }
+AUTOMATION_MODES = {'on', 'monitor', 'off'}
+AUTOMATION_CONTROL = {
+    'mode': os.getenv('AUTOMATION_MODE', 'on').strip().lower()
+}
+if AUTOMATION_CONTROL['mode'] not in AUTOMATION_MODES:
+    AUTOMATION_CONTROL['mode'] = 'on'
 
 bridge_status = {
     'available': None,

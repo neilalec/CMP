@@ -2,10 +2,8 @@ import { onBeforeUnmount, onMounted, watch, ref, computed } from 'vue'
 import { SOCKET_EVENTS } from '../../../constants/socketEvents'
 import {
   clearCurrentLobby,
-  getCurrentLobbyCaptains,
   getCurrentLobbyId,
   isLobbyRoute,
-  setCurrentLobbyCaptains,
   setCurrentLobbyId
 } from '../../../utils/lobbyPersistence'
 
@@ -21,13 +19,8 @@ export function useAppSession({
 }) {
   const isInLobby = computed(() => isLobbyRoute(route.path))
   const currentLobbyId = ref(getCurrentLobbyId())
-  const currentLobbyCaptains = ref(null)
-
-  currentLobbyCaptains.value = getCurrentLobbyCaptains()
-
-  const canReturnToLobby = computed(() => !!currentLobbyId.value && !isInLobby.value)
   const activeLobbyId = computed(() => {
-    return route.params.lobbyId || lobbyStore.lobbyId || currentLobbyId.value
+    return route.params.lobbyId || currentLobbyId.value || null
   })
   const playRoute = computed(() => {
     return activeLobbyId.value ? `/lobby/${activeLobbyId.value}` : '/play'
@@ -54,6 +47,18 @@ export function useAppSession({
     queueStore.setMatchAcceptCancelled(data?.reason || 'Match acceptance cancelled')
   }
 
+  const syncQueuePresence = async () => {
+    if (!authStore.username) return
+    await queueStore.syncWithServer(authStore.username)
+  }
+
+  const syncSessionPresence = async () => {
+    if (!authStore.username) return
+    await syncActiveLobbyFromProfile()
+    await syncLobbyPresence()
+    await syncQueuePresence()
+  }
+
   const handleGroupUpdate = (data) => {
     groupStore.handleUpdate(data)
   }
@@ -68,6 +73,16 @@ export function useAppSession({
       queueStore.resetQueue()
       router.push(`/lobby/${data.lobby_id}`)
     }
+  }
+
+  const routeToLobby = (lobbyId) => {
+    if (!lobbyId) return false
+    currentLobbyId.value = lobbyId
+    setCurrentLobbyId(lobbyId)
+    if (!route.path.startsWith(`/lobby/${lobbyId}`)) {
+      router.push(`/lobby/${lobbyId}`)
+    }
+    return true
   }
 
   const handleActiveLobbySync = (data) => {
@@ -85,7 +100,6 @@ export function useAppSession({
     lobbyStore.leaveLobby()
     clearCurrentLobby()
     currentLobbyId.value = null
-    currentLobbyCaptains.value = null
     if (route.path.startsWith('/lobby/')) {
       router.push('/')
     }
@@ -102,11 +116,10 @@ export function useAppSession({
       if (!route.path.startsWith(`/lobby/${activeLobby}`)) {
         router.push(`/lobby/${activeLobby}`)
       }
-    } else if (getCurrentLobbyId()) {
+    } else if (getCurrentLobbyId() || lobbyStore.lobbyId || currentLobbyId.value) {
       lobbyStore.leaveLobby()
       clearCurrentLobby()
       currentLobbyId.value = null
-      currentLobbyCaptains.value = null
     }
 
     return profile
@@ -125,7 +138,6 @@ export function useAppSession({
         lobbyStore.leaveLobby()
         clearCurrentLobby()
         currentLobbyId.value = null
-        currentLobbyCaptains.value = null
       }
     } catch (error) {
       // Ignore transient errors during reconnects
@@ -133,7 +145,7 @@ export function useAppSession({
   }
 
   const registerSocketListeners = () => {
-    socketStore.on(SOCKET_EVENTS.CONNECTION.CONNECT, syncLobbyPresence)
+    socketStore.on(SOCKET_EVENTS.CONNECTION.CONNECT, syncSessionPresence)
     socketStore.on(SOCKET_EVENTS.QUEUE.UPDATE, handleQueueUpdate)
     socketStore.on(SOCKET_EVENTS.QUEUE.MATCH_ACCEPT_CANCELLED, handleMatchAcceptCancelled)
     socketStore.on(SOCKET_EVENTS.GROUP.UPDATE, handleGroupUpdate)
@@ -142,7 +154,7 @@ export function useAppSession({
   }
 
   const unregisterSocketListeners = () => {
-    socketStore.off(SOCKET_EVENTS.CONNECTION.CONNECT, syncLobbyPresence)
+    socketStore.off(SOCKET_EVENTS.CONNECTION.CONNECT, syncSessionPresence)
     socketStore.off(SOCKET_EVENTS.QUEUE.UPDATE, handleQueueUpdate)
     socketStore.off(SOCKET_EVENTS.QUEUE.MATCH_ACCEPT_CANCELLED, handleMatchAcceptCancelled)
     socketStore.off(SOCKET_EVENTS.GROUP.UPDATE, handleGroupUpdate)
@@ -153,54 +165,9 @@ export function useAppSession({
   const initAuthenticatedState = async () => {
     registerSocketListeners()
     if (authStore.username) {
-      await syncActiveLobbyFromProfile()
-      await syncLobbyPresence()
-      await queueStore.syncWithServer(authStore.username)
+      await syncSessionPresence()
       await groupStore.syncStatus(authStore.username)
     }
-  }
-
-  const handleLogout = async () => {
-    try {
-      await socketStore.cleanupSocket()
-      queueStore.resetQueue()
-      lobbyStore.reset()
-      groupStore.resetGroup()
-      clearCurrentLobby()
-      authStore.logout()
-      currentLobbyId.value = null
-      currentLobbyCaptains.value = null
-      await socketStore.initSocket()
-      router.replace('/auth')
-    } catch (error) {
-      rootStore.setError('Logout failed')
-    }
-  }
-
-  const handleLeaveLobby = async () => {
-    if (!route.params.lobbyId) return
-    try {
-      const response = await socketStore.emit(SOCKET_EVENTS.LOBBY.LEAVE, {
-        lobby_id: route.params.lobbyId,
-        username: authStore.username
-      })
-      if (response?.success) {
-        lobbyStore.leaveLobby()
-        clearCurrentLobby()
-        currentLobbyId.value = null
-        currentLobbyCaptains.value = null
-        router.push('/')
-      } else {
-        throw new Error(response?.message || 'Failed to leave lobby')
-      }
-    } catch (error) {
-      rootStore.setError('Failed to leave lobby')
-    }
-  }
-
-  const handleReturnToLobby = async () => {
-    if (!currentLobbyId.value) return
-    router.push(`/lobby/${currentLobbyId.value}`)
   }
 
   const handleProfile = () => {
@@ -214,8 +181,11 @@ export function useAppSession({
   const handleAcceptMatch = async () => {
     try {
       const response = await queueStore.acceptMatch(authStore.username)
+      if (response?.lobbyId) {
+        routeToLobby(response.lobbyId)
+        return
+      }
       if (response?.allAccepted) {
-        await new Promise((resolve) => setTimeout(resolve, 150))
         await syncActiveLobbyFromProfile()
       }
     } catch (error) {
@@ -232,7 +202,6 @@ export function useAppSession({
 
     lobbySyncPending.value = true
     try {
-      await new Promise((resolve) => setTimeout(resolve, 150))
       await syncActiveLobbyFromProfile()
     } finally {
       lobbySyncPending.value = false
@@ -272,7 +241,6 @@ export function useAppSession({
         router.replace('/auth')
         clearCurrentLobby()
         currentLobbyId.value = null
-        currentLobbyCaptains.value = null
         return
       }
 
@@ -309,7 +277,6 @@ export function useAppSession({
       setCurrentLobbyId(id)
     } else if (!getCurrentLobbyId()) {
       currentLobbyId.value = null
-      currentLobbyCaptains.value = null
     }
   })
 
@@ -319,16 +286,12 @@ export function useAppSession({
       if ((path === '/queue' || path === '/play') && lobbyId) {
         router.replace(`/lobby/${lobbyId}`)
       }
+      if (authStore.isLoggedIn && authStore.username && socketStore.isConnected) {
+        syncQueuePresence()
+      }
     },
     { immediate: true }
   )
-
-  watch(() => lobbyStore.captains, (captains) => {
-    if (captains?.team1 && captains?.team2) {
-      currentLobbyCaptains.value = captains
-      setCurrentLobbyCaptains(captains)
-    }
-  }, { deep: true })
 
   watch(
     () => [
@@ -347,15 +310,9 @@ export function useAppSession({
   return {
     isInLobby,
     currentLobbyId,
-    currentLobbyCaptains,
-    canReturnToLobby,
-    activeLobbyId,
     playRoute,
     isMatchAcceptParticipant,
     isMatchAcceptCancelled,
-    handleLogout,
-    handleLeaveLobby,
-    handleReturnToLobby,
     handleProfile,
     handleGroup,
     handleAcceptMatch,

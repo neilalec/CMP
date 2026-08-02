@@ -1,6 +1,7 @@
 export const createDefaultLobbyState = () => ({
   lobbyId: null,
   players: [],
+  playerProfiles: {},
   playerStatuses: {},
   selectedMap: null,
   queueMode: null,
@@ -11,6 +12,7 @@ export const createDefaultLobbyState = () => ({
     team1: [],
     team2: []
   },
+  teamLabels: {},
   captains: {
     team1: null,
     team2: null
@@ -29,6 +31,8 @@ export const createDefaultLobbyState = () => ({
   serverPresenceAvailable: true,
   serverPresenceError: null,
   serverDetailsProvidedAt: null,
+  liveStartedAt: null,
+  liveMatchMaxSeconds: null,
   liveRollReadyAt: null,
   liveRollCountdown: null,
   announcement: null

@@ -6,6 +6,10 @@ import Profile from '../views/Profile.vue';
 import Group from '../views/Group.vue';
 import Results from '../views/Results.vue';
 import Admin from '../views/Admin.vue';
+import About from '../views/About.vue';
+import Discord from '../views/Discord.vue';
+import Terms from '../views/Terms.vue';
+import Privacy from '../views/Privacy.vue';
 import SteamAuthCallback from '../views/SteamAuthCallback.vue';
 import { useAuthStore } from '@/stores/authStore';
 import { useRootStore } from '@/stores/rootStore';
@@ -38,6 +42,28 @@ const routes = [
     component: Results,
     meta: { requiresAuth: true }
   },
+  {
+    path: '/discord',
+    name: 'discord',
+    component: Discord,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/about',
+    name: 'about',
+    component: About,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/terms',
+    name: 'terms',
+    component: Terms
+  },
+  {
+    path: '/privacy',
+    name: 'privacy',
+    component: Privacy
+  },
   { 
     path: '/auth', 
     name: 'auth', 
@@ -69,6 +95,11 @@ const routes = [
     component: Admin,
     meta: { requiresAuth: true, requiresAdmin: true }
   },
+  {
+    path: '/servers/add',
+    redirect: '/admin',
+    meta: { requiresAuth: true, requiresAdmin: true }
+  },
   { 
     path: '/group', 
     name: 'group', 
@@ -97,7 +128,7 @@ router.beforeEach((to, from, next) => {
     next();
   } else if (to.meta.requiresAuth && !isAuthenticated) {
     next('/auth');
-  } else if (to.meta.requiresAdmin && !authStore.isAdmin) {
+  } else if (to.meta.requiresAdmin && !authStore.isAdmin && !authStore.canToggleAdmin) {
     next('/play');
   } else if ((to.path === '/queue' || to.path === '/play') && currentLobby) {
     next(`/lobby/${currentLobby}`);

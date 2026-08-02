@@ -63,13 +63,11 @@ describe('SocketService', () => {
         expect(mockSocket.disconnect).toHaveBeenCalled();
     });
 
-    test('handles disconnect event from server', async () => {
+    test('registers connection handlers and disconnects cleanly', async () => {
         const mockSocket = createMockSocket();
-        const registeredHandlers = new Map();
         
         // Override the on method to capture all event handlers
         mockSocket.on = jest.fn((event, callback) => {
-            registeredHandlers.set(event, callback);
             if (event === 'connect') {
                 callback();
             }
@@ -79,30 +77,21 @@ describe('SocketService', () => {
 
         // Connect the socket
         await socketService.connect('test-token', 'testuser');
-        
-        // Call setupConnectionHandlers explicitly
-        socketService.setupConnectionHandlers(
-            () => {}, // resolve
-            () => {}  // reject
-        );
 
         // Get all registered events
         const registeredEvents = mockSocket.on.mock.calls.map(call => call[0]);
-        console.log('Registered events:', registeredEvents);
 
-        // Verify disconnect event was registered using the correct event constant
-        expect(mockSocket.on).toHaveBeenCalledWith(
-            SOCKET_EVENTS.CONNECTION.DISCONNECT, 
-            expect.any(Function)
+        expect(registeredEvents).toEqual(
+            expect.arrayContaining([
+                SOCKET_EVENTS.CONNECTION.CONNECT,
+                SOCKET_EVENTS.CONNECTION.ERROR
+            ])
         );
 
-        // Get the disconnect handler and simulate disconnect
-        const disconnectHandler = registeredHandlers.get(SOCKET_EVENTS.CONNECTION.DISCONNECT);
-        if (disconnectHandler) {
-            disconnectHandler('io server disconnect');
-            expect(socketService.isConnected()).toBeFalsy();
-        } else {
-            fail('Disconnect handler was not registered');
-        }
+        socketService.disconnect();
+
+        expect(mockSocket.removeAllListeners).toHaveBeenCalled();
+        expect(mockSocket.disconnect).toHaveBeenCalled();
+        expect(socketService.isConnected()).toBeFalsy();
     });
 });

@@ -40,6 +40,7 @@ export const useQueueStore = defineStore('queue', {
       this.queueMode = data.queueMode || null
       this.serverCapacity = Number(data.serverCapacity) || 1
       this.serverAvailable = data.serverAvailable !== false
+      this.serverAvailabilityReason = data.serverAvailabilityReason || 'available'
       this.activeLobbyCount = Number(data.activeLobbyCount) || 0
       this.activePendingMatchCount = Number(data.activePendingMatchCount) || 0
 
@@ -56,6 +57,7 @@ export const useQueueStore = defineStore('queue', {
           cancelReason: '',
           queueMode: data.matchAccept.queueMode || null,
           players: Array.isArray(data.matchAccept.players) ? data.matchAccept.players : [],
+          playerProfiles: data.matchAccept.playerProfiles || data.matchAccept.player_profiles || {},
           acceptedPlayers: Array.isArray(data.matchAccept.acceptedPlayers) ? data.matchAccept.acceptedPlayers : [],
           acceptedCount: data.matchAccept.acceptedCount || 0,
           requiredCount: data.matchAccept.requiredCount || 0,
@@ -114,8 +116,9 @@ export const useQueueStore = defineStore('queue', {
       })
     },
 
-    async syncWithServer(username) {
-      await runStoreSocketAction(this, {
+    async syncWithServer(username, options = {}) {
+      const { resetOnFailure = false } = options
+      const response = await runStoreSocketAction(this, {
         event: SOCKET_EVENTS.QUEUE.STATUS,
         payload: { username },
         setLoading: false,
@@ -125,6 +128,10 @@ export const useQueueStore = defineStore('queue', {
           this.updateQueueState(response)
         }
       })
+
+      if (!response && resetOnFailure) {
+        this.resetQueue()
+      }
     },
 
     resetQueue() {
@@ -147,6 +154,7 @@ export const useQueueStore = defineStore('queue', {
             cancelReason: '',
             queueMode: response.matchAccept.queueMode || this.matchAccept.queueMode,
             players: Array.isArray(response.matchAccept.players) ? response.matchAccept.players : this.matchAccept.players,
+            playerProfiles: response.matchAccept.playerProfiles || response.matchAccept.player_profiles || this.matchAccept.playerProfiles,
             acceptedPlayers: Array.isArray(response.matchAccept.acceptedPlayers) ? response.matchAccept.acceptedPlayers : this.matchAccept.acceptedPlayers,
             acceptedCount: response.matchAccept.acceptedCount ?? this.matchAccept.acceptedCount,
             requiredCount: response.matchAccept.requiredCount ?? this.matchAccept.requiredCount,

@@ -6,9 +6,11 @@ import { useHomeView } from '../features/home/composables/useHomeView';
 const {
   activeView,
   authStore,
+  canBypassSteamIdForLocalDev,
   canManageQueueTools,
   clearQueue,
   currentQueueMode,
+  deleteLobby,
   groupStore,
   isGroupLeader,
   isInGroup,
@@ -22,6 +24,7 @@ const {
   getQueueProgressPercent,
   queueModes,
   serverAvailable,
+  serverAvailabilityReason,
   seedQueue,
   queueStore,
 } = useHomeView();
@@ -39,10 +42,11 @@ const {
       :is-in-lobby="isInLobby"
       :is-in-group="isInGroup"
       :is-group-leader="isGroupLeader"
-      :has-steam-id="authStore.hasSteamId"
+      :has-steam-id="authStore.hasSteamId || canBypassSteamIdForLocalDev"
       :group-member-count="groupStore.members.length"
       :can-manage-queue-tools="canManageQueueTools"
       :server-available="serverAvailable"
+      :server-availability-reason="serverAvailabilityReason"
       :get-queue-progress-percent="getQueueProgressPercent"
       :is-mode-queue-full="isModeQueueFull"
       @join-queue="joinQueue"
@@ -57,8 +61,10 @@ const {
       :active-lobbies="queueStore.activeLobbies"
       :loading="loading"
       :is-in-lobby="isInLobby"
+      :is-admin="authStore.isAdmin"
       :get-lobby-label="getLobbyLabel"
       @join-lobby="joinOpenLobby"
+      @delete-lobby="deleteLobby"
     />
   </div>
 </template>

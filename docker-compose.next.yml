@@ -1,0 +1,52 @@
+services:
+  backend-next:
+    build:
+      context: ./backend
+    env_file:
+      - ./backend/.env
+    environment:
+      BACKEND_HOST: 0.0.0.0
+      BACKEND_PORT: 5000
+      BACKEND_PUBLIC_URL: http://localhost:5100/api
+      CMP_DEV_MODE: "1"
+      DATABASE_PATH: /app/data/app-next.db
+      FRONTEND_ORIGINS: http://localhost:8081
+      SQUADJS_BRIDGE_URL: http://127.0.0.1:3999
+      SQUAD_CLIENT_LOG_PATH: /host/squad-logs/SquadGame.log
+    volumes:
+      - backend_next_data:/app/data
+      - type: bind
+        source: ${LOCALAPPDATA}/SquadGame/Saved/Logs
+        target: /host/squad-logs
+        read_only: true
+    ports:
+      - "5100:5000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health/live', timeout=5).read()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+
+  frontend-next:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: http://localhost:5100/api
+        VITE_SOCKET_URL: http://localhost:5100
+        VITE_PASSWORD_AUTH_ENABLED: "0"
+    ports:
+      - "8081:80"
+    depends_on:
+      - backend-next
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  backend_next_data:

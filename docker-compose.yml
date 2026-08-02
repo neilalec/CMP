@@ -13,11 +13,16 @@ services:
     environment:
       BACKEND_HOST: 0.0.0.0
       BACKEND_PORT: 5000
-      BACKEND_PUBLIC_URL: https://cmp.zapto.org/api
+      BACKEND_PUBLIC_URL: ${CMP_BACKEND_PUBLIC_URL:-https://squadcm.duckdns.org/api}
       DATABASE_PATH: /app/data/app.db
       SQUADJS_BRIDGE_URL: http://squadjs:3001
+      SQUAD_CLIENT_LOG_PATH: /host/squad-logs/SquadGame.log
     volumes:
       - backend_data:/app/data
+      - type: bind
+        source: ${LOCALAPPDATA}/SquadGame/Saved/Logs
+        target: /host/squad-logs
+        read_only: true
     ports:
       - "5000:5000"
     depends_on:
@@ -36,11 +41,11 @@ services:
       context: ./frontend
       args:
         VITE_API_BASE_URL: /api
-        VITE_PASSWORD_AUTH_ENABLED: "0"
+        VITE_PASSWORD_AUTH_ENABLED: ${VITE_PASSWORD_AUTH_ENABLED:-0}
     expose:
       - "80"
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1/"]
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1/healthz"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -51,10 +56,12 @@ services:
   squadjs:
     build:
       context: ./squadjs
+    env_file:
+      - ./backend/.env
     volumes:
       - ./squadjs/config.json:/app/config.json:ro
-    expose:
-      - "3001"
+    ports:
+      - "3001:3001"
     logging: *default-logging
     restart: unless-stopped
 
@@ -63,6 +70,8 @@ services:
     depends_on:
       - frontend
       - backend
+    environment:
+      CMP_PUBLIC_HOST: ${CMP_PUBLIC_HOST:-squadcm.duckdns.org}
     ports:
       - "80:80"
       - "443:443"

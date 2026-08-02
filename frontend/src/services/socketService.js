@@ -77,7 +77,7 @@ export class SocketService {
     if (!this.socket) {
       throw new Error('Socket not initialized');
     }
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       this.socket.emit(event, data, (response) => {
         resolve(response);
       });

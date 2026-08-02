@@ -215,6 +215,14 @@ export default class SquadRcon extends Rcon {
     await this.execute(`AdminWarn "${anyID}" ${message}`);
   }
 
+  async kick(anyID, message) {
+    await this.execute(`AdminKick "${anyID}" ${message}`);
+  }
+
+  async endMatch() {
+    await this.execute('AdminEndMatch');
+  }
+
   // 0 = Perm | 1m = 1 minute | 1d = 1 Day | 1M = 1 Month | etc...
   async ban(anyID, banLength, message) {
     await this.execute(`AdminBan "${anyID}" ${banLength} ${message}`);

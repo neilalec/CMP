@@ -8,6 +8,9 @@ export const useGroupStore = defineStore('group', {
 
   getters: {
     inGroup: (state) => !!state.code,
+    getDisplayName: (state) => (username) => {
+      return state.playerProfiles?.[username]?.display_name || username;
+    },
   },
 
   actions: {
@@ -19,6 +22,7 @@ export const useGroupStore = defineStore('group', {
       this.code = group.code || null;
       this.leader = group.leader || null;
       this.members = Array.isArray(group.members) ? group.members : [];
+      this.playerProfiles = group.player_profiles || group.playerProfiles || {};
       this.lastSync = Date.now();
       this.error = null;
     },
@@ -77,6 +81,38 @@ export const useGroupStore = defineStore('group', {
         },
         onSuccess: () => {
           this.resetGroup();
+        }
+      });
+    },
+
+    async transferOwnership(username, targetUsername) {
+      return runStoreSocketAction(this, {
+        event: SOCKET_EVENTS.GROUP.TRANSFER,
+        payload: { username, targetUsername },
+        fallbackMessage: 'Failed to transfer group ownership',
+        validate: (response) => {
+          if (!response?.success || !response?.group) {
+            throw new Error(response?.message || 'Failed to transfer group ownership');
+          }
+        },
+        onSuccess: (response) => {
+          this.setGroup(response.group);
+        }
+      });
+    },
+
+    async kickMember(username, targetUsername) {
+      return runStoreSocketAction(this, {
+        event: SOCKET_EVENTS.GROUP.KICK,
+        payload: { username, targetUsername },
+        fallbackMessage: 'Failed to kick group member',
+        validate: (response) => {
+          if (!response?.success || !response?.group) {
+            throw new Error(response?.message || 'Failed to kick group member');
+          }
+        },
+        onSuccess: (response) => {
+          this.setGroup(response.group);
         }
       });
     },

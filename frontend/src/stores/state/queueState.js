@@ -4,6 +4,7 @@ export const createDefaultMatchAcceptState = () => ({
   cancelReason: '',
   queueMode: null,
   players: [],
+  playerProfiles: {},
   acceptedPlayers: [],
   acceptedCount: 0,
   requiredCount: 0,
@@ -14,7 +15,7 @@ export const createDefaultMatchAcceptState = () => ({
 export const createDefaultQueueModes = () => ({
   skirmish: {
     id: 'skirmish',
-    label: 'Skirmish',
+    label: '20v20 Skirmish Layers',
     shortLabel: 'Skirmish',
     teamSize: 20,
     maxPlayers: 40,
@@ -26,6 +27,96 @@ export const createDefaultQueueModes = () => ({
     id: 'hotdrop',
     label: 'Hotdrop',
     shortLabel: 'Hotdrop',
+    teamSize: 30,
+    maxPlayers: 60,
+    queue: [],
+    playersInQueue: 0,
+    inQueue: false
+  },
+  sec26: {
+    id: 'sec26',
+    label: '26v26 Squad Esports Cup',
+    shortLabel: 'SEC 26',
+    teamSize: 26,
+    maxPlayers: 52,
+    queue: [],
+    playersInQueue: 0,
+    inQueue: false
+  },
+  sec36: {
+    id: 'sec36',
+    label: '36v36 Squad Esports Cup',
+    shortLabel: 'SEC 36',
+    teamSize: 36,
+    maxPlayers: 72,
+    queue: [],
+    playersInQueue: 0,
+    inQueue: false
+  },
+  sec46: {
+    id: 'sec46',
+    label: '46v46 Squad Esports Cup',
+    shortLabel: 'SEC 46',
+    teamSize: 46,
+    maxPlayers: 92,
+    queue: [],
+    playersInQueue: 0,
+    inQueue: false
+  },
+  s30: {
+    id: 's30',
+    label: '36v36 S3O Layers',
+    shortLabel: 'S3O',
+    teamSize: 36,
+    maxPlayers: 72,
+    queue: [],
+    playersInQueue: 0,
+    inQueue: false
+  },
+  rivals36: {
+    id: 'rivals36',
+    label: '36v36 Squad Rivals',
+    shortLabel: 'Rivals',
+    teamSize: 36,
+    maxPlayers: 72,
+    queue: [],
+    playersInQueue: 0,
+    inQueue: false
+  },
+  osi40: {
+    id: 'osi40',
+    label: '40v40 Offworld Squad Invitational',
+    shortLabel: 'OSI',
+    teamSize: 40,
+    maxPlayers: 80,
+    queue: [],
+    playersInQueue: 0,
+    inQueue: false
+  },
+  ocbt15: {
+    id: 'ocbt15',
+    label: '15v15 Open Clan Battle',
+    shortLabel: 'OCBT',
+    teamSize: 15,
+    maxPlayers: 30,
+    queue: [],
+    playersInQueue: 0,
+    inQueue: false
+  },
+  balt26: {
+    id: 'balt26',
+    label: '26v26 Balt Layers',
+    shortLabel: 'BALT',
+    teamSize: 26,
+    maxPlayers: 52,
+    queue: [],
+    playersInQueue: 0,
+    inQueue: false
+  },
+  outofthebox40: {
+    id: 'outofthebox40',
+    label: '30v30 Out of The Box Layers',
+    shortLabel: 'OOTB',
     teamSize: 30,
     maxPlayers: 60,
     queue: [],
@@ -43,6 +134,7 @@ export const createDefaultQueueState = () => ({
   queueModes: createDefaultQueueModes(),
   serverCapacity: 1,
   serverAvailable: true,
+  serverAvailabilityReason: 'available',
   activeLobbyCount: 0,
   activePendingMatchCount: 0,
   openLobbies: [],

@@ -1,6 +1,5 @@
 (cmp_app) {
     handle /api/* {
-        uri strip_prefix /api
         reverse_proxy backend:5000
     }
 
@@ -13,12 +12,16 @@
     }
 }
 
-http://cmp.zapto.org {
-    redir https://cmp.zapto.org{uri} permanent
+http://{$CMP_PUBLIC_HOST} {
+    redir https://{$CMP_PUBLIC_HOST}{uri} permanent
 }
 
-https://cmp.zapto.org {
+https://{$CMP_PUBLIC_HOST} {
     import cmp_app
+}
+
+http://127.0.0.1 {
+    respond /healthz "ok" 200
 }
 
 http://localhost {

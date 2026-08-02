@@ -1,4 +1,77 @@
+import random
+
 from services.queue import find_user_queue_mode, get_pending_for_mode, get_queue_for_mode
+
+
+SEED_NAME_PREFIXES = [
+    'Alpha', 'Archer', 'Atlas', 'Bandit', 'Blitz', 'Bravo', 'Cinder', 'Comet',
+    'Cross', 'Delta', 'Echo', 'Falcon', 'Frost', 'Ghost', 'Havoc', 'Hunter',
+    'Jester', 'Knight', 'Maverick', 'Nomad', 'Oracle', 'Phoenix', 'Ranger',
+    'Reaper', 'Ridge', 'Rogue', 'Rook', 'Sable', 'Scout', 'Shadow', 'Slate',
+    'Spectre', 'Striker', 'Talon', 'Valkyrie', 'Vector', 'Viper', 'Wolf'
+]
+SEED_NAME_SUFFIXES = [
+    'Ace', 'Ash', 'Bear', 'Bolt', 'Breeze', 'Brick', 'Cobra', 'Drift', 'Fang',
+    'Fox', 'Hawk', 'Juno', 'Kane', 'King', 'Mills', 'Nash', 'Nova', 'Oak',
+    'Pike', 'Quinn', 'Reed', 'Riot', 'Rush', 'Sage', 'Smoke', 'Stone', 'Storm',
+    'Trace', 'Vale', 'Ward', 'West', 'Wick', 'Wren', 'York'
+]
+SEED_CLAN_TAGS = ['4K', 'CMP', 'RIP', 'RLY', 'SQD', 'TAC', 'VET']
+SEED_GROUP_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+
+
+def _generate_seed_username(queue_mode, users, queued):
+    for _ in range(300):
+        style = random.randrange(4)
+        prefix = random.choice(SEED_NAME_PREFIXES)
+        suffix = random.choice(SEED_NAME_SUFFIXES)
+        if style == 0:
+            username = f'{prefix}{suffix}{random.randint(1, 99)}'
+        elif style == 1:
+            username = f'{random.choice(SEED_CLAN_TAGS)}_{suffix}_{random.randint(10, 99)}'
+        elif style == 2:
+            username = f'{prefix}_{random.randint(100, 999)}'
+        else:
+            username = f'{suffix}{random.choice(SEED_NAME_PREFIXES)}'
+        if username not in users and username not in queued:
+            return username
+
+    suffix = len(users) + len(queued) + 1
+    while True:
+        username = f'{queue_mode}_seed_{suffix:03d}'
+        if username not in users and username not in queued:
+            return username
+        suffix += 1
+
+
+def _generate_seed_group_code(groups):
+    for _ in range(300):
+        code = 'S' + ''.join(random.choice(SEED_GROUP_CODE_ALPHABET) for _ in range(5))
+        if code not in groups:
+            return code
+    suffix = len(groups) + 1
+    while True:
+        code = f'S{suffix:05d}'[-6:]
+        if code not in groups:
+            return code
+        suffix += 1
+
+
+def _build_seed_group_sizes(seed_count):
+    sizes = []
+    remaining = seed_count
+    while remaining > 0:
+        if remaining >= 2 and random.random() < 0.58:
+            size = random.randint(2, min(5, remaining))
+            if remaining - size == 1 and size > 2:
+                size -= 1
+            sizes.append(size)
+            remaining -= size
+        else:
+            sizes.append(1)
+            remaining -= 1
+    random.shuffle(sizes)
+    return sizes
 
 
 def handle_join_queue_event(
@@ -210,7 +283,6 @@ def handle_seed_queue_event(
     socketio,
     broadcast_queue_update,
     logger,
-    dev_mode,
     get_username_by_sid,
     is_admin_user,
     users,
@@ -224,14 +296,15 @@ def handle_seed_queue_event(
     build_queue_payload,
     check_queue_and_start_countdown,
     get_pending_match,
-    finalize_pending_match
+    finalize_pending_match,
+    group_lock=None,
+    groups=None,
+    user_to_group=None
 ):
     try:
         username = get_username_by_sid(request.sid)
         queue_mode = str((data or {}).get('queueMode') or 'skirmish').strip().lower()
         queue_config = queue_modes.get(queue_mode)
-        if not dev_mode:
-            return {'success': False, 'message': 'Queue seeding is only available in dev mode'}
         if not is_admin_user(username):
             return {'success': False, 'message': 'Admin access required'}
         if not queue_config:
@@ -241,41 +314,72 @@ def handle_seed_queue_event(
         requested_count = max(0, min(requested_count, queue_config['max_players']))
         created = []
         queued = []
+        seeded_groups = []
 
         with queue_lock:
             queue = get_queue_for_mode(matchmaking_queue, queue_mode)
             available_slots = max(0, queue_config['max_players'] - len(queue))
             seed_count = min(requested_count, available_slots)
+            group_sizes = _build_seed_group_sizes(seed_count)
+            seed_password_hash = hash_password('seed-player-dev-password') if seed_count else ''
 
-            for index in range(1, seed_count + 1):
-                bot_username = f'{queue_mode}_bot_{index:02d}'
-                suffix = index
-                while bot_username in users and bot_username not in queue:
-                    suffix += queue_config['max_players']
-                    bot_username = f'{queue_mode}_bot_{suffix:02d}'
+            for _index in range(1, seed_count + 1):
+                seed_username = _generate_seed_username(queue_mode, users, queued)
+                steam_suffix = len(users) + len(created) + len(queued) + 1
 
-                if bot_username not in users:
-                    users[bot_username] = {
-                        'password': hash_password(f'{bot_username}-dev-password'),
-                        'steam_id': f'7656119900{suffix:07d}'[-17:]
+                if seed_username not in users:
+                    users[seed_username] = {
+                        'password': seed_password_hash,
+                        'steam_id': str(76561199000000000 + steam_suffix)[-17:]
                     }
-                    created.append(bot_username)
+                    created.append(seed_username)
 
-                if bot_username not in queue and len(queue) < queue_config['max_players']:
-                    queue.append(bot_username)
-                    upsert_player_activity(bot_username, status='queued')
-                    queued.append(bot_username)
+                if seed_username not in queue and len(queue) < queue_config['max_players']:
+                    queue.append(seed_username)
+                    upsert_player_activity(seed_username, status='queued')
+                    queued.append(seed_username)
 
-            save_users()
-            save_queue()
+            if created:
+                save_users()
+            if queued:
+                save_queue()
+
+        if groups is not None and user_to_group is not None and group_sizes:
+            lock = group_lock
+            if lock:
+                lock.__enter__()
+            try:
+                cursor = 0
+                for size in group_sizes:
+                    members = queued[cursor:cursor + size]
+                    cursor += size
+                    if len(members) < 2:
+                        continue
+                    code = _generate_seed_group_code(groups)
+                    groups[code] = {
+                        'code': code,
+                        'leader': members[0],
+                        'members': list(members),
+                        'seeded': True
+                    }
+                    for member in members:
+                        user_to_group[member] = code
+                    seeded_groups.append({
+                        'code': code,
+                        'leader': members[0],
+                        'members': list(members)
+                    })
+            finally:
+                if lock:
+                    lock.__exit__(None, None, None)
 
         check_queue_and_start_countdown()
 
         pending_match = get_pending_match(queue_mode)
         if pending_match:
-            for bot_username in queued:
-                if bot_username in pending_match.get('accepted', {}):
-                    pending_match['accepted'][bot_username] = True
+            for seed_username in queued:
+                if seed_username in pending_match.get('accepted', {}):
+                    pending_match['accepted'][seed_username] = True
             if pending_match.get('id') and all(
                 pending_match.get('accepted', {}).get(player)
                 for player in pending_match.get('players', [])
@@ -285,9 +389,10 @@ def handle_seed_queue_event(
         payload = {
             **build_queue_payload(username=username, queue_mode=queue_mode),
             'seeded': queued,
+            'seededGroups': seeded_groups,
             'createdUsers': created,
             'success': True,
-            'message': f'Seeded {len(queued)} bot players'
+            'message': f'Seeded {len(queued)} mock players'
         }
         broadcast_queue_update()
         return payload
@@ -304,7 +409,6 @@ def handle_clear_queue_event(
     socketio,
     broadcast_queue_update,
     logger,
-    dev_mode,
     get_username_by_sid,
     is_admin_user,
     queue_lock,
@@ -317,8 +421,6 @@ def handle_clear_queue_event(
     try:
         username = get_username_by_sid(request.sid)
         queue_mode = str((data or {}).get('queueMode') or '').strip().lower() or None
-        if not dev_mode:
-            return {'success': False, 'message': 'Queue clearing is only available in dev mode'}
         if not is_admin_user(username):
             return {'success': False, 'message': 'Admin access required'}
 
@@ -408,13 +510,15 @@ def handle_accept_match_event(
 
         broadcast_queue_update()
 
+        lobby_id = None
         if all_accepted:
-            finalize_pending_match(match_id)
+            lobby_id = finalize_pending_match(match_id)
 
         return {
             'success': True,
             'matchAccept': match_accept,
-            'allAccepted': all_accepted
+            'allAccepted': all_accepted,
+            'lobbyId': lobby_id if isinstance(lobby_id, str) else None
         }
     except Exception as e:
         logger.error(f"Error in handle_accept_match: {str(e)}")

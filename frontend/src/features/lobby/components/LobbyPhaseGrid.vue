@@ -24,10 +24,10 @@ defineProps({
 <style scoped>
 .map-vote-layout {
   display: grid;
-  grid-template-columns: minmax(260px, 1fr) minmax(220px, var(--middle-column-width, 280px)) minmax(260px, 1fr);
-  gap: var(--phase-column-gap, clamp(20px, 3vw, 56px));
+  grid-template-columns: minmax(0, 1fr) minmax(240px, var(--middle-column-width, 300px)) minmax(0, 1fr);
+  gap: var(--phase-column-gap, clamp(16px, 2vw, 28px));
   width: 100%;
-  max-width: min(100%, 1120px);
+  max-width: 100%;
   justify-content: center;
   align-items: start;
   min-height: 480px;
@@ -63,7 +63,7 @@ defineProps({
   }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 980px) {
   .map-vote-layout {
     display: flex;
     flex-direction: column;

@@ -28,6 +28,10 @@ defineProps({
     type: Function,
     required: true
   },
+  getDisplayName: {
+    type: Function,
+    default: (username) => username
+  },
   showConnectionStatus: {
     type: Boolean,
     default: false
@@ -46,11 +50,16 @@ defineProps({
         <li
           v-for="(group, index) in groups"
           :key="group.id || `solo-${index}`"
-          :class="['team-group', { grouped: !!group.id }]"
+          :class="['team-group', 'player-row', 'is-centered', { grouped: !!group.id }]"
         >
           <div class="team-group-members">
-            <span v-for="member in group.members" :key="member" class="team-group-member" :title="member">
-              <span :class="['player-name', { 'current-user': isCurrentUser(member) }]">{{ member }}</span>
+            <span
+              v-for="member in group.members"
+              :key="member"
+              :class="['team-group-member', { 'is-current-user': isCurrentUser(member) }]"
+              :title="member"
+            >
+              <span :class="['player-name', { 'current-user': isCurrentUser(member) }]">{{ getDisplayName(member) }}</span>
               <span v-if="showConnectionStatus" :class="['connection-label', getConnectionFlagClass(member)]">
                 {{ getConnectionLabel(member) }}
               </span>
@@ -88,27 +97,18 @@ defineProps({
   padding: 0;
   margin: 0 auto;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(116px, 148px));
-  justify-content: center;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  justify-content: stretch;
   align-items: start;
-  gap: 6px;
+  gap: 8px;
   width: 100%;
 }
 
 .map-vote-team li,
 .team li {
   font-size: 0.8rem;
-  padding: 7px 8px;
   margin: 0;
-  background: var(--panel-bg-strong);
-  border: 1px solid var(--surface-border);
-  box-shadow: var(--surface-shadow);
-  border-radius: var(--radius-sm);
   text-align: center;
-  color: inherit;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   gap: 6px;
   width: 100%;
   max-width: 100%;
@@ -129,13 +129,13 @@ defineProps({
 }
 
 .team-group-members {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+  align-items: start;
   gap: 5px;
   width: 100%;
   margin: 0 auto;
-  justify-content: center;
+  justify-content: stretch;
 }
 
 .team-group-member {
@@ -163,9 +163,22 @@ defineProps({
   letter-spacing: 0.01em;
 }
 
-.current-user {
-  color: var(--gold-strong);
+.player-name.current-user {
+  width: auto;
+  max-width: 100%;
+  margin-inline: auto;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
   font-weight: 800;
+  box-shadow: none;
+  text-shadow: none;
+}
+
+.team-group-member.is-current-user {
+  gap: 4px;
 }
 
 .connection-label {
@@ -211,7 +224,7 @@ defineProps({
 
   .map-vote-team ul,
   .team ul {
-    grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(124px, 1fr));
   }
 }
 </style>

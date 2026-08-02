@@ -1,4 +1,5 @@
 import { buildActiveRound, buildScoreboardResult } from './scoreboard.js';
+import { createSyntheticLobbyManager } from './synthetic-lobby.js';
 
 export function createBridgeState(server) {
   const state = {
@@ -13,7 +14,8 @@ export function createBridgeState(server) {
     },
     lastCommand: null,
     commandHistory: [],
-    reconnectPromise: null
+    reconnectPromise: null,
+    syntheticLobby: createSyntheticLobbyManager()
   };
 
   const onNewGame = (data) => {
@@ -41,6 +43,7 @@ export function createBridgeState(server) {
   server.on('ROUND_ENDED', onRoundEnded);
 
   state.dispose = () => {
+    state.syntheticLobby?.dispose?.();
     if (typeof server.off === 'function') {
       server.off('NEW_GAME', onNewGame);
       server.off('ROUND_ENDED', onRoundEnded);

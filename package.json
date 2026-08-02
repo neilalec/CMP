@@ -1,0 +1,10 @@
+{
+  "name": "cmp-dev-workspace",
+  "private": true,
+  "scripts": {
+    "dev": "docker compose up --build",
+    "dev:docker": "docker compose up --build",
+    "dev:local": "powershell -ExecutionPolicy Bypass -File scripts/dev-local.ps1",
+    "dev:down": "docker compose down"
+  }
+}

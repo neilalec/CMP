@@ -12,6 +12,8 @@ import { useAppSession } from './features/app/composables/useAppSession';
 import { useThemeMode } from './features/app/composables/useThemeMode';
 import { useMatchAcceptChime } from './features/app/composables/useMatchAcceptChime';
 import MatchAcceptModal from './features/app/components/MatchAcceptModal.vue';
+import MatchPhaseTracker from './features/match/components/MatchPhaseTracker.vue';
+import scmLogo from './assets/scm-logo.png';
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -25,13 +27,9 @@ const { isDarkMode } = useThemeMode();
 const {
   isInLobby,
   currentLobbyId,
-  canReturnToLobby,
   playRoute,
   isMatchAcceptParticipant,
   isMatchAcceptCancelled,
-  handleLogout,
-  handleLeaveLobby,
-  handleReturnToLobby,
   handleProfile,
   handleGroup,
   handleAcceptMatch,
@@ -62,9 +60,13 @@ useMatchAcceptChime({
 
 const currentWindowTitle = computed(() => {
   if (route.path.startsWith('/lobby/')) return 'Lobby';
-  if (route.path.startsWith('/play') || route.path === '/' || route.path.startsWith('/queue')) return 'Play';
+  if (route.path.startsWith('/play') || route.path === '/' || route.path.startsWith('/queue')) return 'Queue';
   if (route.path.startsWith('/lobbies')) return 'Lobbies';
   if (route.path.startsWith('/results')) return 'Results';
+  if (route.path.startsWith('/discord')) return 'Discord';
+  if (route.path.startsWith('/about')) return 'About';
+  if (route.path.startsWith('/terms')) return 'Terms';
+  if (route.path.startsWith('/privacy')) return 'Privacy';
   if (route.path.startsWith('/group')) return 'Group';
   if (route.path.startsWith('/profile')) return 'Profile';
   if (route.path.startsWith('/admin')) return 'Admin';
@@ -72,42 +74,98 @@ const currentWindowTitle = computed(() => {
   return 'Play';
 });
 
+const isQueueRoute = computed(() => route.path === '/' || route.path.startsWith('/play') || route.path.startsWith('/queue'));
+const isLobbiesRoute = computed(() => route.path.startsWith('/lobbies'));
+const isResultsRoute = computed(() => route.path.startsWith('/results'));
+const isDiscordRoute = computed(() => route.path.startsWith('/discord'));
+const isAboutRoute = computed(() => route.path.startsWith('/about'));
+const isProfileRoute = computed(() => route.path.startsWith('/profile'));
+const isGroupRoute = computed(() => route.path.startsWith('/group'));
+const isAdminRoute = computed(() => route.path.startsWith('/admin'));
+const isPlayHighlighted = computed(() => {
+  const hasQueueSession = queueStore.inQueue && !!queueStore.queueMode;
+  const hasLobbySession = isInLobby.value || !!currentLobbyId.value;
+  return hasQueueSession || hasLobbySession;
+});
+const currentLobbyPhase = computed(() => {
+  if (lobbyStore.step === 5) return 'complete';
+  if (lobbyStore.step === 4) return 'live';
+  if (lobbyStore.step === 3) return 'server';
+  return 'map';
+});
+const lobbyTrackerPhases = [
+  { id: 'map', label: 'Map Vote' },
+  { id: 'server', label: 'Join Server' },
+  { id: 'live', label: 'Live' },
+  { id: 'complete', label: 'Score' }
+];
+
 </script>
 
 <template>
   <div class="app">
     <template v-if="authStore.isLoggedIn">
       <div class="app-shell" :class="{ 'in-lobby': isInLobby }">
+        <header class="app-header">
+          <div class="top-banner">
+            <span class="header-heading app-brand-title" aria-label="Squad Comp Matchmaking">
+              <span class="brand-mark">
+                <img class="brand-logo" :src="scmLogo" alt="" aria-hidden="true">
+              </span>
+              <span class="brand-divider" aria-hidden="true"></span>
+              <span class="brand-name">Squad Comp Matchmaking</span>
+            </span>
+          </div>
+        </header>
+
         <aside class="app-left window-panel">
           <div class="window-titlebar">
             <span class="window-titlebar-label">Navigate</span>
           </div>
           <div class="sidebar-body">
-            <RouterLink class="side-link" :to="playRoute">
+            <RouterLink
+              class="side-link chrome-nav-item"
+              :class="{ active: isQueueRoute, 'play-highlighted': isPlayHighlighted }"
+              :to="playRoute"
+            >
               <span class="nav-icon" :class="{ 'in-queue': queueStore.inQueue }" aria-hidden="true">
                 <svg viewBox="0 0 24 24" role="img">
-                  <polygon points="4,5 12,12 4,19" fill="#959ca6" stroke="currentColor" stroke-width="1.6" />
-                  <polygon points="12,5 20,12 12,19" fill="#959ca6" stroke="currentColor" stroke-width="1.6" />
+                  <polygon points="4,5 12,12 4,19" fill="currentColor" fill-opacity="0.28" stroke="currentColor" stroke-width="1.6" />
+                  <polygon points="12,5 20,12 12,19" fill="currentColor" fill-opacity="0.42" stroke="currentColor" stroke-width="1.6" />
                 </svg>
               </span>
               <span class="nav-label">Play</span>
-              <span v-if="queueStore.inQueue" class="queue-spinner" aria-hidden="true"></span>
+              <span v-if="isPlayHighlighted" class="queue-spinner" aria-hidden="true"></span>
             </RouterLink>
-            <RouterLink class="side-link" to="/lobbies">
+            <RouterLink class="side-link chrome-nav-item" :class="{ active: isLobbiesRoute }" to="/lobbies">
               <span class="nav-icon">&#9673;</span>
               <span class="nav-label">Lobbies</span>
             </RouterLink>
-            <RouterLink class="side-link" to="/results">
+            <RouterLink class="side-link chrome-nav-item" :class="{ active: isResultsRoute }" to="/results">
               <span class="nav-icon">R</span>
               <span class="nav-label">Results</span>
+            </RouterLink>
+            <RouterLink class="side-link chrome-nav-item" :class="{ active: isDiscordRoute }" to="/discord">
+              <span class="nav-icon">D</span>
+              <span class="nav-label">Discord</span>
+            </RouterLink>
+            <RouterLink class="side-link chrome-nav-item" :class="{ active: isAboutRoute }" to="/about">
+              <span class="nav-icon">?</span>
+              <span class="nav-label">About</span>
             </RouterLink>
           </div>
         </aside>
 
         <main class="app-main window-panel">
-          <div class="window-titlebar">
-            <span class="window-titlebar-label">Competitive Matchmaking Platform</span>
-            <span class="window-titlebar-meta">{{ currentWindowTitle }}</span>
+          <div :class="['window-titlebar', { 'lobby-titlebar': isInLobby }]">
+            <span class="window-titlebar-label">{{ currentWindowTitle }}</span>
+            <MatchPhaseTracker
+              v-if="isInLobby"
+              :current-phase="currentLobbyPhase"
+              :phases="lobbyTrackerPhases"
+              compact
+            />
+            <span v-else class="window-titlebar-meta">{{ currentWindowTitle }}</span>
           </div>
           <div class="main-window-body">
             <RouterView />
@@ -119,18 +177,18 @@ const currentWindowTitle = computed(() => {
             <span class="window-titlebar-label">Session</span>
           </div>
           <div class="sidebar-body">
-            <button class="profile-button" type="button" title="Profile page" @click="handleProfile">
+            <button class="profile-button chrome-nav-item" :class="{ active: isProfileRoute }" type="button" title="Profile page" @click="handleProfile">
               <span class="nav-icon profile-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" role="img">
                   <circle cx="12" cy="8" r="4" fill="currentColor" />
                   <path d="M4 20c0-4 4-6 8-6s8 2 8 6" fill="currentColor" />
                 </svg>
               </span>
-              <span class="nav-label current-user">{{ authStore.username }}</span>
+              <span class="nav-label">{{ authStore.playerName }}</span>
             </button>
             <button
-              class="group-button"
-              :class="{ 'in-group': groupStore.inGroup }"
+              class="group-button chrome-nav-item"
+              :class="{ active: isGroupRoute, 'group-highlighted': groupStore.inGroup }"
               type="button"
               title="Group page"
               @click="handleGroup"
@@ -144,10 +202,12 @@ const currentWindowTitle = computed(() => {
                 </svg>
               </span>
               <span class="nav-label">Group</span>
+              <span v-if="groupStore.inGroup" class="group-status-check" aria-hidden="true">✓</span>
             </button>
             <button
-              v-if="authStore.isAdmin"
-              class="admin-button"
+              v-if="authStore.isAdmin || authStore.canToggleAdmin"
+              class="admin-button chrome-nav-item"
+              :class="{ active: isAdminRoute }"
               type="button"
               title="Admin diagnostics"
               @click="router.push('/admin')"
@@ -156,17 +216,24 @@ const currentWindowTitle = computed(() => {
               <span class="nav-label">Admin</span>
             </button>
             <button
-              class="theme-button"
+              class="theme-button chrome-nav-item"
               type="button"
               :aria-pressed="isDarkMode"
               :title="isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'"
               @click="isDarkMode = !isDarkMode"
             >
               <span class="nav-icon theme-icon" aria-hidden="true">{{ isDarkMode ? 'L' : 'D' }}</span>
-              <span class="nav-label">{{ isDarkMode ? 'Light' : 'Dark' }}</span>
+              <span class="nav-label">{{ isDarkMode ? 'Light Mode' : 'Dark Mode' }}</span>
             </button>
           </div>
         </aside>
+
+        <footer class="legal-footer" aria-label="Legal notice">
+          <span>&copy; 2026 Squad Comp Matchmaking. All rights reserved.</span>
+          <RouterLink to="/terms">Terms</RouterLink>
+          <RouterLink to="/privacy">Privacy</RouterLink>
+          <span>Independent community tool. Not affiliated with, endorsed by, or sponsored by Offworld Industries, Valve, or Steam.</span>
+        </footer>
       </div>
 
       <MatchAcceptModal
@@ -177,6 +244,7 @@ const currentWindowTitle = computed(() => {
         :accepted-count="queueStore.matchAccept.acceptedCount"
         :required-count="queueStore.matchAccept.requiredCount"
         :accepted-players="acceptedMatchPlayers"
+        :player-profiles="queueStore.matchAccept.playerProfiles"
         :waiting-players="waitingMatchPlayers"
         :loading="queueStore.loading"
         :has-accepted="queueStore.matchAccept.hasAccepted"
@@ -191,7 +259,8 @@ const currentWindowTitle = computed(() => {
     </div>
 
     <div v-if="rootStore.globalError" class="error-message">
-      {{ rootStore.globalError }}
+      <strong>{{ rootStore.globalError }}</strong>
+      <span v-if="rootStore.globalErrorDetails">{{ rootStore.globalErrorDetails }}</span>
     </div>
   </div>
 </template>
@@ -213,17 +282,46 @@ const currentWindowTitle = computed(() => {
 
 .app-shell {
   width: 100%;
-  max-width: 100%;
-  min-height: 100vh;
-  min-height: 100dvh;
-  height: auto;
-  --nav-icon-box: 32px;
-  --nav-column-width: 168px;
-  background: var(--surface);
+  max-width: var(--page-width);
+  min-height: 0;
+  height: 100vh;
+  height: 100dvh;
+  --nav-icon-box: 30px;
+  --nav-column-width: 140px;
+  --shell-gap: 8px;
+  background: transparent;
   display: grid;
   grid-template-columns: var(--nav-column-width) minmax(0, 1fr) var(--nav-column-width);
-  gap: 12px;
-  padding: 12px;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: var(--shell-gap);
+  padding: 8px;
+  align-content: start;
+}
+
+.legal-footer {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 14px;
+  flex-wrap: wrap;
+  min-height: 24px;
+  padding: 3px 8px 0;
+  color: var(--text-soft);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  line-height: 1.25;
+  text-align: center;
+}
+
+.legal-footer a {
+  color: var(--accent-strong);
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.legal-footer a:hover {
+  text-decoration: underline;
 }
 
 .auth-shell {
@@ -238,14 +336,25 @@ const currentWindowTitle = computed(() => {
 
 .error-message {
   position: fixed;
-  bottom: 20px;
-  right: 20px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: grid;
+  gap: 4px;
+  max-width: min(360px, calc(100vw - 32px));
+  width: max-content;
   background: var(--danger-soft);
   color: var(--danger);
-  padding: 1rem;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--danger);
-  box-shadow: var(--surface-shadow), var(--window-shadow);
+  padding: 0.9rem;
+  border-radius: var(--radius-md);
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--surface-border));
+  box-shadow: var(--window-shadow);
+  z-index: 9999;
+}
+
+.error-message strong,
+.error-message span {
+  display: block;
 }
 
 .app-left {
@@ -253,30 +362,20 @@ const currentWindowTitle = computed(() => {
   flex-direction: column;
   min-height: 0;
   position: sticky;
-  top: 12px;
-  height: calc(100dvh - 24px);
+  top: 8px;
+  height: fit-content;
   align-self: start;
-}
-
-.side-link {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  justify-content: flex-start;
-  min-height: 44px;
-  padding: 0 10px;
-  color: var(--text-main);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--control-border);
-  text-decoration: none;
-  background: var(--control-bg);
-  box-shadow: var(--surface-shadow);
-  transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+  z-index: 2;
 }
 
 .nav-label {
-  display: inline-block;
+  display: block;
+  flex: 1 1 auto;
   white-space: nowrap;
+  text-align: center;
+  position: relative;
+  left: -6px;
+  padding-right: 6px;
 }
 
 .app-main {
@@ -284,20 +383,97 @@ const currentWindowTitle = computed(() => {
   flex-direction: column;
   padding: 0;
   min-width: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+  z-index: 1;
 }
 
 .main-window-body {
   flex: 1;
   min-height: 0;
-  background: linear-gradient(180deg, var(--app-bg-soft) 0%, var(--app-bg) 100%);
+  overflow: auto;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 18%),
+    var(--panel-bg-muted);
 }
 
-.app-actions {
-  display: flex;
-  justify-content: center;
-  width: 100%;
+.lobby-titlebar {
+  height: 40px;
+  min-height: 40px;
+  align-items: center;
+  padding: 0 0 0 12px;
+}
+
+.lobby-titlebar .window-titlebar-label {
+  flex: 0 0 auto;
+  align-self: center;
+  min-width: 64px;
+  margin-right: 6px;
+}
+
+.lobby-titlebar :deep(.phase-tracker) {
+  --tracker-arrow: #6f9f75;
+  align-self: center;
+  flex: 1 1 auto;
+  height: 100%;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+}
+
+.lobby-titlebar :deep(.phase-tracker.compact .phase-step) {
+  min-height: 0;
+  height: 100%;
+  padding: 5px 6px;
+  border-right-color: rgba(255, 255, 255, 0.16);
+  color: rgba(248, 251, 255, 0.72);
+  font-family: var(--font-display);
+  font-size: clamp(0.66rem, 0.82vw, 0.82rem);
+  font-weight: 800;
+  letter-spacing: 0.018em;
+  text-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.2),
+    0 3px 10px rgba(93, 86, 73, 0.14);
+}
+
+.lobby-titlebar :deep(.phase-connector.is-complete) {
+  background: var(--tracker-arrow);
+  box-shadow:
+    0 0 5px rgba(111, 159, 117, 0.42),
+    0 1px 0 rgba(0, 0, 0, 0.28);
+}
+
+.lobby-titlebar :deep(.phase-connector.is-leading::after) {
+  border-left-color: var(--tracker-arrow);
+  filter: drop-shadow(0 0 4px rgba(111, 159, 117, 0.52)) drop-shadow(0 1px 0 rgba(0, 0, 0, 0.32));
+}
+
+.lobby-titlebar :deep(.phase-step.is-complete),
+.lobby-titlebar :deep(.phase-step.is-current) {
+  color: var(--text-main);
+}
+
+.lobby-titlebar :deep(.phase-dot) {
+  border-color: rgba(255, 255, 255, 0.38);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.lobby-titlebar :deep(.phase-step.is-complete .phase-dot) {
+  background: color-mix(in srgb, var(--tracker-arrow) 72%, var(--text-main) 28%);
+  border-color: color-mix(in srgb, var(--tracker-arrow) 82%, var(--text-main) 18%);
+  color: var(--text-main);
+}
+
+.lobby-titlebar :deep(.phase-step.is-current .phase-dot) {
+  border-color: var(--tracker-arrow);
+  box-shadow:
+    0 0 0 2px var(--tracker-arrow),
+    0 0 7px rgba(111, 159, 117, 0.42);
+}
+
+.lobby-titlebar :deep(.phase-step.is-current .phase-dot::after) {
+  background: var(--tracker-arrow);
 }
 
 .app-right {
@@ -305,111 +481,34 @@ const currentWindowTitle = computed(() => {
   flex-direction: column;
   min-height: 0;
   position: sticky;
-  top: 12px;
-  height: calc(100dvh - 24px);
+  top: 8px;
+  height: fit-content;
   align-self: start;
-}
-
-.app-right .profile-button,
-.app-right .group-button,
-.app-right .admin-button,
-.app-right .theme-button {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 44px;
-  padding: 0 10px;
-  border: 1px solid var(--control-border);
-  background: var(--control-bg);
-  box-shadow: var(--surface-shadow);
-  text-align: left;
+  z-index: 2;
 }
 
 .sidebar-body {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 12px;
+  gap: 6px;
+  padding: 10px;
   flex: 1;
   min-height: 0;
-}
-
-.lobby-dropdown {
-  position: relative;
-  display: inline-flex;
-}
-
-.app-left .lobby-dropdown {
-  width: 100%;
-}
-
-.lobby-id-button {
-  font-weight: 700;
-  gap: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  max-width: 100%;
-  min-height: 44px;
-  padding: 0 10px;
-  background: transparent;
-  border: 1px solid var(--surface-border);
-}
-
-.app-left .lobby-id-button {
-  width: 100%;
-}
-
-.lobby-label {
-  font-weight: 700;
-  max-width: 100%;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.lobby-menu {
-  display: none;
-  position: absolute;
-  top: 100%;
-  left: 0;
-  transform: none;
-  margin-top: 6px;
-  background: var(--panel-bg-strong);
-  border: 1px solid var(--surface-border-strong);
-  border-radius: var(--radius-md);
-  box-shadow: var(--surface-shadow), var(--window-shadow);
-  padding: 8px;
-  z-index: 10;
-  min-width: 200px;
-}
-
-.app-right .lobby-menu {
-  left: auto;
-  right: 0;
-}
-
-.lobby-dropdown:hover .lobby-menu {
-  display: block;
-}
-
-.lobby-menu button {
-  width: 100%;
 }
 
 .profile-button {
   font-weight: 700;
   padding: 0 0.3rem;
-  height: 38px;
+  height: 31px;
 }
 
 .group-button,
+.add-server-button,
 .admin-button,
 .theme-button {
   font-weight: 700;
   padding: 0 0.3rem;
-  height: 38px;
+  height: 31px;
 }
 
 .theme-button {
@@ -418,23 +517,25 @@ const currentWindowTitle = computed(() => {
 
 .theme-icon {
   font-family: var(--font-mono);
-  font-size: 1.1rem;
-}
-
-.group-button.in-group .nav-icon {
-  color: var(--accent-strong);
+  font-size: 1.3rem;
 }
 
 .admin-button .nav-icon {
-  color: var(--warning);
   font-family: var(--font-mono);
-  font-size: 1rem;
+  font-size: 1.3rem;
+  font-weight: 800;
+}
+
+.add-server-button .nav-icon {
+  font-family: var(--font-mono);
+  font-size: 1.52rem;
   font-weight: 800;
 }
 
 .nav-icon {
   opacity: 1;
-  font-size: 1.4em;
+  font-size: 1.42em;
+  flex: 0 0 var(--nav-icon-box);
   width: var(--nav-icon-box);
   height: var(--nav-icon-box);
   display: inline-flex;
@@ -457,39 +558,79 @@ const currentWindowTitle = computed(() => {
   color: var(--accent-strong);
 }
 
-.side-link:hover,
-.profile-button:hover,
-.group-button:hover,
-.admin-button:hover,
-.theme-button:hover,
-.lobby-id-button:hover,
-.side-link.router-link-active {
-  background: var(--control-bg-hover);
-  border-color: var(--surface-border-strong);
+.side-link:has(.queue-spinner) {
+  background: var(--nav-card-active-bg);
+  border-color: var(--nav-card-active-border);
+  box-shadow: var(--nav-card-active-shadow);
   color: var(--text-main);
-  text-decoration: none;
 }
 
-.side-link:has(.queue-spinner) {
-  background: var(--accent-soft);
-  border-color: var(--accent-border);
-  color: var(--accent-strong);
+.side-link.play-highlighted,
+.side-link.play-highlighted:hover,
+.side-link.play-highlighted.router-link-active,
+.side-link.play-highlighted.active,
+.group-button.group-highlighted,
+.group-button.group-highlighted:hover,
+.group-button.group-highlighted.active {
+  background: var(--nav-card-active-bg);
+  border-color: var(--nav-card-active-border);
+  box-shadow: var(--nav-card-active-shadow);
+  color: var(--text-main);
 }
 
 .side-link:has(.queue-spinner):hover,
-.side-link:has(.queue-spinner).router-link-active {
-  background: var(--accent-soft);
-  border-color: var(--accent-strong);
+.side-link:has(.queue-spinner).router-link-active,
+.side-link.play-highlighted:focus-visible,
+.group-button.group-highlighted:focus-visible {
+  background: var(--nav-card-active-bg);
+  border-color: var(--nav-card-active-border);
+}
+
+.side-link.router-link-active,
+.profile-button:active,
+.group-button:active,
+.admin-button:active,
+.theme-button:active {
+  background: var(--nav-card-active-bg);
+  border-color: var(--nav-card-active-border);
+  box-shadow: var(--nav-card-active-shadow);
+}
+
+.side-link.router-link-active .nav-icon,
+.side-link:has(.queue-spinner) .nav-icon,
+.side-link.play-highlighted .nav-icon,
+.group-button.group-highlighted .nav-icon,
+.admin-button .nav-icon {
+  color: currentColor;
 }
 
 .queue-spinner {
-  width: 13px;
-  height: 13px;
-  margin-left: auto;
+  position: absolute;
+  right: 8px;
+  width: 12px;
+  height: 12px;
   border: 2px solid currentColor;
   border-right-color: transparent;
   border-radius: 50%;
   animation: queue-spin 0.9s steps(8) infinite;
+}
+
+.group-status-check {
+  position: absolute;
+  right: 8px;
+  width: 15px;
+  height: 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  color: currentColor;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 900;
+  line-height: 1;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
 }
 
 @keyframes queue-spin {
@@ -500,16 +641,17 @@ const currentWindowTitle = computed(() => {
 
 @media (max-width: 1024px) {
   .app-shell {
-    --nav-column-width: 148px;
+    --nav-column-width: 144px;
   }
 }
 
 @media (max-width: 768px) {
   .app-shell {
     grid-template-columns: 1fr;
-    grid-template-rows: auto minmax(0, 1fr) auto;
-    min-height: 100vh;
-    min-height: 100dvh;
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    min-height: 0;
+    height: 100vh;
+    height: 100dvh;
     gap: 10px;
     padding: 10px;
   }
@@ -522,27 +664,28 @@ const currentWindowTitle = computed(() => {
   }
 
   .app-left .side-link,
-  .app-left .lobby-id-button,
   .app-right .profile-button,
   .app-right .group-button,
+  .app-right .add-server-button,
   .app-right .admin-button,
   .app-right .theme-button {
     width: auto;
     min-width: 0;
     display: inline-flex;
     gap: 8px;
-    padding: 0 10px;
+    padding: 0 12px;
   }
 
   .sidebar-body {
     flex-direction: row;
-    justify-content: center;
+    justify-content: flex-start;
     flex-wrap: wrap;
   }
 
   .theme-button {
     margin-top: 0;
   }
+
 }
 
 @media (max-width: 480px) {
@@ -551,9 +694,9 @@ const currentWindowTitle = computed(() => {
   }
 
   .app-left .side-link,
-  .app-left .lobby-id-button,
   .app-right .profile-button,
   .app-right .group-button,
+  .app-right .add-server-button,
   .app-right .admin-button,
   .app-right .theme-button {
     width: 100%;
@@ -563,5 +706,3 @@ const currentWindowTitle = computed(() => {
 }
 
 </style>
-
-

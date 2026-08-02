@@ -3,12 +3,10 @@ import { useProfileView } from '../features/profile/composables/useProfileView';
 
 const {
   authStore,
+  displayName,
+  handleDisplayNameSave,
   handleLogout,
   hasSteamId,
-  isSteamIdLocked,
-  saveSteamId,
-  savingSteamId,
-  socketStore,
   steamId
 } = useProfileView();
 </script>
@@ -16,34 +14,43 @@ const {
 <template>
   <div class="profile-page content-panel">
     <div class="page-shell narrow">
-      <p class="profile-name current-user">{{ authStore.username }}</p>
+      <p class="profile-name current-user">
+        <span class="profile-name-mark">User</span>
+        <span class="profile-name-divider" aria-hidden="true"></span>
+        <span class="profile-name-text">{{ authStore.playerName }}</span>
+      </p>
       <p v-if="authStore.isAdmin" class="admin-badge">Admin</p>
 
       <div class="profile-card window-panel">
         <div class="window-titlebar">
-          <span class="window-titlebar-label">Steam ID</span>
+          <span class="window-titlebar-label">Steam Account</span>
           <span class="window-titlebar-meta" v-if="hasSteamId">Ready</span>
         </div>
         <div class="profile-card-body panel-body">
-          <label class="field-label" for="steam-id">Steam ID64</label>
-          <input
-            id="steam-id"
-            v-model="steamId"
-            :class="['steam-input', { 'is-locked': isSteamIdLocked }]"
-            type="text"
-            inputmode="numeric"
-            placeholder="7656119..."
-            maxlength="17"
-            :disabled="isSteamIdLocked || socketStore.loading || !authStore.username"
-            :readonly="isSteamIdLocked || socketStore.loading || !authStore.username"
-          />
-          <button
-            class="save-button"
-            @click="saveSteamId"
-            :disabled="isSteamIdLocked || socketStore.loading || !steamId || steamId === authStore.steamId"
-          >
-            {{ savingSteamId ? 'Saving...' : 'Save' }}
-          </button>
+          <div class="profile-value-row">
+            <span class="field-label">Steam ID64</span>
+            <strong>{{ steamId || 'Not linked' }}</strong>
+          </div>
+        </div>
+      </div>
+
+      <div class="profile-card window-panel">
+        <div class="window-titlebar">
+          <span class="window-titlebar-label">Display Name</span>
+          <span class="window-titlebar-meta">{{ authStore.displayNameSource === 'steam' ? 'Steam' : 'Custom' }}</span>
+        </div>
+        <div class="profile-card-body panel-body">
+          <div class="display-name-control">
+            <input
+              v-model="displayName"
+              type="text"
+              maxlength="32"
+              autocomplete="nickname"
+            />
+            <button type="button" @click="handleDisplayNameSave">
+              Save
+            </button>
+          </div>
         </div>
       </div>
 
@@ -69,24 +76,66 @@ const {
 
 .field-label {
   display: block;
-  margin-bottom: 0.5rem;
   font-weight: 600;
-}
-
-.steam-input {
-  width: 100%;
-}
-
-.steam-input.is-locked {
-  opacity: 0.7;
-  cursor: not-allowed;
+  color: var(--text-muted);
 }
 
 .profile-name {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  max-width: 100%;
+  padding: 5px 10px;
+  border: 1px solid color-mix(in srgb, var(--surface-border-strong) 70%, transparent);
+  border-radius: var(--radius-md);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.24), transparent 46%),
+    linear-gradient(90deg, color-mix(in srgb, var(--chrome-blue) 55%, transparent), color-mix(in srgb, var(--chrome-green) 42%, transparent));
+  box-shadow:
+    inset 1px 1px 0 rgba(255, 255, 255, 0.42),
+    inset -1px -1px 0 rgba(34, 32, 24, 0.14),
+    2px 2px 0 rgba(76, 69, 58, 0.16);
   font-weight: 700;
-  font-size: 1.5rem;
   color: inherit;
   margin: 0 0 0.75rem;
+}
+
+.profile-name-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 0 9px;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-sm);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--gold-soft) 82%, white 18%), var(--gold));
+  box-shadow: var(--control-shadow);
+  color: var(--accent-strong);
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.profile-name-divider {
+  width: 1px;
+  height: 28px;
+  background: linear-gradient(180deg, transparent, var(--surface-border-strong), transparent);
+  opacity: 0.7;
+}
+
+.profile-name-text {
+  min-width: 0;
+  color: var(--text-main);
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1;
+  overflow-wrap: anywhere;
 }
 
 .admin-badge {
@@ -106,12 +155,33 @@ const {
   text-transform: uppercase;
 }
 
-.save-button {
-  margin: 1rem 0 0;
+.profile-value-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.display-name-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.display-name-control input {
+  min-width: 0;
+}
+
+.profile-value-row strong {
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+  text-align: right;
 }
 
 .profile-actions {
-  margin-top: 1.5rem;
+  margin-top: 1rem;
+  display: flex;
+  justify-content: center;
 }
 
 .profile-actions button {
@@ -119,11 +189,22 @@ const {
 }
 
 @media (max-width: 480px) {
-  .profile-card {
-    padding: 1rem;
+  .profile-name {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 6px;
+    width: min(100%, 320px);
   }
 
-  .save-button,
+  .profile-name-divider {
+    display: none;
+  }
+
+  .profile-value-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
   .profile-actions button {
     width: 100%;
   }

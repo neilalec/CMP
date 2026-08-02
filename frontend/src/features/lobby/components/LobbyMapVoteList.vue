@@ -11,6 +11,10 @@ defineProps({
   getVotesForMap: {
     type: Function,
     required: true
+  },
+  votedCount: {
+    type: Number,
+    default: 0
   }
 })
 
@@ -21,14 +25,14 @@ defineEmits(['vote'])
   <div class="map-list window-panel">
     <div class="window-titlebar">
       <span class="window-titlebar-label">Vote</span>
-      <span class="window-titlebar-meta">{{ maps.length }}</span>
+      <span class="window-titlebar-meta">{{ votedCount }}</span>
     </div>
     <div class="map-list-body">
       <button
         v-for="map in maps"
         :key="map"
         @click="$emit('vote', map)"
-        :class="['map-button', { voted: selectedMap === map }]"
+        :class="['map-button', { 'is-selected-control': selectedMap === map }]"
         type="button"
       >
         <span>{{ map }}</span>
@@ -58,9 +62,9 @@ defineEmits(['vote'])
 
 .map-button {
   position: relative;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 28px;
   align-items: center;
-  justify-content: space-between;
   gap: 10px;
   padding: 10px 12px;
   background: var(--control-bg);
@@ -76,34 +80,32 @@ defineEmits(['vote'])
   box-shadow: var(--surface-shadow);
 }
 
+.map-button span {
+  min-width: 0;
+}
+
 .map-button:hover {
   background: var(--control-bg-hover);
   transform: translateY(-1px);
 }
 
 .map-button:disabled {
-  opacity: 0.5;
+  background: var(--control-bg-active);
+  color: var(--text-muted);
+  border-color: var(--control-border);
   cursor: not-allowed;
 }
 
-.map-button.voted {
-  background: var(--accent-soft);
-  border-color: var(--accent-border);
-  color: var(--accent-strong);
-}
-
 .vote-count {
-  flex: 0 0 auto;
-  min-width: 24px;
-  min-height: 24px;
-  background: var(--panel-bg-strong);
-  border: 1px solid var(--accent-border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
   color: var(--accent-strong);
-  border-radius: var(--radius-sm);
-  padding: 3px 7px;
-  font-size: 0.78em;
+  font-family: var(--font-mono);
+  font-size: 0.86em;
   font-weight: 900;
-  box-shadow: var(--surface-shadow);
+  text-align: center;
 }
 
 @media (max-width: 900px) {

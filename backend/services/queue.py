@@ -28,12 +28,48 @@ def iter_all_queued_users(matchmaking_queue):
 
 def has_available_server_capacity(lobbies, pending_match, server_capacity=1):
     capacity = 1 if server_capacity is None else max(0, int(server_capacity or 0))
-    active_lobbies = len(lobbies or {})
+    active_lobbies = sum(
+        1 for lobby in (lobbies or {}).values()
+        if not (lobby.get('step') == 5 and lobby.get('server_released_at'))
+    )
     active_pending_matches = sum(
         1 for match in (pending_match or {}).values()
         if match
     )
     return (active_lobbies + active_pending_matches) < capacity
+
+
+def get_server_availability(
+    lobbies,
+    pending_match,
+    server_capacity=1
+):
+    capacity = 1 if server_capacity is None else max(0, int(server_capacity or 0))
+    active_lobbies = sum(
+        1 for lobby in (lobbies or {}).values()
+        if not (lobby.get('step') == 5 and lobby.get('server_released_at'))
+    )
+    active_pending_matches = sum(
+        1 for match in (pending_match or {}).values()
+        if match
+    )
+    available = (active_lobbies + active_pending_matches) < capacity
+    if capacity <= 0:
+        reason = 'no_servers'
+    elif active_lobbies > 0:
+        reason = 'server_in_use'
+    elif active_pending_matches > 0:
+        reason = 'match_acceptance_active'
+    else:
+        reason = 'available'
+
+    return {
+        'available': available,
+        'reason': reason,
+        'capacity': capacity,
+        'activeLobbyCount': active_lobbies,
+        'activePendingMatchCount': active_pending_matches
+    }
 
 
 def build_queue_payload(
@@ -69,6 +105,11 @@ def build_queue_payload(
     resolved_queue_mode = queue_mode or current_queue_mode
     active_queue = list(matchmaking_queue.get(resolved_queue_mode, [])) if resolved_queue_mode else []
     active_config = queue_modes.get(resolved_queue_mode) if resolved_queue_mode else None
+    server_availability = get_server_availability(
+        lobbies,
+        pending_match,
+        server_capacity=server_capacity
+    )
 
     payload = {
         'success': True,
@@ -80,14 +121,11 @@ def build_queue_payload(
         'queueModes': queues_payload,
         'totalPlayersInQueue': total_players_in_queue,
         'hasSteamId': user_has_steam_id(username) if username else False,
-        'serverCapacity': 1 if server_capacity is None else max(0, int(server_capacity or 0)),
-        'serverAvailable': has_available_server_capacity(
-            lobbies,
-            pending_match,
-            server_capacity=server_capacity
-        ),
-        'activeLobbyCount': len(lobbies or {}),
-        'activePendingMatchCount': sum(1 for match in (pending_match or {}).values() if match),
+        'serverCapacity': server_availability['capacity'],
+        'serverAvailable': server_availability['available'],
+        'serverAvailabilityReason': server_availability['reason'],
+        'activeLobbyCount': server_availability['activeLobbyCount'],
+        'activePendingMatchCount': server_availability['activePendingMatchCount'],
     }
     if countdown is not None and countdown > 0:
         payload['countdown'] = countdown

@@ -2,6 +2,7 @@ import base64
 import json
 import re
 import secrets
+import xml.etree.ElementTree as ET
 from urllib.parse import parse_qs, urlencode, urlparse
 from urllib.request import Request, urlopen
 
@@ -11,7 +12,11 @@ from services.auth_security import hash_password
 
 
 STEAM_OPENID_PROVIDER = 'https://steamcommunity.com/openid/login'
+STEAM_PLAYER_SUMMARIES_URL = 'https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/'
+STEAM_COMMUNITY_PROFILE_XML_URL = 'https://steamcommunity.com/profiles/{steam_id}/?xml=1'
 STEAM_CLAIMED_ID_RE = re.compile(r'^https?://steamcommunity\.com/openid/id/(\d{17})/?$')
+STEAM_FALLBACK_USERNAME_RE = re.compile(r'^steam_\d{8}(?:_\d+)?$')
+USERNAME_SAFE_RE = re.compile(r'[^A-Za-z0-9_]+')
 
 
 def _serializer(secret_key):
@@ -109,21 +114,91 @@ def parse_steam_openid_verification_payload(payload):
     return result
 
 
-def get_or_create_steam_user(steam_id, *, users, save_users):
-    for username, record in users.items():
-        if str(record.get('steam_id', '') or '').strip() == steam_id:
-            return username, False
+def _steam_fallback_username(steam_id):
+    return f"steam_{steam_id[-8:]}"
 
-    base_username = f"steam_{steam_id[-8:]}"
+
+def _is_steam_fallback_username(username):
+    return bool(STEAM_FALLBACK_USERNAME_RE.match(str(username or '')))
+
+
+def normalize_steam_persona_username(persona_name, steam_id):
+    normalized = USERNAME_SAFE_RE.sub('_', str(persona_name or '').strip())
+    normalized = re.sub(r'_+', '_', normalized).strip('_')
+    if not normalized:
+        return _steam_fallback_username(steam_id)
+    if normalized[0].isdigit():
+        normalized = f'player_{normalized}'
+    return normalized[:32]
+
+
+def _unique_username(base_username, users, current_username=None):
     username = base_username
     suffix = 2
-    while username in users:
+    while username in users and username != current_username:
         username = f"{base_username}_{suffix}"
         suffix += 1
+    return username
+
+
+def apply_steam_persona_to_user_record(record, persona_name):
+    persona_name = str(persona_name or '').strip()
+    if not persona_name:
+        return False
+
+    changed = False
+    if record.get('steam_persona_name') != persona_name:
+        record['steam_persona_name'] = persona_name
+        changed = True
+
+    display_name_source = str(record.get('display_name_source') or '').strip()
+    display_name = str(record.get('display_name') or '').strip()
+    if not display_name or display_name_source in ('', 'legacy', 'steam', 'fallback'):
+        if record.get('display_name') != persona_name:
+            record['display_name'] = persona_name
+            changed = True
+        if record.get('display_name_source') != 'steam':
+            record['display_name_source'] = 'steam'
+            changed = True
+
+    return changed
+
+
+def fetch_steam_persona_name(steam_id, *, api_key='', timeout=5):
+    steam_id = str(steam_id or '').strip()
+    api_key = str(api_key or '').strip()
+    if api_key:
+        url = f"{STEAM_PLAYER_SUMMARIES_URL}?{urlencode({'key': api_key, 'steamids': steam_id})}"
+        with urlopen(Request(url), timeout=timeout) as response:
+            payload = json.loads(response.read().decode('utf-8'))
+        players = payload.get('response', {}).get('players', [])
+        if players:
+            return str(players[0].get('personaname') or '').strip()
+
+    with urlopen(Request(STEAM_COMMUNITY_PROFILE_XML_URL.format(steam_id=steam_id)), timeout=timeout) as response:
+        payload = response.read().decode('utf-8')
+    root = ET.fromstring(payload)
+    return str(root.findtext('steamID') or '').strip()
+
+
+def get_or_create_steam_user(steam_id, *, users, save_users, persona_name=''):
+    preferred_username = normalize_steam_persona_username(persona_name, steam_id)
+    for username, record in users.items():
+        if str(record.get('steam_id', '') or '').strip() == steam_id:
+            if apply_steam_persona_to_user_record(record, persona_name):
+                users[username] = record
+                save_users()
+            return username, False
+
+    username = _unique_username(preferred_username, users)
+    persona_name = str(persona_name or '').strip()
 
     users[username] = {
         'password': hash_password(secrets.token_urlsafe(32)),
-        'steam_id': steam_id
+        'steam_id': steam_id,
+        'display_name': persona_name or username,
+        'steam_persona_name': persona_name,
+        'display_name_source': 'steam' if persona_name else 'fallback'
     }
     save_users()
     return username, True

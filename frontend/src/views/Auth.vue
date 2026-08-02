@@ -1,5 +1,5 @@
 <script setup>
-import { useRouter } from 'vue-router';
+import { RouterLink, useRouter } from 'vue-router';
 import { PASSWORD_AUTH_ENABLED } from '../config';
 import { useAuthStore } from '../stores/authStore';
 import { useLobbyStore } from '../stores/lobbyStore';
@@ -34,12 +34,21 @@ const {
   <div class="auth-container window-panel">
     <div class="window-titlebar">
       <span class="window-titlebar-label">{{ formType === 'login' ? 'Login' : 'Register' }}</span>
+      <span class="window-titlebar-meta">Access</span>
     </div>
     <div class="auth-body">
-      <h2>{{ formType === 'login' ? 'Login' : 'Register' }}</h2>
       <button class="steam-button" type="button" @click="handleSteamSignIn">
-        Steam
+        Continue with Steam
       </button>
+      <p class="auth-copy steam-security-copy">
+        You will be redirected to Steam's official sign-in page. We never see or store your Steam password.
+      </p>
+      <p class="auth-copy steam-security-copy">
+        Steam only confirms your SteamID to us, which lets Squad Comp Matchmaking match your account to your player slot when you join a server.
+      </p>
+      <p class="auth-legal-copy">
+        By continuing, you agree to the <RouterLink to="/terms">Terms</RouterLink> and acknowledge the <RouterLink to="/privacy">Privacy Policy</RouterLink>.
+      </p>
       <div v-if="PASSWORD_AUTH_ENABLED" class="auth-divider">
         <span>or</span>
       </div>
@@ -72,23 +81,47 @@ const {
 
 <style scoped>
 .auth-container {
-  width: min(100%, 360px);
+  width: min(100%, 420px);
   margin: 0 auto;
   overflow: hidden;
 }
 
 .auth-body {
-  padding: 1rem 1.1rem 1.1rem;
+  padding: 1rem 1.1rem 1.2rem;
 }
 
 .auth-container h2 {
-  margin: 0 0 1rem;
+  margin: 0 0 0.45rem;
   font-weight: 800;
-  font-size: 1.25rem;
+  font-size: 1.28rem;
+  line-height: 1.2;
+}
+
+.auth-copy {
+  margin: 0 0 1rem;
+  color: var(--text-muted);
 }
 
 .steam-button {
   width: 100%;
+}
+
+.steam-security-copy {
+  margin: 0.7rem 0 0;
+  line-height: 1.45;
+}
+
+.auth-legal-copy {
+  margin: 0.9rem 0 0;
+  color: var(--text-soft);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.auth-legal-copy a {
+  color: var(--accent-strong);
+  font-weight: 800;
 }
 
 .auth-divider {

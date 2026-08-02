@@ -3,6 +3,8 @@ from services.queue import (
     build_queue_payload,
     check_queue_and_start_countdown,
     find_user_queue_mode,
+    get_server_availability,
+    has_available_server_capacity,
 )
 
 
@@ -58,10 +60,66 @@ def test_build_queue_payload_includes_both_queue_modes():
     assert payload['totalPlayersInQueue'] == 3
     assert payload['hasSteamId'] is True
     assert payload['serverAvailable'] is True
+    assert payload['serverAvailabilityReason'] == 'available'
     assert payload['serverCapacity'] == 1
     assert payload['queueModes']['skirmish']['playersInQueue'] == 1
     assert payload['queueModes']['hotdrop']['playersInQueue'] == 2
     assert payload['queueModes']['hotdrop']['maxPlayers'] == 60
+
+
+def test_finalized_released_lobby_does_not_consume_server_capacity():
+    lobbies = {
+        'finished': {
+            'step': 5,
+            'server_released_at': 1234,
+        }
+    }
+
+    assert has_available_server_capacity(
+        lobbies,
+        pending_match={'skirmish': None},
+        server_capacity=1
+    ) is True
+
+
+def test_server_availability_reports_server_in_use_reason():
+    availability = get_server_availability(
+        {
+            'active': {
+                'step': 4,
+                'server_id': 1,
+            }
+        },
+        pending_match={'skirmish': None},
+        server_capacity=1
+    )
+
+    assert availability['available'] is False
+    assert availability['reason'] == 'server_in_use'
+    assert availability['activeLobbyCount'] == 1
+
+
+def test_server_availability_reports_pending_match_reason():
+    availability = get_server_availability(
+        {},
+        pending_match={'skirmish': {'id': 'match_1'}},
+        server_capacity=1
+    )
+
+    assert availability['available'] is False
+    assert availability['reason'] == 'match_acceptance_active'
+    assert availability['activePendingMatchCount'] == 1
+
+
+def test_server_availability_reports_no_servers_reason():
+    availability = get_server_availability(
+        {},
+        pending_match={'skirmish': None},
+        server_capacity=0
+    )
+
+    assert availability['available'] is False
+    assert availability['reason'] == 'no_servers'
 
 
 def test_add_to_queue_appends_user_to_selected_mode():

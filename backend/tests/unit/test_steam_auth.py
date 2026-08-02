@@ -4,11 +4,13 @@ from services.auth_security import is_password_hash
 from services.steam_auth import (
     _safe_frontend_origin,
     _openid_items,
+    apply_steam_persona_to_user_record,
     build_frontend_callback_url,
     build_steam_login_url,
     extract_steam_id,
     get_or_create_steam_user,
     load_steam_state,
+    normalize_steam_persona_username,
     parse_steam_openid_verification_payload
 )
 
@@ -73,21 +75,87 @@ def test_get_or_create_steam_user_reuses_linked_user():
     assert created is False
 
 
-def test_get_or_create_steam_user_creates_hashed_password_user():
+def test_get_or_create_steam_user_creates_hashed_password_user_with_persona_name():
     users = {}
     saved = []
 
     username, created = get_or_create_steam_user(
         '76561198124553635',
         users=users,
-        save_users=lambda: saved.append(True)
+        save_users=lambda: saved.append(True),
+        persona_name='Neil'
+    )
+
+    assert username == 'Neil'
+    assert created is True
+    assert users[username]['steam_id'] == '76561198124553635'
+    assert users[username]['display_name'] == 'Neil'
+    assert users[username]['steam_persona_name'] == 'Neil'
+    assert users[username]['display_name_source'] == 'steam'
+    assert is_password_hash(users[username]['password'])
+    assert saved == [True]
+
+
+def test_get_or_create_steam_user_falls_back_without_persona_name():
+    users = {}
+
+    username, created = get_or_create_steam_user(
+        '76561198124553635',
+        users=users,
+        save_users=lambda: None
     )
 
     assert username == 'steam_24553635'
     assert created is True
-    assert users[username]['steam_id'] == '76561198124553635'
-    assert is_password_hash(users[username]['password'])
+    assert users[username]['display_name'] == 'steam_24553635'
+    assert users[username]['display_name_source'] == 'fallback'
+
+
+def test_get_or_create_steam_user_keeps_existing_fallback_username_and_updates_display_name():
+    users = {
+        'steam_24553635': {
+            'password': 'legacy',
+            'steam_id': '76561198124553635'
+        }
+    }
+    saved = []
+
+    username, created = get_or_create_steam_user(
+        '76561198124553635',
+        users=users,
+        save_users=lambda: saved.append(True),
+        persona_name='neil'
+    )
+
+    assert created is False
+    assert username == 'steam_24553635'
+    assert users['steam_24553635']['steam_id'] == '76561198124553635'
+    assert users['steam_24553635']['display_name'] == 'neil'
+    assert users['steam_24553635']['steam_persona_name'] == 'neil'
+    assert users['steam_24553635']['display_name_source'] == 'steam'
     assert saved == [True]
+
+
+def test_steam_persona_update_does_not_overwrite_manual_display_name():
+    record = {
+        'password': 'legacy',
+        'steam_id': '76561198124553635',
+        'display_name': 'Neil CMP',
+        'steam_persona_name': 'neil',
+        'display_name_source': 'manual'
+    }
+
+    changed = apply_steam_persona_to_user_record(record, 'neil updated')
+
+    assert changed is True
+    assert record['display_name'] == 'Neil CMP'
+    assert record['steam_persona_name'] == 'neil updated'
+    assert record['display_name_source'] == 'manual'
+
+
+def test_normalize_steam_persona_username_keeps_names_app_safe():
+    assert normalize_steam_persona_username('Neil The Great!', '76561198124553635') == 'Neil_The_Great'
+    assert normalize_steam_persona_username('123Neil', '76561198124553635') == 'player_123Neil'
 
 
 def test_frontend_callback_payload_is_fragment_only():

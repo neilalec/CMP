@@ -35,10 +35,8 @@ export default class Rcon extends EventEmitter {
     this.encodePacket = this.encodePacket.bind(this);
 
     // setup socket
-    this.client = new net.Socket();
-    this.client.on('data', this.decodeData);
-    this.client.on('close', this.onClose);
-    this.client.on('error', this.onError);
+    this.client = null;
+    this.setupSocket();
 
     // constants
     this.maximumPacketSize = 4096;
@@ -55,6 +53,21 @@ export default class Rcon extends EventEmitter {
     this.callbackIds = [];
     this.count = 1;
     this.loggedin = false;
+    this.connectPromise = null;
+  }
+
+  setupSocket() {
+    if (this.client) {
+      this.client.removeListener('data', this.decodeData);
+      this.client.removeListener('close', this.onClose);
+      this.client.removeListener('error', this.onError);
+      this.client.destroy();
+    }
+
+    this.client = new net.Socket();
+    this.client.on('data', this.decodeData);
+    this.client.on('close', this.onClose);
+    this.client.on('error', this.onError);
   }
 
   onPacket(decodedPacket) {
@@ -213,7 +226,12 @@ export default class Rcon extends EventEmitter {
 
     if (this.autoReconnect) {
       Logger.verbose('RCON', 1, `Sleeping ${this.autoReconnectDelay}ms before reconnecting.`);
-      setTimeout(this.connect, this.autoReconnectDelay);
+      clearTimeout(this.autoReconnectTimeout);
+      this.autoReconnectTimeout = setTimeout(() => {
+        this.connect().catch((err) => {
+          Logger.verbose('RCON', 1, `Reconnect failed.`, err);
+        });
+      }, this.autoReconnectDelay);
     }
   }
 
@@ -223,8 +241,27 @@ export default class Rcon extends EventEmitter {
   }
 
   connect() {
+    if (this.connected && this.loggedin) {
+      return Promise.resolve();
+    }
+
+    if (this.connectPromise) {
+      return this.connectPromise;
+    }
+
+    clearTimeout(this.autoReconnectTimeout);
+
+    this.connectPromise = this.connectOnce().finally(() => {
+      this.connectPromise = null;
+    });
+
+    return this.connectPromise;
+  }
+
+  connectOnce() {
     return new Promise((resolve, reject) => {
       Logger.verbose('RCON', 1, `Connecting to: ${this.host}:${this.port}`);
+      this.setupSocket();
 
       const onConnect = async () => {
         this.client.removeListener('error', onError);
