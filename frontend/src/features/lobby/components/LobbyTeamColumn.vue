@@ -132,7 +132,8 @@ defineProps({
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
   align-items: start;
-  gap: 5px;
+  column-gap: 5px;
+  row-gap: 14px;
   width: 100%;
   margin: 0 auto;
   justify-content: stretch;
@@ -143,7 +144,7 @@ defineProps({
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
+  gap: 1px;
   text-align: center;
   min-width: 0;
   padding: 2px 6px;
@@ -159,6 +160,7 @@ defineProps({
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: var(--lobby-player-name-text, var(--text-main));
   font-weight: 700;
   letter-spacing: 0.01em;
 }
@@ -182,27 +184,28 @@ defineProps({
 }
 
 .connection-label {
-  font-size: 0.68rem;
+  color: var(--lobby-player-status-text, var(--text-muted));
+  font-size: 0.64rem;
   line-height: 1;
   white-space: nowrap;
   text-align: center;
-  font-weight: 600;
+  font-weight: 750;
 }
 
 .connection-label.is-connected {
-  color: var(--success);
+  color: var(--lobby-player-status-connected, var(--success));
 }
 
 .connection-label.is-missing {
-  color: var(--danger);
+  color: var(--lobby-player-status-missing, var(--danger));
 }
 
 .connection-label.is-misaligned {
-  color: var(--warning);
+  color: var(--lobby-player-status-warning, var(--warning));
 }
 
 .connection-label.is-unavailable {
-  color: var(--warning);
+  color: var(--lobby-player-status-warning, var(--warning));
 }
 
 .captain-tag {

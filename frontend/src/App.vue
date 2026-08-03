@@ -462,7 +462,7 @@ const lobbyTrackerPhases = [
 .lobby-titlebar :deep(.phase-step.is-complete .phase-dot) {
   background: color-mix(in srgb, var(--tracker-arrow) 72%, var(--text-main) 28%);
   border-color: color-mix(in srgb, var(--tracker-arrow) 82%, var(--text-main) 18%);
-  color: var(--text-main);
+  color: var(--phase-check-text);
 }
 
 .lobby-titlebar :deep(.phase-step.is-current .phase-dot) {

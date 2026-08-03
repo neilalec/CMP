@@ -248,13 +248,19 @@ def register_http_routes(app):
         backend = _http_backend_api()
         database = backend.get_database_health()
         bridge = backend.get_bridge_health()
+        public_bridge = {
+            'ok': bool(bridge.get('ok')),
+            'url': bridge.get('url'),
+        }
+        if bridge.get('error'):
+            public_bridge['error'] = bridge.get('error')
         ok = bool(database.get('ok')) and bool(bridge.get('ok'))
         payload = {
             'ok': ok,
             'status': 'ok' if ok else 'degraded',
             'service': 'backend',
             'database': database,
-            'squadjsBridge': bridge,
+            'squadjsBridge': public_bridge,
             'queueSize': sum(len(queue) for queue in backend.matchmaking_queue.values()),
             'lobbyCount': len(backend.lobbies)
         }

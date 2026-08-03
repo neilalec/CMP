@@ -184,7 +184,7 @@ const getPhaseState = (index) => {
   position: relative;
   background: var(--tracker-accent);
   border-color: var(--tracker-accent);
-  color: #f7f8fa;
+  color: var(--phase-check-text, #fff3d2);
   box-shadow: 0 0 0 1px var(--accent-border);
 }
 

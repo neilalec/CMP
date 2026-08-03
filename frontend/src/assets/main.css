@@ -40,6 +40,12 @@
   --text-main: #222018;
   --text-muted: #554f42;
   --text-soft: #746e61;
+  --phase-check-text: #fff3d2;
+  --lobby-player-name-text: #142421;
+  --lobby-player-status-text: #3e3527;
+  --lobby-player-status-connected: #1b6f2f;
+  --lobby-player-status-missing: #a5362f;
+  --lobby-player-status-warning: #8b6818;
   --control-bg: #dfd7c9;
   --control-bg-hover: #e9e1d3;
   --control-bg-active: #cbc2b2;
@@ -86,6 +92,9 @@ html.dark-mode {
   --dark-readable-text: #e7dcc8;
   --dark-readable-muted: #d2c7b4;
   --dark-readable-soft: #b8ad9d;
+  --lobby-phase-title-text: #fff3d2;
+  --lobby-card-value-text: #f4e4bd;
+  --lobby-card-muted-text: #d9c799;
   --dark-embedded-text: #343a38;
   --queue-counter-text: var(--dark-embedded-text);
   --app-bg: #3d403f;
@@ -124,6 +133,12 @@ html.dark-mode {
   --text-main: var(--dark-readable-text);
   --text-muted: var(--dark-readable-muted);
   --text-soft: var(--dark-readable-soft);
+  --phase-check-text: var(--lobby-phase-title-text);
+  --lobby-player-name-text: var(--phase-check-text);
+  --lobby-player-status-text: var(--lobby-card-value-text);
+  --lobby-player-status-connected: #b9e88f;
+  --lobby-player-status-missing: #ff9a88;
+  --lobby-player-status-warning: #f0cf73;
   --control-bg: #948f81;
   --control-bg-hover: #a6a192;
   --control-bg-active: #7f7a6d;
@@ -938,14 +953,51 @@ html.dark-mode :where(.queue-card .queue-card-top strong) {
 html.dark-mode :where(
   .window-titlebar,
   .window-titlebar *,
-  .phase-title.is-map-selected,
-  .phase-title.is-force-roll,
-  .phase-title.is-live,
-  .phase-title.is-scoreboard,
   .profile-name,
   .profile-name-text
 ) {
   color: var(--blue-banner-text) !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+
+html.dark-mode :where(
+  .phase-title.is-map-selected,
+  .phase-title.is-force-roll,
+  .phase-title.is-live,
+  .phase-title.is-scoreboard
+) {
+  color: var(--lobby-phase-title-text) !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+
+html.dark-mode :where(
+  .map-vote-team .player-name,
+  .match-info .info-row-value
+) {
+  color: var(--lobby-player-name-text) !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+
+html.dark-mode :where(
+  .match-info .info-row-label,
+  .match-info .match-info-note,
+  .map-vote-team .window-titlebar-meta,
+  .lobby-announcement
+) {
+  color: var(--lobby-card-muted-text) !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+
+html.dark-mode :where(
+  .static-page .static-section p,
+  .static-page .notice-tile
+) {
+  color: var(--lobby-card-value-text) !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+
+html.dark-mode :where(.static-page .notice-tile strong) {
+  color: var(--phase-check-text) !important;
   -webkit-text-fill-color: currentColor !important;
 }
 
@@ -968,6 +1020,15 @@ html.dark-mode :where(
   text-shadow:
     0 1px 0 rgba(0, 0, 0, 0.32),
     0 3px 10px rgba(0, 0, 0, 0.22);
+}
+
+html.dark-mode :where(
+  .phase-title.is-map-selected,
+  .phase-title.is-force-roll,
+  .phase-title.is-live,
+  .phase-title.is-scoreboard
+) {
+  text-shadow: none !important;
 }
 
 html.dark-mode :where(
@@ -1015,10 +1076,10 @@ html.dark-mode :where(
 }
 
 html.dark-mode :where(
-  .queue-card .queue-card-body button,
-  .queue-card .queue-card-body button *
+  .queue-card .queue-card-body button:not(:disabled):not(.is-danger),
+  .queue-card .queue-card-body button:not(:disabled):not(.is-danger) *
 ) {
-  color: var(--text-muted) !important;
+  color: var(--phase-check-text) !important;
   -webkit-text-fill-color: currentColor !important;
 }
 
