@@ -31,6 +31,7 @@ const {
   liveRollGraceSeconds,
   liveRollRequiredCount,
   liveRollRequiredPercent,
+  liveRollThresholdSeconds,
   lobbyStore,
   mapOptions,
   showConnectionStatus,
@@ -51,6 +52,7 @@ const {
         :connected-count="serverConnectedCount"
         :required-after-grace-count="liveRollRequiredCount"
         :ready-percent="liveRollRequiredPercent"
+        :ready-threshold-seconds="liveRollThresholdSeconds"
         :ready-grace-seconds="liveRollGraceSeconds"
         :ready-grace-remaining-seconds="lobbyStore.liveRollCountdown"
         :total-players="lobbyStore.players.length"

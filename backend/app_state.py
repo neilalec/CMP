@@ -10,6 +10,7 @@ countdown_pause_lock = RLock()
 MATCH_ACCEPT_COUNTDOWN = int(os.getenv('MATCH_ACCEPT_COUNTDOWN', '90'))
 MAP_VOTE_COUNTDOWN = int(os.getenv('MAP_VOTE_COUNTDOWN', '60'))
 LIVE_ROLL_READY_RATIO = float(os.getenv('LIVE_ROLL_READY_RATIO', '0.95'))
+LIVE_ROLL_THRESHOLD_GRACE_SECONDS = int(os.getenv('LIVE_ROLL_THRESHOLD_GRACE_SECONDS', '300'))
 LIVE_ROLL_READY_GRACE_SECONDS = int(os.getenv('LIVE_ROLL_READY_GRACE_SECONDS', '600'))
 LIVE_ROLL_POLL_SECONDS = int(os.getenv('LIVE_ROLL_POLL_SECONDS', '5'))
 LIVE_ROLL_RETRY_SECONDS = int(os.getenv('LIVE_ROLL_RETRY_SECONDS', '15'))
@@ -17,6 +18,7 @@ LIVE_ROLL_TEAM_SWAP_RETRY_SECONDS = int(os.getenv('LIVE_ROLL_TEAM_SWAP_RETRY_SEC
 FINALIZED_LOBBY_CLEANUP_SECONDS = int(os.getenv('FINALIZED_LOBBY_CLEANUP_SECONDS', '300'))
 LIVE_MATCH_MAX_SECONDS = int(os.getenv('LIVE_MATCH_MAX_SECONDS', '3600'))
 LOBBY_DISCONNECT_GRACE_SECONDS = int(os.getenv('LOBBY_DISCONNECT_GRACE_SECONDS', '600'))
+WEB_LOBBY_DISCONNECT_TRACKING_ENABLED = os.getenv('WEB_LOBBY_DISCONNECT_TRACKING_ENABLED', '0') == '1'
 ALL_SKIRMISH_MAPS = [
     'CSL_AlBasrahSkirmishv1',
     'CSL_AlBasrahSkirmishv2',
@@ -256,10 +258,10 @@ QUEUE_MODES = {
     },
     'ocbt15': {
         'id': 'ocbt15',
-        'label': '15v15 Open Clan Battle',
+        'label': '10v10 Open Clan Battle',
         'short_label': 'OCBT',
-        'max_players': 30,
-        'team_size': 15,
+        'max_players': 20,
+        'team_size': 10,
         'map_pool': ALL_OCBT_MAPS,
         'vote_pool': ALL_OCBT_VOTE_MAPS,
         'map_variants': OCBT_MAP_VARIANTS,

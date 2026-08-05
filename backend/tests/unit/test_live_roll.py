@@ -70,13 +70,15 @@ def test_live_roll_waits_for_grace_period_at_ninety_percent():
         {'server_details_provided_at': 1000},
         build_presence(total_players=60, connected_players=54, aligned_players=54),
         ready_ratio=0.9,
+        threshold_grace_seconds=300,
         ready_grace_seconds=600,
-        now=1599
+        now=1299
     )
 
     assert readiness['ready'] is False
     assert readiness['requiredAfterGrace'] == 54
-    assert readiness['remainingGraceSeconds'] == 1
+    assert readiness['remainingThresholdSeconds'] == 1
+    assert readiness['remainingGraceSeconds'] == 301
 
 
 def test_live_roll_ready_after_grace_period_at_ninety_percent():
@@ -84,13 +86,15 @@ def test_live_roll_ready_after_grace_period_at_ninety_percent():
         {'server_details_provided_at': 1000},
         build_presence(total_players=60, connected_players=54, aligned_players=54),
         ready_ratio=0.9,
+        threshold_grace_seconds=300,
         ready_grace_seconds=600,
-        now=1600
+        now=1300
     )
 
     assert readiness['ready'] is True
     assert readiness['graceReady'] is True
-    assert readiness['forceReady'] is True
+    assert readiness['thresholdReady'] is True
+    assert readiness['forceReady'] is False
 
 
 def test_live_roll_force_ready_after_grace_period_below_threshold():
@@ -98,8 +102,9 @@ def test_live_roll_force_ready_after_grace_period_below_threshold():
         {'server_details_provided_at': 1000},
         build_presence(total_players=60, connected_players=53, aligned_players=53),
         ready_ratio=0.9,
+        threshold_grace_seconds=300,
         ready_grace_seconds=600,
-        now=2000
+        now=1600
     )
 
     assert readiness['ready'] is True
@@ -113,8 +118,9 @@ def test_live_roll_force_timer_does_not_ignore_wrong_side_players():
         {'server_details_provided_at': 1000},
         build_presence(total_players=60, connected_players=53, aligned_players=52),
         ready_ratio=0.9,
+        threshold_grace_seconds=300,
         ready_grace_seconds=600,
-        now=2000
+        now=1600
     )
 
     assert readiness['ready'] is False
@@ -129,11 +135,13 @@ def test_live_roll_not_ready_below_threshold_before_force_timer():
         {'server_details_provided_at': 1000},
         build_presence(total_players=60, connected_players=53, aligned_players=53),
         ready_ratio=0.9,
+        threshold_grace_seconds=300,
         ready_grace_seconds=600,
-        now=1599
+        now=1299
     )
 
     assert readiness['ready'] is False
+    assert readiness['thresholdReady'] is False
     assert readiness['forceReady'] is False
 
 
@@ -142,10 +150,12 @@ def test_live_roll_remaining_grace_uses_server_details_timestamp():
         {'server_details_provided_at': 1000},
         build_presence(total_players=60, connected_players=1),
         ready_ratio=0.9,
+        threshold_grace_seconds=300,
         ready_grace_seconds=600,
         now=1123
     )
 
+    assert readiness['remainingThresholdSeconds'] == 177
     assert readiness['remainingGraceSeconds'] == 477
 
 
@@ -158,6 +168,17 @@ def test_mark_live_roll_change_attempt_tracks_attempt_count_and_time():
     assert lobby['live_roll_change_attempts'] == 1
     assert lobby['live_roll_last_change_attempt_at'] == 1234
     assert lobby['live_roll_command_response'] == {'ok': True}
+
+
+def test_mark_live_roll_change_attempt_tracks_failure_without_command_sent():
+    lobby = {}
+
+    mark_live_roll_change_attempt(lobby, error=RuntimeError('rcon down'), now=1234)
+
+    assert lobby.get('live_roll_command_sent') is None
+    assert lobby['live_roll_change_attempts'] == 1
+    assert lobby['live_roll_last_change_attempt_at'] == 1234
+    assert lobby['live_roll_command_error'] == 'rcon down'
 
 
 def test_mark_live_roll_broadcast_attempt_tracks_success():
@@ -820,3 +841,78 @@ def test_finalized_lobby_releases_server_immediately_and_expires(monkeypatch):
     assert 'server_released' in [event_type for event_type, _payload in events]
     assert 'finalized_lobby_expired' in [event_type for event_type, _payload in events]
     assert saved_runtime
+
+
+def test_live_roll_retries_when_initial_rcon_roll_fails(monkeypatch):
+    import services.live_roll as live_roll_module
+
+    class DummySocketIO:
+        def __init__(self):
+            self.emits = []
+
+        def emit(self, event, payload=None, **kwargs):
+            self.emits.append((event, payload, kwargs))
+
+    monkeypatch.setattr(live_roll_module.eventlet, 'spawn', lambda fn, *args, **kwargs: fn(*args, **kwargs))
+
+    lobby_id = 'lobby_retry'
+    lobbies = {
+        lobby_id: {
+            'players': ['alice'],
+            'teams': {'team1': ['alice'], 'team2': []},
+            'step': 3,
+            'selected_map': 'OCBT_Shchyhliivka_AAS_v3',
+            'server_id': 1,
+            'server_details_provided_at': 1000,
+        }
+    }
+    socketio = DummySocketIO()
+    events = []
+    attempts = []
+
+    def build_presence(_lobby_id, tolerate_bridge_unavailable=False):
+        return {
+            'players': [{'username': 'alice', 'connected': True, 'teamAligned': True}],
+            'connected': ['alice'],
+            'connectedSteamIds': ['76561198000000001'],
+            'aligned': ['alice'],
+            'mismatched': [],
+            'missing': [],
+            'unauthorizedPlayers': [],
+        }
+
+    def change_map(selected_map):
+        attempts.append(selected_map)
+        if len(attempts) == 1:
+            raise RuntimeError('connect ECONNREFUSED 164.152.123.232:27054')
+        return {'ok': True}
+
+    def sleep_after_attempt(_seconds):
+        if len(attempts) >= 2:
+            lobbies.pop(lobby_id, None)
+
+    start_live_roll_monitor(
+        lobby_id,
+        lobbies,
+        socketio,
+        build_lobby_server_presence=build_presence,
+        pause_aware_sleep=sleep_after_attempt,
+        broadcast_server_message=lambda _message: {'ok': True},
+        change_server_to_selected_map=change_map,
+        set_next_server_map=lambda _selected_map: {'ok': True},
+        force_player_to_expected_team=lambda _steam_id: {'ok': True},
+        get_server_layer_status=lambda _selected_map: {'currentMatches': False, 'nextMatches': False},
+        get_server_connection_details=lambda: {},
+        fetch_latest_round_result=lambda: None,
+        record_lobby_event=lambda _lobby_id, event_type, payload=None, created_at=None: events.append((event_type, payload)),
+        save_completed_match=lambda _lobby_id, lobby, completed_at: None,
+        retry_seconds=0,
+        pre_live_roll_broadcast_delay_seconds=0,
+    )
+
+    event_types = [event_type for event_type, _payload in events]
+    retry_lobby = socketio.emits[-1][1]
+    assert attempts == ['OCBT_Shchyhliivka_AAS_v3', 'OCBT_Shchyhliivka_AAS_v3']
+    assert 'live_roll_attempted_failed' in event_types
+    assert 'live_roll_attempted' in event_types
+    assert retry_lobby['announcement'] == 'Rolling to live on OCBT_Shchyhliivka_AAS_v3. Stand by.'

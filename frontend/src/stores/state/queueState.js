@@ -95,10 +95,10 @@ export const createDefaultQueueModes = () => ({
   },
   ocbt15: {
     id: 'ocbt15',
-    label: '15v15 Open Clan Battle',
+    label: '10v10 Open Clan Battle',
     shortLabel: 'OCBT',
-    teamSize: 15,
-    maxPlayers: 30,
+    teamSize: 10,
+    maxPlayers: 20,
     queue: [],
     playersInQueue: 0,
     inQueue: false

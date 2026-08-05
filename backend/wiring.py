@@ -675,7 +675,8 @@ def register_socket_routes(socketio):
             matchmaking_queue=backend.matchmaking_queue,
             pending_match=backend.pending_match,
             cancel_pending_match=backend.cancel_pending_match,
-            broadcast_queue_update=backend.broadcast_queue_update
+            broadcast_queue_update=backend.broadcast_queue_update,
+            web_lobby_disconnect_tracking_enabled=backend.WEB_LOBBY_DISCONNECT_TRACKING_ENABLED
         )
 
     @socketio.on(_socket_backend_api().SOCKET_EVENTS['AUTH']['REGISTER'])

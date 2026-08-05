@@ -9,12 +9,15 @@ from services.bridge import BridgeUnavailable
 from services.bridge import layer_matches_selected_map
 
 
-def mark_live_roll_change_attempt(lobby, response=None, *, now=None):
-    lobby['live_roll_command_sent'] = True
+def mark_live_roll_change_attempt(lobby, response=None, error=None, *, now=None):
     lobby['live_roll_change_attempts'] = int(lobby.get('live_roll_change_attempts') or 0) + 1
     lobby['live_roll_last_change_attempt_at'] = time.time() if now is None else now
     if response is not None:
+        lobby['live_roll_command_sent'] = True
         lobby['live_roll_command_response'] = response
+        lobby['live_roll_command_error'] = None
+    if error is not None:
+        lobby['live_roll_command_error'] = str(error)
 
 
 def mark_live_roll_broadcast_attempt(lobby, response=None, error=None, *, now=None):
@@ -135,7 +138,15 @@ def get_live_started_at_from_layer_status(layer_status, *, now=None):
     return get_server_match_started_at(layer_status, now=current_time) or current_time
 
 
-def get_live_roll_readiness(lobby, presence, *, ready_ratio, ready_grace_seconds, now=None):
+def get_live_roll_readiness(
+    lobby,
+    presence,
+    *,
+    ready_ratio,
+    threshold_grace_seconds=300,
+    ready_grace_seconds=600,
+    now=None
+):
     players = presence.get('players') or []
     total_players = len(players)
     connected_count = len(presence.get('connected') or [])
@@ -149,25 +160,28 @@ def get_live_roll_readiness(lobby, presence, *, ready_ratio, ready_grace_seconds
     elapsed_seconds = max(0, current_time - details_provided_at)
     all_connected = total_players > 0 and aligned_count >= total_players
     connected_players_aligned = connected_count == aligned_count
+    threshold_ready = elapsed_seconds >= threshold_grace_seconds
     force_ready = elapsed_seconds >= ready_grace_seconds
     grace_ready = (
         total_players > 0
         and aligned_count >= required_after_grace
-        and force_ready
+        and threshold_ready
         and connected_players_aligned
     )
 
     return {
-        'ready': all_connected or (force_ready and connected_players_aligned),
+        'ready': all_connected or grace_ready or (force_ready and connected_players_aligned),
         'allConnected': all_connected,
         'connectedPlayersAligned': connected_players_aligned,
         'graceReady': grace_ready,
+        'thresholdReady': threshold_ready,
         'forceReady': force_ready,
         'connectedCount': connected_count,
         'alignedCount': aligned_count,
         'totalPlayers': total_players,
         'requiredAfterGrace': required_after_grace,
         'elapsedSeconds': elapsed_seconds,
+        'remainingThresholdSeconds': max(0, threshold_grace_seconds - elapsed_seconds),
         'remainingGraceSeconds': max(0, ready_grace_seconds - elapsed_seconds)
     }
 
@@ -447,6 +461,7 @@ def start_live_roll_monitor(
     get_player_sids=None,
     emit_active_lobby_sync=None,
     ready_ratio=0.9,
+    threshold_grace_seconds=300,
     ready_grace_seconds=600,
     poll_seconds=5,
     retry_seconds=15,
@@ -496,6 +511,45 @@ def start_live_roll_monitor(
                 save_runtime_state()
         except Exception as save_error:
             current_logger.warning(f"Failed to save runtime state after {event_type} for {lobby_id}: {save_error}")
+
+    def emit_announcement(current_lobby, announcement):
+        if current_lobby.get('announcement') == announcement:
+            return
+        current_lobby['announcement'] = announcement
+        socketio.emit('lobby_update', {
+            'lobby_id': lobby_id,
+            'announcement': announcement
+        }, room=lobby_id)
+
+    def attempt_live_roll_change(current_lobby, selected_map, event_type):
+        try:
+            response = change_server_to_selected_map(selected_map)
+            mark_live_roll_change_attempt(current_lobby, response=response)
+            record_event(event_type, {
+                'selected_map': selected_map,
+                'attempts': current_lobby.get('live_roll_change_attempts'),
+                'response': current_lobby.get('live_roll_command_response')
+            })
+            return True
+        except BridgeUnavailable:
+            raise
+        except Exception as change_error:
+            mark_live_roll_change_attempt(current_lobby, error=change_error)
+            error_text = str(change_error)
+            record_event(f'{event_type}_failed', {
+                'selected_map': selected_map,
+                'attempts': current_lobby.get('live_roll_change_attempts'),
+                'error': error_text
+            })
+            current_logger.warning(
+                f"Live roll attempt {current_lobby.get('live_roll_change_attempts')} "
+                f"for lobby {lobby_id} failed on {selected_map}: {error_text}"
+            )
+            emit_announcement(
+                current_lobby,
+                f'Could not roll server live on {selected_map}: {error_text}. Retrying automatically.'
+            )
+            return False
 
     def release_finalized_server(current_lobby, reason='match_completed'):
         if not release_server_allocation or current_lobby.get('server_released_at'):
@@ -718,6 +772,7 @@ def start_live_roll_monitor(
                 current_lobby,
                 presence,
                 ready_ratio=ready_ratio,
+                threshold_grace_seconds=threshold_grace_seconds,
                 ready_grace_seconds=ready_grace_seconds
             )
             current_lobby['live_roll_countdown'] = int(readiness['remainingGraceSeconds'])
@@ -800,13 +855,16 @@ def start_live_roll_monitor(
                 continue
 
             if waiting_for_initial_live_roll and not readiness['ready'] and not ready_override:
-                grace_minutes = max(1, int(ready_grace_seconds / 60))
+                threshold_minutes = max(1, int(threshold_grace_seconds / 60))
+                force_minutes = max(1, int(ready_grace_seconds / 60))
                 waiting_message = (
                     f"Please join the server: {readiness['alignedCount']}/"
                     f"{readiness['totalPlayers']} on the correct team "
                     f"({readiness['connectedCount']} connected). "
-                    f"Force rolling to live after {grace_minutes} minutes, "
-                    f"or sooner if everyone is connected."
+                    f"Rolling to live once everyone is connected, "
+                    f"or {readiness['requiredAfterGrace']}/{readiness['totalPlayers']} "
+                    f"({int(ready_ratio * 100)}%) are connected after {threshold_minutes} minutes. "
+                    f"Force rolling after {force_minutes} minutes."
                 )
                 if current_lobby.get('announcement') != waiting_message:
                     current_lobby['announcement'] = waiting_message
@@ -860,6 +918,21 @@ def start_live_roll_monitor(
                             }, room=lobby_id)
                         pause_aware_sleep(poll_seconds)
                         continue
+                    retry_state = get_live_roll_retry_state(
+                        current_lobby,
+                        retry_seconds=retry_seconds
+                    )
+                    if current_lobby.get('live_roll_change_attempts') and not retry_state.get('shouldRetry'):
+                        retry_message = (
+                            f'Could not roll server live on {selected_map}. '
+                            f'Retrying in {retry_state.get("remainingSeconds")}s.'
+                        )
+                        last_error = current_lobby.get('live_roll_command_error')
+                        if last_error:
+                            retry_message = f'{retry_message} Last error: {last_error}'
+                        emit_announcement(current_lobby, retry_message)
+                        pause_aware_sleep(poll_seconds)
+                        continue
                     announcement = f'Rolling to live on {selected_map}. Stand by.'
                     current_lobby['announcement'] = announcement
                     socketio.emit('lobby_update', {
@@ -893,15 +966,11 @@ def start_live_roll_monitor(
                             f"Failed to broadcast live roll announcement for lobby {lobby_id}: "
                             f"{broadcast_error}"
                         )
-                    mark_live_roll_change_attempt(
+                    attempt_live_roll_change(
                         current_lobby,
-                        change_server_to_selected_map(selected_map)
+                        selected_map,
+                        'live_roll_attempted'
                     )
-                    record_event('live_roll_attempted', {
-                        'selected_map': selected_map,
-                        'attempts': current_lobby.get('live_roll_change_attempts'),
-                        'response': current_lobby.get('live_roll_command_response')
-                    })
                     pause_aware_sleep(2)
                     continue
 
@@ -1058,15 +1127,11 @@ def start_live_roll_monitor(
                                 'lobby_id': lobby_id,
                                 'announcement': retry_message
                             }, room=lobby_id)
-                        mark_live_roll_change_attempt(
+                        attempt_live_roll_change(
                             current_lobby,
-                            change_server_to_selected_map(selected_map)
+                            selected_map,
+                            'live_roll_retry_attempted'
                         )
-                        record_event('live_roll_retry_attempted', {
-                            'selected_map': selected_map,
-                            'attempts': current_lobby.get('live_roll_change_attempts'),
-                            'response': current_lobby.get('live_roll_command_response')
-                        })
                         pause_aware_sleep(2)
                         continue
 
@@ -1124,15 +1189,11 @@ def start_live_roll_monitor(
                             'lobby_id': lobby_id,
                             'announcement': retry_message
                         }, room=lobby_id)
-                    mark_live_roll_change_attempt(
+                    attempt_live_roll_change(
                         current_lobby,
-                        change_server_to_selected_map(selected_map)
+                        selected_map,
+                        'live_roll_retry_attempted'
                     )
-                    record_event('live_roll_retry_attempted', {
-                        'selected_map': selected_map,
-                        'attempts': current_lobby.get('live_roll_change_attempts'),
-                        'response': current_lobby.get('live_roll_command_response')
-                    })
                     pause_aware_sleep(2)
                     continue
 

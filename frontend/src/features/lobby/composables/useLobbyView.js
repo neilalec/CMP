@@ -102,6 +102,7 @@ export function useLobbyView() {
     lobbyStore.players.filter((player) => lobbyStore.serverPresence?.[player]?.connected).length
   ));
   const liveRollRequiredPercent = 95;
+  const liveRollThresholdSeconds = 300;
   const liveRollRequiredCount = computed(() => {
     const total = lobbyStore.players.length;
     return total > 0 ? Math.ceil(total * (liveRollRequiredPercent / 100)) : 0;
@@ -556,6 +557,7 @@ export function useLobbyView() {
     liveRollGraceSeconds,
     liveRollRequiredCount,
     liveRollRequiredPercent,
+    liveRollThresholdSeconds,
     mapOptions,
     phaseTitle,
     showConnectionStatus,

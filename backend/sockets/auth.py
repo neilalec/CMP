@@ -108,7 +108,8 @@ def handle_disconnect_event(
     matchmaking_queue,
     pending_match,
     cancel_pending_match,
-    broadcast_queue_update
+    broadcast_queue_update,
+    web_lobby_disconnect_tracking_enabled=False
 ):
     try:
         sid = request.sid
@@ -118,7 +119,11 @@ def handle_disconnect_event(
             logger.info(f"User {username} disconnected. Reason: {reason}")
 
             remaining_sessions = remove_player_session(username, sid)
-            if remaining_sessions == 0 and username in player_activity:
+            if (
+                web_lobby_disconnect_tracking_enabled
+                and remaining_sessions == 0
+                and username in player_activity
+            ):
                 player_activity[username]['status'] = 'disconnected'
                 player_activity[username]['last_seen'] = time.time()
 

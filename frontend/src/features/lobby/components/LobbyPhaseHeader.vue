@@ -26,6 +26,10 @@ const props = defineProps({
     type: Number,
     default: 95
   },
+  readyThresholdSeconds: {
+    type: Number,
+    default: 300
+  },
   readyGraceSeconds: {
     type: Number,
     default: 600
@@ -92,14 +96,15 @@ const statusSentence = computed(() => {
     const totalPlayers = Math.max(0, props.totalPlayers || 0)
     const connectedCount = Math.max(0, Math.min(props.connectedCount || 0, totalPlayers))
     const requiredCount = Math.max(0, Math.min(props.requiredAfterGraceCount || 0, totalPlayers))
+    const thresholdSeconds = Math.max(0, props.readyThresholdSeconds || 0)
     const graceSeconds = Math.max(0, props.readyGraceSeconds || 0)
     const remainingSeconds = props.readyGraceRemainingSeconds === null
       ? graceSeconds
       : Math.max(0, props.readyGraceRemainingSeconds || 0)
-    const graceStatus = remainingSeconds > 0
-      ? `${graceSeconds}s timer has passed (${remainingSeconds}s remaining)`
-      : `${graceSeconds}s timer has passed`
-    return `Join the server, ${connectedCount}/${totalPlayers} connected, rolling to live once all players have joined or ${requiredCount}/${totalPlayers} (${props.readyPercent}%) have joined and ${graceStatus}.`
+    const forceStatus = remainingSeconds > 0
+      ? `force rolling after ${graceSeconds}s (${remainingSeconds}s remaining)`
+      : `force rolling now that ${graceSeconds}s have passed`
+    return `Join the server, ${connectedCount}/${totalPlayers} connected. Rolling live once everyone has joined, or once ${requiredCount}/${totalPlayers} (${props.readyPercent}%) have joined after ${thresholdSeconds}s; ${forceStatus}.`
   }
   if (props.step === 2) return 'Vote for the next map before the timer ends.'
   return 'Lobby details are syncing.'

@@ -205,9 +205,9 @@ def test_queue_modes_expose_each_tournament_format():
     assert QUEUE_MODES['osi40']['max_players'] == 80
     assert QUEUE_MODES['osi40']['map_pool'] is ALL_OSI_40_MAPS
 
-    assert QUEUE_MODES['ocbt15']['label'] == '15v15 Open Clan Battle'
-    assert QUEUE_MODES['ocbt15']['team_size'] == 15
-    assert QUEUE_MODES['ocbt15']['max_players'] == 30
+    assert QUEUE_MODES['ocbt15']['label'] == '10v10 Open Clan Battle'
+    assert QUEUE_MODES['ocbt15']['team_size'] == 10
+    assert QUEUE_MODES['ocbt15']['max_players'] == 20
     assert QUEUE_MODES['ocbt15']['map_pool'] is ALL_OCBT_MAPS
     assert QUEUE_MODES['ocbt15']['vote_pool'] is ALL_OCBT_VOTE_MAPS
     assert QUEUE_MODES['ocbt15']['map_variants'] is OCBT_MAP_VARIANTS

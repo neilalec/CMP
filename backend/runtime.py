@@ -77,6 +77,7 @@ def cleanup_stale_disconnected_players(
     save_runtime_state=None,
     queue_stale_timeout=300,
     lobby_disconnect_grace_seconds=600,
+    web_lobby_disconnect_tracking_enabled=False,
     logger=None
 ):
     queue_changed = False
@@ -109,7 +110,8 @@ def cleanup_stale_disconnected_players(
 
             lobby_step = int((lobby or {}).get('step') or 1) if lobby else None
             should_reopen_lobby_slot = (
-                lobby is not None
+                web_lobby_disconnect_tracking_enabled
+                and lobby is not None
                 and lobby_step in PRE_LIVE_LOBBY_STEPS
                 and stale_for_lobby
             )
@@ -196,6 +198,7 @@ def cleanup_stale_players(
     release_server_allocation=None,
     save_runtime_state=None,
     lobby_disconnect_grace_seconds=600,
+    web_lobby_disconnect_tracking_enabled=False,
     logger,
     eventlet
 ):
@@ -218,6 +221,7 @@ def cleanup_stale_players(
                 release_server_allocation=release_server_allocation,
                 save_runtime_state=save_runtime_state,
                 lobby_disconnect_grace_seconds=lobby_disconnect_grace_seconds,
+                web_lobby_disconnect_tracking_enabled=web_lobby_disconnect_tracking_enabled,
                 logger=logger
             )
         except Exception as e:

@@ -74,6 +74,7 @@ def test_stale_disconnected_player_reopens_pre_live_lobby_slot():
         record_lobby_event=lambda lobby_id, event_type, payload, created_at=None: events.append((event_type, payload)),
         save_runtime_state=lambda: counters.__setitem__('saves', counters['saves'] + 1),
         lobby_disconnect_grace_seconds=600,
+        web_lobby_disconnect_tracking_enabled=True,
     )
 
     assert result['lobbiesChanged'] is True
@@ -116,6 +117,7 @@ def test_stale_disconnected_player_does_not_reopen_live_lobby_slot():
         lobbies=lobbies,
         broadcast_queue_update=lambda: None,
         lobby_disconnect_grace_seconds=600,
+        web_lobby_disconnect_tracking_enabled=True,
     )
 
     assert result['lobbiesChanged'] is False
@@ -157,6 +159,7 @@ def test_empty_abandoned_lobby_is_closed_and_allocation_released():
         record_lobby_event=lambda lobby_id, event_type, payload, created_at=None: events.append((event_type, payload)),
         release_server_allocation=lambda lobby_id, reason=None: released.append((lobby_id, reason)),
         lobby_disconnect_grace_seconds=600,
+        web_lobby_disconnect_tracking_enabled=True,
     )
 
     assert result['lobbiesChanged'] is True
@@ -168,3 +171,36 @@ def test_empty_abandoned_lobby_is_closed_and_allocation_released():
         'player_removed_after_disconnect_timeout',
         'lobby_closed',
     ]
+
+
+def test_web_disconnect_cleanup_is_disabled_by_default_for_pre_live_lobbies():
+    lobbies = {
+        'lobby_1': {
+            'players': ['alice', 'bob'],
+            'teams': {'team1': ['alice'], 'team2': ['bob']},
+            'captains': {'team1': 'alice', 'team2': 'bob'},
+            'disconnected_players': {'bob'},
+            'step': 3,
+        }
+    }
+    activity = {
+        'bob': {
+            'status': 'disconnected',
+            'last_seen': 0,
+            'lobby_id': 'lobby_1',
+        }
+    }
+
+    result = cleanup_stale_disconnected_players(
+        current_time=601,
+        queue_lock=DummyLock(),
+        player_activity=activity,
+        matchmaking_queue={'skirmish': []},
+        lobbies=lobbies,
+        broadcast_queue_update=lambda: None,
+        lobby_disconnect_grace_seconds=600,
+    )
+
+    assert result['lobbiesChanged'] is False
+    assert lobbies['lobby_1']['players'] == ['alice', 'bob']
+    assert activity['bob']['status'] == 'disconnected'
