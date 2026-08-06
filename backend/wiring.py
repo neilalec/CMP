@@ -73,6 +73,7 @@ def _socket_backend_api():
         PASSWORD_AUTH_ENABLED=backend_app.PASSWORD_AUTH_ENABLED,
         QUEUE_MODES=backend_app.QUEUE_MODES,
         SOCKET_EVENTS=backend_app.SOCKET_EVENTS,
+        WEB_LOBBY_DISCONNECT_TRACKING_ENABLED=backend_app.WEB_LOBBY_DISCONNECT_TRACKING_ENABLED,
         assign_teams=backend_app.assign_teams,
         broadcast_group_update=backend_app.broadcast_group_update,
         broadcast_open_lobbies_update=backend_app.broadcast_open_lobbies_update,
@@ -95,6 +96,7 @@ def _socket_backend_api():
         get_player_groups=backend_app.get_player_groups,
         get_player_sids=backend_app.get_player_sids,
         get_server_connection_details=backend_app.get_server_connection_details,
+        get_selected_map_team_labels=backend_app.get_selected_map_team_labels,
         get_user_group=backend_app.get_user_group,
         get_user_profile=backend_app.get_user_profile,
         get_user_record=backend_app.get_user_record,
@@ -1008,7 +1010,8 @@ def register_socket_routes(socketio):
             matchmaking_queue=backend.matchmaking_queue,
             player_activity=backend.player_activity,
             save_queue=backend.save_queue,
-            broadcast_queue_update=backend.broadcast_queue_update
+            broadcast_queue_update=backend.broadcast_queue_update,
+            build_queue_payload=backend.build_queue_payload
         )
 
     @socketio.on(_socket_backend_api().SOCKET_EVENTS['OPEN_LOBBIES']['STATUS'])

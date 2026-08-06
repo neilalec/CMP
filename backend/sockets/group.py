@@ -551,7 +551,8 @@ def handle_group_unqueue_event(
     matchmaking_queue,
     player_activity,
     save_queue,
-    broadcast_queue_update
+    broadcast_queue_update,
+    build_queue_payload
 ):
     try:
         username = data.get('username') if data else None
