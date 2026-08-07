@@ -26,6 +26,7 @@ const {
   serverAvailable,
   serverAvailabilityReason,
   seedQueue,
+  setQueueEnabled,
   spectateLobby,
   queueStore,
 } = useHomeView();
@@ -54,6 +55,7 @@ const {
       @leave-queue="leaveQueue"
       @seed-queue="seedQueue"
       @clear-queue="clearQueue"
+      @set-queue-enabled="setQueueEnabled"
     />
 
     <LobbiesPanel

@@ -9,6 +9,7 @@ countdown_paused = False
 countdown_pause_lock = RLock()
 MATCH_ACCEPT_COUNTDOWN = int(os.getenv('MATCH_ACCEPT_COUNTDOWN', '90'))
 MAP_VOTE_COUNTDOWN = int(os.getenv('MAP_VOTE_COUNTDOWN', '60'))
+OCBT_1V1_MAP_VOTE_COUNTDOWN = int(os.getenv('OCBT_1V1_MAP_VOTE_COUNTDOWN', '15'))
 LIVE_ROLL_READY_RATIO = float(os.getenv('LIVE_ROLL_READY_RATIO', '0.95'))
 LIVE_ROLL_THRESHOLD_GRACE_SECONDS = int(os.getenv('LIVE_ROLL_THRESHOLD_GRACE_SECONDS', '300'))
 LIVE_ROLL_READY_GRACE_SECONDS = int(os.getenv('LIVE_ROLL_READY_GRACE_SECONDS', '600'))
@@ -350,6 +351,12 @@ AUTOMATION_CONTROL = {
 if AUTOMATION_CONTROL['mode'] not in AUTOMATION_MODES:
     AUTOMATION_CONTROL['mode'] = 'on'
 
+
+def get_map_vote_countdown(queue_mode=None):
+    if str(queue_mode or '').strip().lower() == 'ocbt1':
+        return OCBT_1V1_MAP_VOTE_COUNTDOWN
+    return MAP_VOTE_COUNTDOWN
+
 bridge_status = {
     'available': None,
     'last_error': None,
@@ -365,6 +372,7 @@ matchmaking_queue = {
     mode_id: []
     for mode_id in QUEUE_MODES
 }
+disabled_queue_modes = set()
 player_activity = {}
 lobbies = {}
 pending_match = {

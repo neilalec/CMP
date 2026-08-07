@@ -40,6 +40,7 @@ from app_state import (
     countdown_active,
     countdown_paused,
     countdown_pause_lock,
+    disabled_queue_modes,
     group_lock,
     groups,
     lobbies,
@@ -191,6 +192,7 @@ from sockets.queue import (
     handle_leave_queue_event,
     handle_queue_status_event,
     handle_seed_queue_event,
+    handle_set_queue_enabled_event,
 )
 import matchmaking as matchmaking_module
 
@@ -336,6 +338,7 @@ SOCKET_EVENTS =  {
         'MATCH_FOUND': 'match_found',
         'SEED': 'queue_seed',
         'CLEAR': 'queue_clear',
+        'SET_ENABLED': 'queue_set_enabled',
         'ACCEPT_MATCH': 'queue_accept_match',
         'MATCH_ACCEPT_CANCELLED': 'queue_match_accept_cancelled'
     },
@@ -605,6 +608,7 @@ APP_PUBLIC_EXPORTS = (
     'countdown_active',
     'countdown_pause_lock',
     'countdown_paused',
+    'disabled_queue_modes',
     'create_access_token',
     'create_server',
     'create_lobby',
@@ -664,6 +668,7 @@ APP_PUBLIC_EXPORTS = (
     'handle_profile_status_event',
     'handle_queue_status_event',
     'handle_seed_queue_event',
+    'handle_set_queue_enabled_event',
     'handle_server_presence_event',
     'handle_skip_phase_event',
     'handle_socket_data',

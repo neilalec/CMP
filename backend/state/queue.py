@@ -16,6 +16,7 @@ def build_queue_payload(username=None, countdown=None, queue_mode=None):
         app.user_has_steam_id,
         get_match_accept_payload,
         QUEUE_MODES,
+        disabled_queue_modes=app.disabled_queue_modes,
         lobbies=app.lobbies,
         pending_match=app.pending_match,
         server_capacity=1,

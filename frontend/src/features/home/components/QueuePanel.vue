@@ -64,7 +64,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['join-queue', 'leave-queue', 'seed-queue', 'clear-queue'])
+const emit = defineEmits(['join-queue', 'leave-queue', 'seed-queue', 'clear-queue', 'set-queue-enabled'])
 
 const SEC_MODE_IDS = ['sec26', 'sec36', 'sec46']
 const QUEUE_MOD_LINKS = {
@@ -140,6 +140,7 @@ const getQueueTitle = (queueMode) => {
 const getQueueModLink = (queueMode) => QUEUE_MOD_LINKS[queueMode?.id] || ''
 
 const getQueueStatusLabel = (queueMode) => {
+  if (queueMode.disabled || queueMode.enabled === false) return 'Disabled'
   if (props.inQueue && props.currentQueueMode === queueMode.id) return 'Queued'
   if (props.inQueue && props.currentQueueMode !== queueMode.id) return 'Other queue'
   if (props.isInLobby) return 'In lobby'
@@ -158,6 +159,7 @@ const getPrimaryLabel = (queueMode) => {
     return 'Leave Queue'
   }
   if (props.isInLobby) return "You're in a lobby"
+  if (queueMode.disabled || queueMode.enabled === false) return 'Queue disabled'
   if (!props.serverAvailable) return getServerUnavailableLabel()
   if (!props.hasSteamId) return 'Set Steam ID in Profile'
   if (props.isInGroup && !props.isGroupLeader) return 'Group leader only'
@@ -192,6 +194,8 @@ const serverPausedMessage = computed(() => {
 const isJoinDisabled = (queueMode) => (
   props.loading
   || props.isInLobby
+  || queueMode.disabled
+  || queueMode.enabled === false
   || props.inQueue
   || !props.serverAvailable
   || props.isModeQueueFull(queueMode.id)
@@ -228,7 +232,11 @@ const handleSecJoin = () => {
           :class="[
             'queue-card',
             'window-panel',
-            { 'is-active': currentQueueMode === queueCard.queueMode.id, 'no-dev-tools-card': !canManageQueueTools }
+            {
+              'is-active': currentQueueMode === queueCard.queueMode.id,
+              'is-disabled': queueCard.queueMode.disabled || queueCard.queueMode.enabled === false,
+              'no-dev-tools-card': !canManageQueueTools
+            }
           ]"
         >
           <div class="window-titlebar">
@@ -282,6 +290,15 @@ const handleSecJoin = () => {
               </button>
               <button type="button" @click="emit('clear-queue', queueCard.queueMode.id)" :disabled="loading">
                 Clear {{ queueCard.queueMode.shortLabel }}
+              </button>
+              <button
+                type="button"
+                class="queue-toggle-button"
+                :class="{ 'is-enable': queueCard.queueMode.disabled || queueCard.queueMode.enabled === false }"
+                :disabled="loading"
+                @click="emit('set-queue-enabled', queueCard.queueMode.id, queueCard.queueMode.disabled || queueCard.queueMode.enabled === false)"
+              >
+                {{ queueCard.queueMode.disabled || queueCard.queueMode.enabled === false ? 'Enable' : 'Disable' }} {{ queueCard.queueMode.shortLabel }}
               </button>
             </div>
           </div>
@@ -454,6 +471,11 @@ const handleSecJoin = () => {
   border-color: var(--accent-border);
   background: linear-gradient(180deg, color-mix(in srgb, var(--panel-bg-strong) 88%, var(--accent-soft) 12%) 0%, var(--panel-bg) 100%);
   box-shadow: 0 0 0 1px var(--accent-ring), var(--window-shadow), var(--window-inset);
+}
+
+.queue-card.is-disabled {
+  border-color: color-mix(in srgb, var(--surface-border-strong) 72%, var(--danger) 28%);
+  opacity: 0.78;
 }
 
 .queue-card-body {
@@ -666,6 +688,16 @@ const handleSecJoin = () => {
 
 .queue-dev-actions button {
   flex: 1 1 180px;
+}
+
+.queue-dev-actions .queue-toggle-button {
+  border-color: color-mix(in srgb, var(--danger) 36%, var(--surface-border));
+  color: var(--danger);
+}
+
+.queue-dev-actions .queue-toggle-button.is-enable {
+  border-color: color-mix(in srgb, var(--success, #2f855a) 36%, var(--surface-border));
+  color: var(--success, #2f855a);
 }
 
 .sec-dev-actions button {

@@ -31,7 +31,9 @@ export const useQueueStore = defineStore('queue', {
           ...modePayload,
           queue: Array.isArray(modePayload.queue) ? modePayload.queue : [],
           playersInQueue: modePayload.playersInQueue || 0,
-          inQueue: !!modePayload.inQueue
+          inQueue: !!modePayload.inQueue,
+          enabled: modePayload.enabled !== false && !modePayload.disabled,
+          disabled: modePayload.enabled === false || !!modePayload.disabled
         }
       }
 
@@ -199,6 +201,22 @@ export const useQueueStore = defineStore('queue', {
         validate: (response) => {
           if (!response?.success) {
             throw new Error(response?.message || 'Failed to clear queue')
+          }
+        },
+        onSuccess: (response) => {
+          this.updateQueueState(response)
+        }
+      })
+    },
+
+    async setQueueEnabled(queueMode, enabled) {
+      return runStoreSocketAction(this, {
+        event: SOCKET_EVENTS.QUEUE.SET_ENABLED,
+        payload: { queueMode, enabled },
+        fallbackMessage: 'Failed to update queue availability',
+        validate: (response) => {
+          if (!response?.success) {
+            throw new Error(response?.message || 'Failed to update queue availability')
           }
         },
         onSuccess: (response) => {

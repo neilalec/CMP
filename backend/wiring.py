@@ -102,6 +102,7 @@ def _socket_backend_api():
         get_user_record=backend_app.get_user_record,
         get_user_room=backend_app.get_user_room,
         get_username_by_sid=backend_app.get_username_by_sid,
+        disabled_queue_modes=backend_app.disabled_queue_modes,
         group_lock=backend_app.group_lock,
         groups=backend_app.groups,
         handle_accept_match_event=backend_app.handle_accept_match_event,
@@ -131,6 +132,7 @@ def _socket_backend_api():
         handle_profile_status_event=backend_app.handle_profile_status_event,
         handle_queue_status_event=backend_app.handle_queue_status_event,
         handle_seed_queue_event=backend_app.handle_seed_queue_event,
+        handle_set_queue_enabled_event=backend_app.handle_set_queue_enabled_event,
         handle_server_presence_event=backend_app.handle_server_presence_event,
         handle_skip_phase_event=backend_app.handle_skip_phase_event,
         handle_socket_data=backend_app.handle_socket_data,
@@ -796,6 +798,7 @@ def register_socket_routes(socketio):
             get_user_group=backend.get_user_group,
             user_has_steam_id=backend.user_has_steam_id,
             queue_modes=backend.QUEUE_MODES,
+            disabled_queue_modes=backend.disabled_queue_modes,
             pending_match=backend.pending_match,
             lobbies=backend.lobbies,
             upsert_player_activity=backend.upsert_player_activity,
@@ -873,6 +876,28 @@ def register_socket_routes(socketio):
             is_admin_user=backend.is_admin_user,
             queue_lock=backend.queue_lock,
             matchmaking_queue=backend.matchmaking_queue,
+            player_activity=backend.player_activity,
+            save_queue=backend.save_queue,
+            build_queue_payload=backend.build_queue_payload,
+            cancel_pending_match=backend.cancel_pending_match,
+        )
+
+    @socketio.on(_socket_backend_api().SOCKET_EVENTS['QUEUE']['SET_ENABLED'])
+    @_socket_backend_api().handle_socket_data
+    @_with_socket_backend
+    def handle_set_queue_enabled(backend, data=None):
+        return backend.handle_set_queue_enabled_event(
+            data,
+            request=request,
+            socketio=socketio,
+            broadcast_queue_update=backend.broadcast_queue_update,
+            logger=backend.logger,
+            get_username_by_sid=backend.get_username_by_sid,
+            is_admin_user=backend.is_admin_user,
+            queue_lock=backend.queue_lock,
+            matchmaking_queue=backend.matchmaking_queue,
+            queue_modes=backend.QUEUE_MODES,
+            disabled_queue_modes=backend.disabled_queue_modes,
             player_activity=backend.player_activity,
             save_queue=backend.save_queue,
             build_queue_payload=backend.build_queue_payload,
@@ -1028,6 +1053,7 @@ def register_socket_routes(socketio):
             queue_lock=backend.queue_lock,
             matchmaking_queue=backend.matchmaking_queue,
             pending_match=backend.pending_match,
+            disabled_queue_modes=backend.disabled_queue_modes,
             lobbies=backend.lobbies,
             upsert_player_activity=backend.upsert_player_activity,
             save_queue=backend.save_queue,

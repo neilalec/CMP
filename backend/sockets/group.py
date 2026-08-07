@@ -590,7 +590,8 @@ def handle_group_queue_event(
     broadcast_queue_update,
     check_queue_and_start_countdown,
     build_queue_payload,
-    has_available_server_capacity
+    has_available_server_capacity,
+    disabled_queue_modes=None
 ):
     try:
         username = data.get('username') if data else None
@@ -600,6 +601,13 @@ def handle_group_queue_event(
             return {'success': False, 'message': 'Missing username'}
         if not queue_config:
             return {'success': False, 'message': 'Unknown queue mode'}
+        disabled_queue_modes = set(disabled_queue_modes or [])
+        if queue_mode in disabled_queue_modes:
+            return {
+                'success': False,
+                'message': 'This queue is temporarily disabled.',
+                **build_queue_payload(username=username, queue_mode=queue_mode)
+            }
 
         with group_lock:
             code = get_user_group(username)

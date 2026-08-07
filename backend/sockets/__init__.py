@@ -20,6 +20,7 @@ from .queue import (
     handle_join_queue_event,
     handle_leave_queue_event,
     handle_queue_status_event,
+    handle_set_queue_enabled_event,
 )
 from .lobby import handle_delete_lobby_event
 
@@ -42,5 +43,6 @@ __all__ = [
     'register_socket_event',
     'handle_profile_status_event',
     'handle_queue_status_event',
+    'handle_set_queue_enabled_event',
     'handle_update_steam_id_event',
 ]

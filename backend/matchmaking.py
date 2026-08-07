@@ -6,7 +6,7 @@ from functools import wraps
 
 import eventlet
 
-from app_state import DEFAULT_QUEUE_MODE, MAP_VOTE_COUNTDOWN, MATCH_ACCEPT_COUNTDOWN, MAX_LOBBY_PLAYERS, QUEUE_MODES
+from app_state import DEFAULT_QUEUE_MODE, MATCH_ACCEPT_COUNTDOWN, MAX_LOBBY_PLAYERS, QUEUE_MODES, get_map_vote_countdown
 from services.queue import (
     add_to_queue as add_to_queue_service,
     build_queue_payload as build_queue_payload_service,
@@ -145,6 +145,7 @@ def build_queue_payload(username=None, countdown=None, queue_mode=None):
         app.user_has_steam_id,
         app.get_match_accept_payload,
         QUEUE_MODES,
+        disabled_queue_modes=app.disabled_queue_modes,
         lobbies=app.lobbies,
         pending_match=app.pending_match,
         server_capacity=app.get_server_pool_capacity(),
@@ -269,6 +270,7 @@ def check_queue_and_start_countdown():
             pending_match=app.pending_match,
             matchmaking_queue=app.matchmaking_queue,
             queue_modes=QUEUE_MODES,
+            disabled_queue_modes=app.disabled_queue_modes,
             lobbies=app.lobbies,
             server_capacity=app.get_server_pool_capacity(),
             start_match_acceptance=start_match_acceptance
@@ -295,13 +297,14 @@ def start_map_voting(lobby_id):
         if not lobby:
             app.logger.error(f"Lobby {lobby_id} not found when starting map vote")
             return
+        max_countdown = get_map_vote_countdown(lobby.get('queue_mode'))
         saved_countdown = lobby.get('voting_countdown')
         try:
             countdown = int(saved_countdown)
         except (TypeError, ValueError):
-            countdown = MAP_VOTE_COUNTDOWN
-        if countdown < 0 or countdown > MAP_VOTE_COUNTDOWN:
-            countdown = MAP_VOTE_COUNTDOWN
+            countdown = max_countdown
+        if countdown < 0 or countdown > max_countdown:
+            countdown = max_countdown
 
         lobby['countdown_token'] = lobby.get('countdown_token', 0) + 1
         countdown_token = lobby['countdown_token']
@@ -534,7 +537,7 @@ def create_lobby(players_override=None, queue_mode=None):
             'countdown_active': False,
             'map_votes': {},
             'map_pool': map_pool,
-            'voting_countdown': MAP_VOTE_COUNTDOWN,
+            'voting_countdown': get_map_vote_countdown(queue_config['id']),
             'countdown': None,
             'countdown_token': 0,
             'player_groups': get_player_groups(players),

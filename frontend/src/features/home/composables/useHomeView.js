@@ -20,7 +20,7 @@ export function useHomeView() {
   const loading = ref(false);
   let isDisposed = false;
   const isDev = import.meta.env.DEV;
-  const queueDisplayOrder = ['ocbt15', 'ocbt5', 'ocbt1', 'outofthebox40', 'sec26', 'sec36', 'sec46'];
+  const queueDisplayOrder = ['ocbt15', 'ocbt5', 'ocbt1'];
   const canManageQueueTools = computed(() => !!authStore.isAdmin);
   const queueModes = computed(() => (
     queueDisplayOrder
@@ -247,6 +247,21 @@ export function useHomeView() {
     }
   };
 
+  const setQueueEnabled = async (queueMode, enabled) => {
+    if (!canManageQueueTools.value) {
+      rootStore.setError('Admin access required.');
+      return;
+    }
+    loading.value = true;
+    try {
+      await queueStore.setQueueEnabled(queueMode, enabled);
+    } catch (error) {
+      rootStore.setError(error.message || 'Failed to update queue availability');
+    } finally {
+      loading.value = false;
+    }
+  };
+
   const getLobbyLabel = (lobby) => {
     const maxPlayers = Number(lobby?.max_players || 0);
     const left = Math.floor(maxPlayers / 2);
@@ -279,6 +294,7 @@ export function useHomeView() {
     serverAvailable,
     serverAvailabilityReason,
     seedQueue,
+    setQueueEnabled,
     spectateLobby,
     queueStore
   };

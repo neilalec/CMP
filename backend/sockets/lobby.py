@@ -1,7 +1,7 @@
 import random
 import time
 
-from app_state import MAP_VOTE_COUNTDOWN
+from app_state import get_map_vote_countdown
 from state.lobby import build_player_profile_map
 
 
@@ -814,7 +814,7 @@ def handle_prev_phase_event(
             lobby['announcement'] = None
             lobby['map_votes'] = {}
             lobby['vote_counts'] = {}
-            lobby['voting_countdown'] = MAP_VOTE_COUNTDOWN
+            lobby['voting_countdown'] = get_map_vote_countdown(lobby.get('queue_mode'))
 
         if record_lobby_event:
             record_lobby_event(lobby_id, 'phase_reverted', {

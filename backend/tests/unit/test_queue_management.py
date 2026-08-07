@@ -68,6 +68,25 @@ def test_build_queue_payload_includes_both_queue_modes():
     assert payload['queueModes']['hotdrop']['maxPlayers'] == 60
 
 
+def test_build_queue_payload_marks_disabled_modes():
+    payload = build_queue_payload(
+        {'skirmish': [], 'hotdrop': []},
+        user_has_steam_id=lambda username: True,
+        get_match_accept_payload=lambda username: None,
+        queue_modes=QUEUE_MODES,
+        disabled_queue_modes={'hotdrop'},
+        lobbies={},
+        pending_match={'skirmish': None, 'hotdrop': None},
+        server_capacity=1,
+        username='alice'
+    )
+
+    assert payload['queueModes']['skirmish']['enabled'] is True
+    assert payload['queueModes']['skirmish']['disabled'] is False
+    assert payload['queueModes']['hotdrop']['enabled'] is False
+    assert payload['queueModes']['hotdrop']['disabled'] is True
+
+
 def test_team_assignment_must_fill_both_format_sides():
     queue_config = {'team_size': 1, 'max_players': 2}
 
@@ -261,6 +280,30 @@ def test_check_queue_does_not_start_countdown_when_server_pool_has_no_capacity()
         lobbies={},
         server_capacity=0,
         start_match_acceptance=lambda players, queue_mode: started.append((queue_mode, players))
+    )
+
+    assert started == []
+
+
+def test_check_queue_ignores_disabled_full_queue():
+    started = []
+
+    class DummyLock:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    check_queue_and_start_countdown(
+        queue_lock=DummyLock(),
+        pending_match={'skirmish': None},
+        matchmaking_queue={'skirmish': ['p1', 'p2']},
+        queue_modes={'skirmish': {**QUEUE_MODES['skirmish'], 'max_players': 2}},
+        lobbies={},
+        server_capacity=1,
+        start_match_acceptance=lambda players, queue_mode: started.append((queue_mode, players)),
+        disabled_queue_modes={'skirmish'}
     )
 
     assert started == []

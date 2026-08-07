@@ -91,6 +91,7 @@ def handle_join_queue_event(
     queue_lock,
     matchmaking_queue,
     queue_modes,
+    disabled_queue_modes,
     pending_match,
     lobbies,
     upsert_player_activity,
@@ -114,6 +115,14 @@ def handle_join_queue_event(
             emit(f"{socket_events['QUEUE']['JOIN']}_response", {
                 'success': False,
                 'message': 'Unknown queue mode'
+            })
+            return
+
+        if queue_mode in disabled_queue_modes:
+            emit(f"{socket_events['QUEUE']['JOIN']}_response", {
+                **build_queue_payload(username=username, queue_mode=queue_mode),
+                'success': False,
+                'message': 'This queue is temporarily disabled.'
             })
             return
 
@@ -460,6 +469,72 @@ def handle_clear_queue_event(
     except Exception as e:
         logger.error(f"Error in handle_clear_queue: {str(e)}")
         return {'success': False, 'message': 'Failed to clear queue'}
+
+
+def handle_set_queue_enabled_event(
+    data,
+    *,
+    request,
+    socketio,
+    broadcast_queue_update,
+    logger,
+    get_username_by_sid,
+    is_admin_user,
+    queue_lock,
+    matchmaking_queue,
+    queue_modes,
+    disabled_queue_modes,
+    player_activity,
+    save_queue,
+    build_queue_payload,
+    cancel_pending_match
+):
+    try:
+        username = get_username_by_sid(request.sid)
+        queue_mode = str((data or {}).get('queueMode') or '').strip().lower()
+        enabled = bool((data or {}).get('enabled'))
+        if not is_admin_user(username):
+            return {'success': False, 'message': 'Admin access required'}
+        if not queue_mode or queue_mode not in queue_modes:
+            return {'success': False, 'message': 'Unknown queue mode'}
+
+        cleared = []
+        if enabled:
+            disabled_queue_modes.discard(queue_mode)
+            message = f"{queue_modes[queue_mode].get('short_label', queue_mode)} queue enabled"
+        else:
+            disabled_queue_modes.add(queue_mode)
+            queued_players = list(get_queue_for_mode(matchmaking_queue, queue_mode))
+            cleared = list(queued_players)
+            cancel_pending_match('Queue disabled by admin.', remove_players=queued_players, queue_mode=queue_mode)
+            with queue_lock:
+                matchmaking_queue[queue_mode].clear()
+                for player in cleared:
+                    if player in player_activity:
+                        player_activity[player]['status'] = 'authenticated'
+                save_queue()
+            message = f"{queue_modes[queue_mode].get('short_label', queue_mode)} queue disabled"
+
+        logger.info(
+            "Admin queue toggle: username=%s queue_mode=%s enabled=%s cleared=%s",
+            username,
+            queue_mode,
+            enabled,
+            len(cleared)
+        )
+        payload = {
+            **build_queue_payload(username=username, queue_mode=queue_mode),
+            'success': True,
+            'enabled': enabled,
+            'queueModeChanged': queue_mode,
+            'cleared': cleared,
+            'message': message
+        }
+        broadcast_queue_update()
+        return payload
+    except Exception as e:
+        logger.error(f"Error in handle_set_queue_enabled: {str(e)}")
+        return {'success': False, 'message': 'Failed to update queue availability'}
 
 
 def handle_accept_match_event(

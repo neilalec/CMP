@@ -34,6 +34,7 @@ from app_state import (
     SQUADJS_BRIDGE_TOKEN,
     SQUADJS_BRIDGE_URL,
     bridge_status,
+    disabled_queue_modes,
     groups,
     lobbies,
     matchmaking_queue,
@@ -320,6 +321,7 @@ def migrate_plaintext_passwords():
 def initialize_state():
     init_database()
     migrate_legacy_json_files()
+    disabled_queue_modes.clear()
     users.clear()
     users.update({
         username: normalize_user_record(record)

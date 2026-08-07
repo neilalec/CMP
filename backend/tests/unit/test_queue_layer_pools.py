@@ -11,6 +11,7 @@ from app_state import (
     ALL_SKIRMISH_MAPS,
     OCBT_MAP_VARIANTS,
     QUEUE_MODES,
+    get_map_vote_countdown,
 )
 from matchmaking import build_lobby_map_pool, select_map_from_votes
 
@@ -177,6 +178,12 @@ def test_ocbt_map_vote_uses_base_maps_then_resolves_variant(monkeypatch):
         'OCBT_AzureIsland': 2,
         'OCBT_Oasis': 1,
     }
+
+
+def test_ocbt_1v1_uses_short_map_vote_countdown():
+    assert get_map_vote_countdown('ocbt1') == 15
+    assert get_map_vote_countdown('ocbt5') == 60
+    assert get_map_vote_countdown('ocbt15') == 60
 
 
 def test_queue_modes_expose_each_tournament_format():

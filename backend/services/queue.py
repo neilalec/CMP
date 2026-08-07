@@ -77,6 +77,7 @@ def build_queue_payload(
     user_has_steam_id,
     get_match_accept_payload,
     queue_modes,
+    disabled_queue_modes=None,
     lobbies=None,
     pending_match=None,
     server_capacity=1,
@@ -87,10 +88,12 @@ def build_queue_payload(
     current_queue_mode = find_user_queue_mode(matchmaking_queue, username)
     queues_payload = {}
     total_players_in_queue = 0
+    disabled_queue_modes = set(disabled_queue_modes or [])
 
     for mode_id, config in queue_modes.items():
         queue = list(matchmaking_queue.get(mode_id, []))
         total_players_in_queue += len(queue)
+        enabled = mode_id not in disabled_queue_modes
         queues_payload[mode_id] = {
             'id': mode_id,
             'label': config['label'],
@@ -100,6 +103,8 @@ def build_queue_payload(
             'playersInQueue': len(queue),
             'queue': queue,
             'inQueue': bool(username and username in queue),
+            'enabled': enabled,
+            'disabled': not enabled,
         }
 
     resolved_queue_mode = queue_mode or current_queue_mode
@@ -308,14 +313,18 @@ def check_queue_and_start_countdown(
     queue_modes,
     lobbies,
     server_capacity,
-    start_match_acceptance
+    start_match_acceptance,
+    disabled_queue_modes=None
 ):
     queued_modes = []
+    disabled_queue_modes = set(disabled_queue_modes or [])
 
     with queue_lock:
         if not has_available_server_capacity(lobbies, pending_match, server_capacity=server_capacity):
             return
         for mode_id, config in queue_modes.items():
+            if mode_id in disabled_queue_modes:
+                continue
             queue = get_queue_for_mode(matchmaking_queue, mode_id)
             if get_pending_for_mode(pending_match, mode_id):
                 continue
