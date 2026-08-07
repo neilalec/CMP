@@ -132,6 +132,22 @@ export const useGroupStore = defineStore('group', {
       });
     },
 
+    async seedGroup(count) {
+      return runStoreSocketAction(this, {
+        event: SOCKET_EVENTS.GROUP.SEED,
+        payload: { count },
+        fallbackMessage: 'Failed to seed group',
+        validate: (response) => {
+          if (!response?.success || !response?.group) {
+            throw new Error(response?.message || 'Failed to seed group');
+          }
+        },
+        onSuccess: (response) => {
+          this.setGroup(response.group);
+        }
+      });
+    },
+
     async queueGroup(username, queueMode) {
       return runStoreSocketAction(this, {
         event: SOCKET_EVENTS.GROUP.QUEUE,

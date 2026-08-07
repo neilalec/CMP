@@ -29,7 +29,6 @@ export class SocketService {
       try {
         this.socket = io(this.baseURL, {
           auth,
-          transports: ['websocket'],
           reconnection: true,
           reconnectionAttempts: 3,
           reconnectionDelay: 1000,
@@ -78,7 +77,13 @@ export class SocketService {
       throw new Error('Socket not initialized');
     }
     return new Promise((resolve) => {
+      if (import.meta.env.DEV) {
+        console.debug('[socket emit]', event, data);
+      }
       this.socket.emit(event, data, (response) => {
+        if (import.meta.env.DEV) {
+          console.debug('[socket ack]', event, response);
+        }
         resolve(response);
       });
     });

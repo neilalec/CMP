@@ -6,6 +6,7 @@ from services.queue import (
     get_server_availability,
     has_available_server_capacity,
 )
+from matchmaking import team_assignment_matches_queue_format
 
 
 QUEUE_MODES = {
@@ -65,6 +66,19 @@ def test_build_queue_payload_includes_both_queue_modes():
     assert payload['queueModes']['skirmish']['playersInQueue'] == 1
     assert payload['queueModes']['hotdrop']['playersInQueue'] == 2
     assert payload['queueModes']['hotdrop']['maxPlayers'] == 60
+
+
+def test_team_assignment_must_fill_both_format_sides():
+    queue_config = {'team_size': 1, 'max_players': 2}
+
+    assert team_assignment_matches_queue_format(
+        {'team1': ['alice'], 'team2': ['bob']},
+        queue_config
+    ) is True
+    assert team_assignment_matches_queue_format(
+        {'team1': ['alice', 'bob'], 'team2': []},
+        queue_config
+    ) is False
 
 
 def test_finalized_released_lobby_does_not_consume_server_capacity():

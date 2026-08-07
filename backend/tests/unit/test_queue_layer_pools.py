@@ -158,6 +158,8 @@ def test_ocbt_map_vote_uses_base_maps_then_resolves_variant(monkeypatch):
         'OCBT_Shchyhliivka',
     ]
     assert build_lobby_map_pool(QUEUE_MODES['ocbt15']) == ALL_OCBT_VOTE_MAPS
+    assert build_lobby_map_pool(QUEUE_MODES['ocbt5']) == ALL_OCBT_VOTE_MAPS
+    assert build_lobby_map_pool(QUEUE_MODES['ocbt1']) == ALL_OCBT_VOTE_MAPS
 
     monkeypatch.setattr('matchmaking.random.choice', lambda options: list(options)[0])
     selected_map, vote_counts = select_map_from_votes({
@@ -211,6 +213,20 @@ def test_queue_modes_expose_each_tournament_format():
     assert QUEUE_MODES['ocbt15']['map_pool'] is ALL_OCBT_MAPS
     assert QUEUE_MODES['ocbt15']['vote_pool'] is ALL_OCBT_VOTE_MAPS
     assert QUEUE_MODES['ocbt15']['map_variants'] is OCBT_MAP_VARIANTS
+
+    assert QUEUE_MODES['ocbt5']['label'] == '5v5 Open Clan Battle'
+    assert QUEUE_MODES['ocbt5']['team_size'] == 5
+    assert QUEUE_MODES['ocbt5']['max_players'] == 10
+    assert QUEUE_MODES['ocbt5']['map_pool'] is ALL_OCBT_MAPS
+    assert QUEUE_MODES['ocbt5']['vote_pool'] is ALL_OCBT_VOTE_MAPS
+    assert QUEUE_MODES['ocbt5']['map_variants'] is OCBT_MAP_VARIANTS
+
+    assert QUEUE_MODES['ocbt1']['label'] == '1v1 Open Clan Battle'
+    assert QUEUE_MODES['ocbt1']['team_size'] == 1
+    assert QUEUE_MODES['ocbt1']['max_players'] == 2
+    assert QUEUE_MODES['ocbt1']['map_pool'] is ALL_OCBT_MAPS
+    assert QUEUE_MODES['ocbt1']['vote_pool'] is ALL_OCBT_VOTE_MAPS
+    assert QUEUE_MODES['ocbt1']['map_variants'] is OCBT_MAP_VARIANTS
 
     assert QUEUE_MODES['balt26']['label'] == '26v26 Balt Layers'
     assert QUEUE_MODES['balt26']['team_size'] == 26

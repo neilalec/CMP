@@ -76,6 +76,8 @@ const QUEUE_MOD_LINKS = {
   osi40: 'https://steamcommunity.com/sharedfiles/filedetails/?id=3661196801',
   s30: 'https://steamcommunity.com/sharedfiles/filedetails/?id=3735813803',
   ocbt15: 'https://steamcommunity.com/sharedfiles/filedetails/?id=3264205573',
+  ocbt5: 'https://steamcommunity.com/sharedfiles/filedetails/?id=3264205573',
+  ocbt1: 'https://steamcommunity.com/sharedfiles/filedetails/?id=3264205573',
   balt26: 'https://steamcommunity.com/sharedfiles/filedetails/?id=3686670558',
   outofthebox40: 'https://steamcommunity.com/sharedfiles/filedetails/?id=3746481178'
 }
@@ -128,7 +130,7 @@ const getQueueTitle = (queueMode) => {
   if (queueMode.id === 's30') return 'S3O Layers'
   if (queueMode.id === 'rivals36') return 'Rivals Layers'
   if (queueMode.id === 'osi40') return 'Offworld Squad Invitational Layers'
-  if (queueMode.id === 'ocbt15') return 'Open Clan Battle Layers'
+  if (queueMode.id === 'ocbt15' || queueMode.id === 'ocbt5' || queueMode.id === 'ocbt1') return 'Open Clan Battle Layers'
   if (queueMode.id === 'balt26') return 'Squad Balt Layers'
   if (queueMode.id === 'outofthebox40') return 'Out of The Box Layers'
   if (isSecQueueMode(queueMode.id)) return 'Squad Esports Cup Layers'
@@ -684,6 +686,48 @@ const handleSecJoin = () => {
 
   .sec-option-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .queue-board {
+    padding-block: 0;
+  }
+
+  .queue-grid {
+    gap: 14px;
+  }
+
+  .queue-card {
+    min-height: 0;
+  }
+
+  .queue-card.no-dev-tools-card {
+    height: auto;
+  }
+
+  .queue-card-body {
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .queue-card-top {
+    min-height: 42px;
+  }
+
+  .queue-card-top strong,
+  .queue-title-link {
+    font-size: 1.05rem;
+  }
+
+  .sec-mini-meter-grid,
+  .sec-option-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .queue-dev-actions button,
+  .sec-dev-actions button {
+    flex-basis: 100%;
   }
 }
 

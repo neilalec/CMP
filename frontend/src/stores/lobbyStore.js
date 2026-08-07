@@ -45,7 +45,7 @@ export const useLobbyStore = defineStore('lobby', {
       try {
         if (data.lobby_id) {
           this.lobbyId = data.lobby_id;
-          if (data.players?.length > 0) {
+          if (data.players?.length > 0 && !data.is_spectator) {
             setCurrentLobbyId(data.lobby_id);
           }
         }
@@ -91,6 +91,8 @@ export const useLobbyStore = defineStore('lobby', {
         assignFirstDefined(this, 'liveRollReadyAt', data, ['live_roll_ready_at']);
         assignFirstDefined(this, 'liveRollCountdown', data, ['live_roll_countdown']);
         assignFirstDefined(this, 'announcement', data, ['announcement']);
+        assignFirstDefined(this, 'isSpectator', data, ['is_spectator', 'isSpectator'], Boolean);
+        assignFirstDefined(this, 'adminLiveReadyOverride', data, ['admin_live_ready_override', 'adminLiveReadyOverride'], Boolean);
         this.applyLobbyPhase(data.step);
         if (data.countdown !== undefined) {
           this.countdown = data.countdown;

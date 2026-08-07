@@ -61,10 +61,18 @@ const props = defineProps({
   isDev: {
     type: Boolean,
     default: false
+  },
+  isSpectator: {
+    type: Boolean,
+    default: false
+  },
+  adminLiveReadyOverride: {
+    type: Boolean,
+    default: false
   }
 })
 
-defineEmits(['pause', 'skip', 'prev', 'delete'])
+defineEmits(['pause', 'skip', 'prev', 'delete', 'force-live-ready'])
 
 const showCountdownTitle = computed(() => props.activeCountdown !== null)
 
@@ -120,6 +128,7 @@ const statusSentence = computed(() => {
           {{ phaseTitle }}
         </p>
         <div v-if="canAdmin" class="admin-phase-controls" aria-label="Lobby admin controls">
+          <span v-if="isSpectator" class="spectator-pill">Spectating</span>
           <div class="admin-phase-buttons">
             <button
               v-if="showPauseButton"
@@ -134,6 +143,15 @@ const statusSentence = computed(() => {
             </button>
             <button class="phase-admin-button" type="button" @click="$emit('skip')">
               Forward
+            </button>
+            <button
+              v-if="step === 2 || step === 3"
+              class="phase-admin-button"
+              type="button"
+              :disabled="adminLiveReadyOverride"
+              @click="$emit('force-live-ready')"
+            >
+              {{ adminLiveReadyOverride ? 'Forced Ready' : 'Force Live' }}
             </button>
           </div>
           <button class="delete-lobby-button" type="button" @click="$emit('delete')">
@@ -240,6 +258,20 @@ const statusSentence = computed(() => {
   gap: 6px;
 }
 
+.spectator-pill {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: 0.76rem;
+  font-weight: 900;
+}
+
 .phase-admin-button,
 .delete-lobby-button {
   min-height: 32px;
@@ -266,7 +298,18 @@ const statusSentence = computed(() => {
   transform: translateY(-1px);
 }
 
+.phase-admin-button:disabled {
+  background: var(--control-bg-active);
+  color: var(--text-muted);
+  cursor: not-allowed;
+  transform: none;
+}
+
 @media (max-width: 640px) {
+  .lobby-header {
+    padding: 10px 8px 0;
+  }
+
   .phase-title-row {
     grid-template-columns: 1fr;
     justify-items: center;
@@ -280,6 +323,29 @@ const statusSentence = computed(() => {
   .admin-phase-controls {
     justify-self: center;
     width: min(100%, 260px);
+  }
+
+  .countdown-slot {
+    min-height: 72px;
+  }
+
+  .lobby-announcement {
+    margin-top: 1rem;
+  }
+}
+
+@media (max-width: 420px) {
+  .phase-title {
+    margin-top: 0.6rem;
+    font-size: 0.84rem;
+  }
+
+  .phase-title.is-map-selected,
+  .phase-title.is-force-roll,
+  .phase-title.is-live,
+  .phase-title.is-scoreboard {
+    padding: 0.58rem 0.7rem;
+    font-size: 1.08rem;
   }
 }
 </style>

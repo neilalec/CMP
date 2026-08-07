@@ -10,6 +10,7 @@ from .group import (
     handle_group_join_event,
     handle_group_leave_event,
     handle_group_queue_event,
+    handle_group_seed_event,
     handle_group_status_event,
     handle_group_unqueue_event,
 )
@@ -32,6 +33,7 @@ __all__ = [
     'handle_group_join_event',
     'handle_group_leave_event',
     'handle_group_queue_event',
+    'handle_group_seed_event',
     'handle_group_status_event',
     'handle_group_unqueue_event',
     'handle_join_queue_event',

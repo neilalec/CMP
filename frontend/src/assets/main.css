@@ -1085,7 +1085,22 @@ html.dark-mode :where(
 
 @media (max-width: 640px) {
   .content-panel {
-    padding: 12px;
+    padding: 10px;
+  }
+
+  .page-shell {
+    margin-top: 6px;
+  }
+
+  .window-titlebar {
+    min-height: 34px;
+    gap: 8px;
+    padding: 7px 9px 6px;
+    font-size: 0.78rem;
+  }
+
+  .window-titlebar-meta {
+    display: none;
   }
 
   .app-brand-title {
@@ -1100,5 +1115,40 @@ html.dark-mode :where(
   .brand-name {
     font-size: 1.48rem;
     line-height: 1.08;
+  }
+
+  .info-row,
+  .data-row {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .data-row strong {
+    text-align: left;
+  }
+
+  .player-row.is-between {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 7px;
+  }
+}
+
+@media (max-width: 420px) {
+  .content-panel {
+    padding: 8px;
+  }
+
+  .brand-name {
+    font-size: 1.22rem;
+  }
+
+  button,
+  input,
+  select,
+  textarea,
+  .button-link {
+    max-width: 100%;
   }
 }

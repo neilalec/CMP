@@ -1,4 +1,10 @@
-from sockets.group import handle_group_create_event, handle_group_join_event, handle_group_leave_event
+from sockets.group import (
+    handle_group_create_event,
+    handle_group_join_event,
+    handle_group_leave_event,
+    handle_group_queue_event,
+    handle_group_seed_event,
+)
 from sockets.lobby import handle_join_lobby_event
 
 
@@ -119,6 +125,153 @@ def test_queued_user_cannot_create_group():
         'message': 'Leave the queue before creating a group',
     }
     assert 'NEW123' not in context['groups']
+
+
+def test_group_queue_rejects_groups_larger_than_team_size():
+    groups = {
+        'DUO123': {
+            'code': 'DUO123',
+            'leader': 'alice',
+            'members': ['alice', 'bob'],
+        },
+        'TEN123': {
+            'code': 'TEN123',
+            'leader': 'p1',
+            'members': [f'p{index}' for index in range(1, 11)],
+        },
+    }
+    user_to_group = {
+        'alice': 'DUO123',
+        'bob': 'DUO123',
+        **{f'p{index}': 'TEN123' for index in range(1, 11)}
+    }
+
+    def queue_group(username, queue_mode):
+        return handle_group_queue_event(
+            {'username': username, 'queueMode': queue_mode},
+            logger=DummyLogger(),
+            group_lock=DummyLock(),
+            get_user_group=lambda member: user_to_group.get(member),
+            groups=groups,
+            queue_lock=DummyLock(),
+            matchmaking_queue={'ocbt1': [], 'ocbt5': []},
+            queue_modes={
+                'ocbt1': {'team_size': 1, 'max_players': 2},
+                'ocbt5': {'team_size': 5, 'max_players': 10},
+            },
+            user_has_steam_id=lambda member: True,
+            is_user_in_any_lobby=lambda member: False,
+            upsert_player_activity=lambda *args, **kwargs: None,
+            save_queue=lambda: None,
+            broadcast_queue_update=lambda: None,
+            check_queue_and_start_countdown=lambda: None,
+            build_queue_payload=lambda **kwargs: {'success': True},
+            has_available_server_capacity=lambda *args, **kwargs: True,
+            lobbies={},
+            pending_match={},
+        )
+
+    assert queue_group('alice', 'ocbt1') == {
+        'success': False,
+        'message': 'Group is too large to stay on one team',
+    }
+    assert queue_group('p1', 'ocbt5') == {
+        'success': False,
+        'message': 'Group is too large to stay on one team',
+    }
+
+
+def test_admin_can_seed_current_group_with_custom_bot_count():
+    context = build_group_context()
+    users = {'alice': {'steam_id': '76561198000000001'}}
+    saved_users = []
+    activity = []
+
+    response = handle_group_seed_event(
+        {'count': 3},
+        request=DummyRequest(),
+        logger=DummyLogger(),
+        group_lock=context['group_lock'],
+        get_user_group=lambda username: context['user_to_group'].get(username),
+        queue_lock=context['queue_lock'],
+        matchmaking_queue=context['matchmaking_queue'],
+        is_user_in_any_lobby=lambda username: False,
+        groups=context['groups'],
+        user_to_group=context['user_to_group'],
+        users=users,
+        save_users=lambda: saved_users.append(True),
+        hash_password=lambda password: f'hashed:{password}',
+        upsert_player_activity=lambda username, **kwargs: activity.append((username, kwargs)),
+        get_group_payload=context['get_group_payload'],
+        broadcast_group_update=context['broadcast_group_update'],
+        get_username_by_sid=lambda sid: 'alice',
+        is_admin_user=lambda username: username == 'alice',
+        max_group_members=5,
+    )
+
+    assert response['success'] is True
+    assert len(response['seeded']) == 3
+    assert context['groups']['ABC123']['members'][0] == 'alice'
+    assert len(context['groups']['ABC123']['members']) == 4
+    assert saved_users == [True]
+    assert len(activity) == 3
+    for seed_username in response['seeded']:
+        assert seed_username in users
+        assert users[seed_username]['password'] == 'hashed:seed-player-dev-password'
+        assert context['user_to_group'][seed_username] == 'ABC123'
+
+
+def test_group_seed_is_admin_only_and_capped_to_max_group_members():
+    context = build_group_context()
+
+    denied = handle_group_seed_event(
+        {'count': 1},
+        request=DummyRequest(),
+        logger=DummyLogger(),
+        group_lock=context['group_lock'],
+        get_user_group=lambda username: context['user_to_group'].get(username),
+        queue_lock=context['queue_lock'],
+        matchmaking_queue=context['matchmaking_queue'],
+        is_user_in_any_lobby=lambda username: False,
+        groups=context['groups'],
+        user_to_group=context['user_to_group'],
+        users={},
+        save_users=lambda: None,
+        hash_password=lambda password: password,
+        upsert_player_activity=lambda *args, **kwargs: None,
+        get_group_payload=context['get_group_payload'],
+        broadcast_group_update=context['broadcast_group_update'],
+        get_username_by_sid=lambda sid: 'alice',
+        is_admin_user=lambda username: False,
+        max_group_members=5,
+    )
+
+    capped = handle_group_seed_event(
+        {'count': 12},
+        request=DummyRequest(),
+        logger=DummyLogger(),
+        group_lock=context['group_lock'],
+        get_user_group=lambda username: context['user_to_group'].get(username),
+        queue_lock=context['queue_lock'],
+        matchmaking_queue=context['matchmaking_queue'],
+        is_user_in_any_lobby=lambda username: False,
+        groups=context['groups'],
+        user_to_group=context['user_to_group'],
+        users={'alice': {}},
+        save_users=lambda: None,
+        hash_password=lambda password: password,
+        upsert_player_activity=lambda *args, **kwargs: None,
+        get_group_payload=context['get_group_payload'],
+        broadcast_group_update=context['broadcast_group_update'],
+        get_username_by_sid=lambda sid: 'alice',
+        is_admin_user=lambda username: True,
+        max_group_members=3,
+    )
+
+    assert denied == {'success': False, 'message': 'Admin only'}
+    assert capped['success'] is True
+    assert len(capped['seeded']) == 2
+    assert len(context['groups']['ABC123']['members']) == 3
 
 
 def test_queued_user_cannot_join_group():

@@ -245,7 +245,23 @@ export function useLobbyView() {
     window.location.href = joinUrl;
   };
 
+  const syncLobbyData = async (lobbyId = lobbyStore.lobbyId || route.params.lobbyId) => {
+    if (!lobbyId) return null;
+    const response = await socketStore.emit(SOCKET_EVENTS.LOBBY.GET_DATA, { lobby_id: lobbyId });
+    if (response?.success && response.data) {
+      lobbyStore.updateLobbyState(response.data);
+      if (response.data.live_roll_ready_at || lobbyStore.liveRollReadyAt) {
+        startLiveRollTimer();
+      }
+      if (response.data.step && response.data.step !== 3) {
+        stopLiveRollTimer();
+      }
+    }
+    return response;
+  };
+
   const handleVoteMap = async (map) => {
+    if (lobbyStore.isSpectator) return;
     try {
       await socketStore.emit(SOCKET_EVENTS.LOBBY.VOTE_MAP, {
         lobby_id: lobbyStore.lobbyId,
@@ -262,6 +278,23 @@ export function useLobbyView() {
   };
 
   const handleLeaveLobby = async () => {
+    if (lobbyStore.isSpectator) {
+      try {
+        const lobbyId = lobbyStore.lobbyId || route.params.lobbyId;
+        if (lobbyId) {
+          await socketStore.emit(SOCKET_EVENTS.LOBBY.LEAVE, {
+            lobby_id: lobbyId,
+            username: authStore.username
+          });
+        }
+      } catch (error) {
+        // Spectator leave is best-effort; leaving the page removes local listeners.
+      }
+      lobbyStore.leaveLobby();
+      router.push('/lobbies');
+      return;
+    }
+
     const leaveGroupToo = !!groupStore.inGroup;
     const confirmed = window.confirm(
       leaveGroupToo ? 'Leave lobby and group?' : 'Leave lobby?'
@@ -331,11 +364,17 @@ export function useLobbyView() {
 
   const skipPhase = async () => {
     try {
+      const lobbyId = lobbyStore.lobbyId || route.params.lobbyId;
       const response = await socketStore.emit(SOCKET_EVENTS.LOBBY.SKIP_PHASE, {
-        lobby_id: lobbyStore.lobbyId
+        lobby_id: lobbyId
       });
       if (!response?.success) {
         throw new Error(response?.message || 'Failed to skip phase');
+      }
+      if (response.data) {
+        lobbyStore.updateLobbyState(response.data);
+      } else {
+        await syncLobbyData(lobbyId);
       }
     } catch (error) {
       rootStore.setError({
@@ -348,11 +387,17 @@ export function useLobbyView() {
 
   const prevPhase = async () => {
     try {
+      const lobbyId = lobbyStore.lobbyId || route.params.lobbyId;
       const response = await socketStore.emit(SOCKET_EVENTS.LOBBY.PREV_PHASE, {
-        lobby_id: lobbyStore.lobbyId
+        lobby_id: lobbyId
       });
       if (!response?.success) {
         throw new Error(response?.message || 'Failed to go back a phase');
+      }
+      if (response.data) {
+        lobbyStore.updateLobbyState(response.data);
+      } else {
+        await syncLobbyData(lobbyId);
       }
     } catch (error) {
       rootStore.setError({
@@ -382,6 +427,54 @@ export function useLobbyView() {
         message: 'Failed to delete lobby',
         details: error.message,
         context: 'lobby-delete'
+      });
+    }
+  };
+
+  const forceLiveReady = async () => {
+    try {
+      const lobbyId = lobbyStore.lobbyId || route.params.lobbyId;
+      const emitForceLiveReady = (forceLobbyReady = false) => socketStore.emit(SOCKET_EVENTS.LOBBY.FORCE_LIVE_READY, {
+        lobby_id: lobbyId,
+        force_lobby_ready: forceLobbyReady
+      });
+      const confirmForceLobbyReady = async () => {
+        const confirmed = window.confirm('Force lobby as ready?');
+        if (!confirmed) return false;
+
+        return true;
+      };
+
+      if (lobbyStore.step !== 3) {
+        const wasForcedReady = await confirmForceLobbyReady();
+        if (!wasForcedReady) return;
+      }
+
+      const response = await emitForceLiveReady(lobbyStore.step !== 3);
+      if (!response?.success) {
+        const wasForcedReady = await confirmForceLobbyReady();
+        if (!wasForcedReady) return;
+        const retryResponse = await emitForceLiveReady(true);
+        if (retryResponse?.success) {
+          if (retryResponse.data) {
+            lobbyStore.updateLobbyState(retryResponse.data);
+          } else {
+            await syncLobbyData(lobbyId);
+          }
+          return;
+        }
+        throw new Error(retryResponse?.message || response?.message || 'Failed to mark lobby ready');
+      }
+      if (response.data) {
+        lobbyStore.updateLobbyState(response.data);
+      } else {
+        await syncLobbyData(lobbyId);
+      }
+    } catch (error) {
+      rootStore.setError({
+        message: 'Failed to force live readiness',
+        details: error.message,
+        context: 'lobby-force-live-ready'
       });
     }
   };
@@ -493,11 +586,29 @@ export function useLobbyView() {
         // ignore
       }
 
-      const joinResponse = await socketStore.emit(SOCKET_EVENTS.LOBBY.JOIN, {
-        lobby_id: lobbyId,
-        username: authStore.username,
-        rejoin: true
-      });
+      try {
+        await authStore.syncProfile();
+      } catch (error) {
+        // ignore profile sync failures; the join response will still enforce access.
+      }
+
+      const wantsSpectator = route.query.spectate === '1';
+      let joinResponse = await socketStore.emit(
+        wantsSpectator ? SOCKET_EVENTS.LOBBY.SPECTATE : SOCKET_EVENTS.LOBBY.JOIN,
+        wantsSpectator
+          ? { lobby_id: lobbyId }
+          : {
+              lobby_id: lobbyId,
+              username: authStore.username,
+              rejoin: true
+            }
+      );
+
+      if (!joinResponse?.success && authStore.isAdmin && !wantsSpectator) {
+        joinResponse = await socketStore.emit(SOCKET_EVENTS.LOBBY.SPECTATE, {
+          lobby_id: lobbyId
+        });
+      }
 
       if (joinResponse?.success) {
         lobbyStore.updateLobbyState(joinResponse.data);
@@ -544,6 +655,7 @@ export function useLobbyView() {
     getConnectionLabel,
     getPlayerDisplayName,
     getTeamLabel,
+    forceLiveReady,
     groupedTeam1,
     groupedTeam2,
     handleLeaveLobby,
@@ -565,8 +677,7 @@ export function useLobbyView() {
     serverConnectedCount,
     skipPhase,
     toggleCountdownPause,
-    prevPhase
-    ,
+    prevPhase,
     deleteLobby
   };
 }

@@ -38,6 +38,7 @@ export const SOCKET_EVENTS = {
   LOBBY: {
     CREATED: 'lobby_created',
     JOIN: 'join-lobby',
+    SPECTATE: 'spectate-lobby',
     LEAVE: 'leave-lobby',
     DELETE: 'delete-lobby',
     UPDATE: 'lobby_update',
@@ -51,6 +52,7 @@ export const SOCKET_EVENTS = {
     READY: 'lobby_ready',
     SKIP_PHASE: 'skip-phase',
     PREV_PHASE: 'prev-phase',
+    FORCE_LIVE_READY: 'force-live-ready',
     COUNTDOWN: {
       VOTING: 'lobby_countdown_voting'
     },
@@ -73,6 +75,7 @@ export const SOCKET_EVENTS = {
     KICK: 'group_kick',
     LEAVE: 'group_leave',
     TRANSFER: 'group_transfer',
+    SEED: 'group_seed',
     STATUS: 'group_status',
     UPDATE: 'group_update',
     QUEUE: 'group_queue',

@@ -20,7 +20,7 @@ export function useHomeView() {
   const loading = ref(false);
   let isDisposed = false;
   const isDev = import.meta.env.DEV;
-  const queueDisplayOrder = ['ocbt15', 'outofthebox40', 'sec26', 'sec36', 'sec46'];
+  const queueDisplayOrder = ['ocbt15', 'ocbt5', 'ocbt1', 'outofthebox40', 'sec26', 'sec36', 'sec46'];
   const canManageQueueTools = computed(() => !!authStore.isAdmin);
   const queueModes = computed(() => (
     queueDisplayOrder
@@ -155,6 +155,14 @@ export function useHomeView() {
     }
   };
 
+  const spectateLobby = (lobbyId) => {
+    if (!authStore.isAdmin || !lobbyId) {
+      rootStore.setError('Admin access required.');
+      return;
+    }
+    router.push(`/lobby/${lobbyId}?spectate=1`);
+  };
+
   const leaveQueue = async (queueMode = null) => {
     if (isInGroup.value && !isGroupLeader.value) {
       rootStore.setError('Only the group leader can leave the queue. Leave the group to exit.');
@@ -271,6 +279,7 @@ export function useHomeView() {
     serverAvailable,
     serverAvailabilityReason,
     seedQueue,
+    spectateLobby,
     queueStore
   };
 }

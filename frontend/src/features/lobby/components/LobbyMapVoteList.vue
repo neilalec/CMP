@@ -15,6 +15,10 @@ defineProps({
   votedCount: {
     type: Number,
     default: 0
+  },
+  disabled: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -33,6 +37,7 @@ defineEmits(['vote'])
         :key="map"
         @click="$emit('vote', map)"
         :class="['map-button', { 'is-selected-control': selectedMap === map }]"
+        :disabled="disabled"
         type="button"
       >
         <span>{{ map }}</span>

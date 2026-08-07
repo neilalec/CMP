@@ -159,6 +159,7 @@ from sockets.group import (
     handle_group_kick_event,
     handle_group_leave_event,
     handle_group_queue_event,
+    handle_group_seed_event,
     handle_group_status_event,
     handle_group_transfer_event,
     handle_group_unqueue_event,
@@ -166,6 +167,7 @@ from sockets.group import (
 from sockets.lobby import (
     handle_countdown_status_event,
     handle_delete_lobby_event,
+    handle_force_live_ready_event,
     handle_get_lobby_data_event,
     handle_join_lobby_event,
     handle_leave_lobby_event,
@@ -342,6 +344,7 @@ SOCKET_EVENTS =  {
     'LOBBY': {
         'CREATED': 'lobby_created',
         'JOIN': 'join-lobby',
+        'SPECTATE': 'spectate-lobby',
         'LEAVE': 'leave-lobby',
         'DELETE': 'delete-lobby',
         'UPDATE': 'lobby_update',
@@ -357,6 +360,7 @@ SOCKET_EVENTS =  {
         },
         'SKIP_PHASE': 'skip-phase',
         'PREV_PHASE': 'prev-phase',
+        'FORCE_LIVE_READY': 'force-live-ready',
     },
 
     'COUNTDOWN': {
@@ -376,6 +380,7 @@ SOCKET_EVENTS =  {
         'KICK': 'group_kick',
         'LEAVE': 'group_leave',
         'TRANSFER': 'group_transfer',
+        'SEED': 'group_seed',
         'STATUS': 'group_status',
         'UPDATE': 'group_update',
         'QUEUE': 'group_queue',
@@ -637,6 +642,7 @@ APP_PUBLIC_EXPORTS = (
     'handle_connect_event',
     'handle_countdown_status_event',
     'handle_delete_lobby_event',
+    'handle_force_live_ready_event',
     'handle_disconnect_event',
     'handle_get_lobby_data_event',
     'handle_group_create_event',
@@ -644,6 +650,7 @@ APP_PUBLIC_EXPORTS = (
     'handle_group_kick_event',
     'handle_group_leave_event',
     'handle_group_queue_event',
+    'handle_group_seed_event',
     'handle_group_status_event',
     'handle_group_transfer_event',
     'handle_group_unqueue_event',

@@ -776,22 +776,7 @@ def start_live_roll_monitor(
                 ready_grace_seconds=ready_grace_seconds
             )
             current_lobby['live_roll_countdown'] = int(readiness['remainingGraceSeconds'])
-            connected_usernames = set(presence.get('connected', []))
-            normalized_connected = {
-                str(connected_username or '').strip().lower()
-                for connected_username in connected_usernames
-            }
-            connected_steam_ids = {
-                str(steam_id or '').strip()
-                for steam_id in (presence.get('connectedSteamIds') or [])
-            }
-            ready_override = has_live_roll_ready_override(
-                enabled=dev_mode or ready_override_enabled,
-                connected_usernames=normalized_connected,
-                connected_steam_ids=connected_steam_ids,
-                override_username=dev_override_username,
-                override_steam_id=dev_override_steam_id
-            )
+            ready_override = bool(current_lobby.get('live_roll_admin_ready_override'))
 
             mismatched_players = [
                 row for row in (presence.get('players') or [])

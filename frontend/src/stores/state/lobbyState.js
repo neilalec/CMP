@@ -35,5 +35,7 @@ export const createDefaultLobbyState = () => ({
   liveMatchMaxSeconds: null,
   liveRollReadyAt: null,
   liveRollCountdown: null,
-  announcement: null
+  announcement: null,
+  isSpectator: false,
+  adminLiveReadyOverride: false
 })

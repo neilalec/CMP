@@ -10,6 +10,7 @@ export function useGroupView() {
   const queueStore = useQueueStore();
   const rootStore = useRootStore();
   const joinCode = ref('');
+  const seedCount = ref(1);
   const isGroupLeader = computed(() => (
     !!authStore.username
     && !!groupStore.leader
@@ -98,6 +99,20 @@ export function useGroupView() {
     }
   };
 
+  const handleSeedGroup = async () => {
+    const count = Number(seedCount.value);
+    if (!Number.isFinite(count) || count < 1) {
+      rootStore.setError('Enter a valid bot count.');
+      return;
+    }
+
+    try {
+      await groupStore.seedGroup(Math.floor(count));
+    } catch (error) {
+      rootStore.setError(error.message || 'Failed to seed group');
+    }
+  };
+
   return {
     authStore,
     groupStore,
@@ -105,9 +120,11 @@ export function useGroupView() {
     handleJoin,
     handleKickMember,
     handleLeave,
+    handleSeedGroup,
     handleTransferOwnership,
     getMemberDisplayName,
     isGroupLeader,
-    joinCode
+    joinCode,
+    seedCount
   };
 }

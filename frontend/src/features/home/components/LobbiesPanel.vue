@@ -26,7 +26,7 @@ defineProps({
   }
 })
 
-const emit = defineEmits(['join-lobby', 'delete-lobby'])
+const emit = defineEmits(['join-lobby', 'spectate-lobby', 'delete-lobby'])
 </script>
 
 <template>
@@ -49,6 +49,13 @@ const emit = defineEmits(['join-lobby', 'delete-lobby'])
                 <span class="info-row-meta">{{ lobby.players.length }}/{{ lobby.max_players }}</span>
               </div>
               <div class="open-lobby-actions">
+                <button
+                  v-if="isAdmin"
+                  @click="emit('spectate-lobby', lobby.lobby_id)"
+                  :disabled="loading"
+                >
+                  Spectate
+                </button>
                 <button
                   v-if="isAdmin"
                   class="delete-button"
@@ -87,6 +94,12 @@ const emit = defineEmits(['join-lobby', 'delete-lobby'])
                 <span class="info-row-meta">{{ lobby.players.length }}/{{ lobby.max_players }}</span>
               </div>
               <div v-if="isAdmin" class="open-lobby-actions">
+                <button
+                  @click="emit('spectate-lobby', lobby.lobby_id)"
+                  :disabled="loading"
+                >
+                  Spectate
+                </button>
                 <button
                   class="delete-button"
                   @click="emit('delete-lobby', lobby.lobby_id)"

@@ -205,6 +205,10 @@ const {
     flex-direction: column;
   }
 
+  .display-name-control {
+    grid-template-columns: 1fr;
+  }
+
   .profile-actions button {
     width: 100%;
   }

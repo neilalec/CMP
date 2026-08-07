@@ -10,7 +10,7 @@ import app_core
 from app_state import QUEUE_MODES
 
 
-DEFAULT_QUEUE_MODES = ('balt26', 'ocbt15', 'sec26', 'sec36', 'sec46')
+DEFAULT_QUEUE_MODES = ('balt26', 'ocbt15', 'ocbt5', 'ocbt1', 'sec26', 'sec36', 'sec46')
 
 
 def layer_snapshot(server_id=None):

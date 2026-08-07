@@ -57,12 +57,13 @@ def _generate_seed_group_code(groups):
         suffix += 1
 
 
-def _build_seed_group_sizes(seed_count):
+def _build_seed_group_sizes(seed_count, max_group_size=5):
+    max_group_size = max(1, int(max_group_size or 1))
     sizes = []
     remaining = seed_count
     while remaining > 0:
-        if remaining >= 2 and random.random() < 0.58:
-            size = random.randint(2, min(5, remaining))
+        if max_group_size >= 2 and remaining >= 2 and random.random() < 0.58:
+            size = random.randint(2, min(max_group_size, remaining))
             if remaining - size == 1 and size > 2:
                 size -= 1
             sizes.append(size)
@@ -320,7 +321,7 @@ def handle_seed_queue_event(
             queue = get_queue_for_mode(matchmaking_queue, queue_mode)
             available_slots = max(0, queue_config['max_players'] - len(queue))
             seed_count = min(requested_count, available_slots)
-            group_sizes = _build_seed_group_sizes(seed_count)
+            group_sizes = _build_seed_group_sizes(seed_count, queue_config.get('team_size', 1))
             seed_password_hash = hash_password('seed-player-dev-password') if seed_count else ''
 
             for _index in range(1, seed_count + 1):

@@ -111,12 +111,14 @@ def _socket_backend_api():
         handle_countdown_status_event=backend_app.handle_countdown_status_event,
         handle_delete_lobby_event=backend_app.handle_delete_lobby_event,
         handle_disconnect_event=backend_app.handle_disconnect_event,
+        handle_force_live_ready_event=backend_app.handle_force_live_ready_event,
         handle_get_lobby_data_event=backend_app.handle_get_lobby_data_event,
         handle_group_create_event=backend_app.handle_group_create_event,
         handle_group_join_event=backend_app.handle_group_join_event,
         handle_group_kick_event=backend_app.handle_group_kick_event,
         handle_group_leave_event=backend_app.handle_group_leave_event,
         handle_group_queue_event=backend_app.handle_group_queue_event,
+        handle_group_seed_event=backend_app.handle_group_seed_event,
         handle_group_status_event=backend_app.handle_group_status_event,
         handle_group_transfer_event=backend_app.handle_group_transfer_event,
         handle_group_unqueue_event=backend_app.handle_group_unqueue_event,
@@ -169,7 +171,17 @@ def _socket_backend_api():
 
 def _with_socket_backend(handler):
     def wrapped(*args, **kwargs):
-        return handler(_socket_backend_api(), *args, **kwargs)
+        backend = _socket_backend_api()
+        try:
+            return handler(backend, *args, **kwargs)
+        except Exception as exc:
+            backend.logger.error(
+                'Socket handler %s failed before completing: %s',
+                getattr(handler, '__name__', 'unknown'),
+                exc,
+                exc_info=True
+            )
+            return {'success': False, 'message': f"{getattr(handler, '__name__', 'Socket handler')} failed"}
 
     return wrapped
 
@@ -971,6 +983,35 @@ def register_socket_routes(socketio):
             get_group_payload=backend.get_group_payload
         )
 
+    @socketio.on(_socket_backend_api().SOCKET_EVENTS['GROUP']['SEED'])
+    @_socket_backend_api().handle_socket_data
+    @_with_socket_backend
+    def handle_group_seed(backend, data=None):
+        return backend.handle_group_seed_event(
+            data,
+            request=request,
+            logger=backend.logger,
+            group_lock=backend.group_lock,
+            get_user_group=backend.get_user_group,
+            queue_lock=backend.queue_lock,
+            matchmaking_queue=backend.matchmaking_queue,
+            is_user_in_any_lobby=backend.is_user_in_any_lobby,
+            groups=backend.groups,
+            user_to_group=backend.user_to_group,
+            users=backend.users,
+            save_users=backend.save_users,
+            hash_password=backend.hash_password,
+            upsert_player_activity=backend.upsert_player_activity,
+            get_group_payload=backend.get_group_payload,
+            broadcast_group_update=backend.broadcast_group_update,
+            get_username_by_sid=backend.get_username_by_sid,
+            is_admin_user=backend.is_admin_user,
+            max_group_members=max(
+                int(config.get('team_size') or 1)
+                for config in backend.QUEUE_MODES.values()
+            )
+        )
+
     @socketio.on(_socket_backend_api().SOCKET_EVENTS['GROUP']['QUEUE'])
     @_socket_backend_api().handle_socket_data
     @_with_socket_backend
@@ -1070,7 +1111,42 @@ def register_socket_routes(socketio):
             broadcast_queue_update=backend.broadcast_queue_update,
             broadcast_open_lobbies_update=backend.broadcast_open_lobbies_update,
             assign_teams=backend.assign_teams,
-            select_captains=backend.select_captains
+            select_captains=backend.select_captains,
+            is_admin_user=backend.is_admin_user
+        )
+
+    @socketio.on(_socket_backend_api().SOCKET_EVENTS['LOBBY']['SPECTATE'])
+    @_socket_backend_api().handle_socket_data
+    @_with_socket_backend
+    def handle_spectate_lobby(backend, data=None):
+        payload = {
+            **(data or {}),
+            'username': backend.get_username_by_sid(request.sid),
+            'spectate': True
+        }
+        return backend.handle_join_lobby_event(
+            payload,
+            request=request,
+            logger=backend.logger,
+            lobbies=backend.lobbies,
+            matchmaking_queue=backend.matchmaking_queue,
+            queue_lock=backend.queue_lock,
+            MAX_LOBBY_PLAYERS=backend.MAX_LOBBY_PLAYERS,
+            get_user_group=backend.get_user_group,
+            groups=backend.groups,
+            user_to_group=backend.user_to_group,
+            save_queue=backend.save_queue,
+            join_room=join_room,
+            upsert_player_activity=backend.upsert_player_activity,
+            get_user_room=backend.get_user_room,
+            get_player_groups=backend.get_player_groups,
+            emit=emit,
+            emit_active_lobby_sync=backend.emit_active_lobby_sync,
+            broadcast_queue_update=backend.broadcast_queue_update,
+            broadcast_open_lobbies_update=backend.broadcast_open_lobbies_update,
+            assign_teams=backend.assign_teams,
+            select_captains=backend.select_captains,
+            is_admin_user=backend.is_admin_user
         )
 
     @socketio.on(_socket_backend_api().SOCKET_EVENTS['LOBBY']['LEAVE'])
@@ -1129,6 +1205,27 @@ def register_socket_routes(socketio):
             data,
             logger=backend.logger,
             build_lobby_server_presence=backend.build_lobby_server_presence
+        )
+
+    @socketio.on(_socket_backend_api().SOCKET_EVENTS['LOBBY']['FORCE_LIVE_READY'])
+    @_socket_backend_api().handle_socket_data
+    @_with_socket_backend
+    def handle_force_live_ready(backend, data=None):
+        return backend.handle_force_live_ready_event(
+            data,
+            request=request,
+            logger=backend.logger,
+            lobbies=backend.lobbies,
+            socketio=socketio,
+            get_username_by_sid=backend.get_username_by_sid,
+            is_admin_user=backend.is_admin_user,
+            select_map_from_votes_fn=backend.select_map_from_votes,
+            start_live_roll_monitor=backend.start_live_roll_monitor,
+            get_server_connection_details=backend.get_server_connection_details,
+            get_selected_map_team_labels=backend.get_selected_map_team_labels,
+            ready_grace_seconds=backend.LIVE_ROLL_READY_GRACE_SECONDS,
+            record_lobby_event=backend.record_lobby_event,
+            save_runtime_state=backend.save_runtime_state
         )
 
     @socketio.on(_socket_backend_api().SOCKET_EVENTS['LOBBY']['VOTE_MAP'])

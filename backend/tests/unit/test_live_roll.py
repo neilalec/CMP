@@ -1,3 +1,5 @@
+import time
+
 from services.live_roll import (
     start_live_roll_monitor,
     round_result_has_layer_data,
@@ -444,6 +446,124 @@ def test_live_roll_ready_override_requires_flag():
         connected_usernames=['neil'],
         override_username='neil'
     ) is False
+
+
+def test_admin_connected_without_button_does_not_force_live_roll(monkeypatch):
+    import services.live_roll as live_roll_module
+
+    class DummySocketIO:
+        def __init__(self):
+            self.emits = []
+
+        def emit(self, event, payload=None, **kwargs):
+            self.emits.append((event, payload, kwargs))
+
+    monkeypatch.setattr(live_roll_module.eventlet, 'spawn', lambda fn, *args, **kwargs: fn(*args, **kwargs))
+
+    lobby_id = 'lobby_admin_connected_without_button'
+    now = time.time()
+    lobbies = {
+        lobby_id: {
+            'players': ['alice'],
+            'teams': {'team1': ['alice'], 'team2': []},
+            'step': 3,
+            'selected_map': 'OCBT_Shchyhliivka_AAS_v3',
+            'server_details_provided_at': now,
+        }
+    }
+    attempts = []
+
+    def stop_after_wait(_seconds):
+        lobbies.pop(lobby_id, None)
+
+    start_live_roll_monitor(
+        lobby_id,
+        lobbies,
+        DummySocketIO(),
+        build_lobby_server_presence=lambda _lobby_id, tolerate_bridge_unavailable=False: {
+            'players': [{'username': 'alice', 'connected': False, 'teamAligned': False}],
+            'connected': [],
+            'connectedSteamIds': ['76561198000000001'],
+            'aligned': [],
+            'mismatched': [],
+            'missing': ['alice'],
+            'unauthorizedPlayers': [],
+        },
+        pause_aware_sleep=stop_after_wait,
+        broadcast_server_message=lambda _message: {'ok': True},
+        change_server_to_selected_map=lambda selected_map: attempts.append(selected_map),
+        set_next_server_map=lambda _selected_map: {'ok': True},
+        force_player_to_expected_team=lambda _steam_id: {'ok': True},
+        get_server_layer_status=lambda _selected_map: {'currentMatches': False},
+        get_server_connection_details=lambda: {},
+        fetch_latest_round_result=lambda: None,
+        record_lobby_event=lambda *_args, **_kwargs: None,
+        save_completed_match=lambda *_args, **_kwargs: None,
+        dev_mode=True,
+        ready_override_enabled=True,
+        dev_override_steam_id='76561198000000001',
+        dev_override_username='neil',
+    )
+
+    assert attempts == []
+
+
+def test_admin_force_live_button_rolls_without_admin_server_presence(monkeypatch):
+    import services.live_roll as live_roll_module
+
+    class DummySocketIO:
+        def __init__(self):
+            self.emits = []
+
+        def emit(self, event, payload=None, **kwargs):
+            self.emits.append((event, payload, kwargs))
+
+    monkeypatch.setattr(live_roll_module.eventlet, 'spawn', lambda fn, *args, **kwargs: fn(*args, **kwargs))
+
+    lobby_id = 'lobby_admin_force_ready'
+    now = time.time()
+    lobbies = {
+        lobby_id: {
+            'players': ['alice'],
+            'teams': {'team1': ['alice'], 'team2': []},
+            'step': 3,
+            'selected_map': 'OCBT_Shchyhliivka_AAS_v3',
+            'server_details_provided_at': now,
+            'live_roll_admin_ready_override': True,
+        }
+    }
+    attempts = []
+
+    def stop_after_attempt(_seconds):
+        if attempts:
+            lobbies.pop(lobby_id, None)
+
+    start_live_roll_monitor(
+        lobby_id,
+        lobbies,
+        DummySocketIO(),
+        build_lobby_server_presence=lambda _lobby_id, tolerate_bridge_unavailable=False: {
+            'players': [{'username': 'alice', 'connected': False, 'teamAligned': False}],
+            'connected': [],
+            'connectedSteamIds': [],
+            'aligned': [],
+            'mismatched': [],
+            'missing': ['alice'],
+            'unauthorizedPlayers': [],
+        },
+        pause_aware_sleep=stop_after_attempt,
+        broadcast_server_message=lambda _message: {'ok': True},
+        change_server_to_selected_map=lambda selected_map: attempts.append(selected_map),
+        set_next_server_map=lambda _selected_map: {'ok': True},
+        force_player_to_expected_team=lambda _steam_id: {'ok': True},
+        get_server_layer_status=lambda _selected_map: {'currentMatches': False},
+        get_server_connection_details=lambda: {},
+        fetch_latest_round_result=lambda: None,
+        record_lobby_event=lambda *_args, **_kwargs: None,
+        save_completed_match=lambda *_args, **_kwargs: None,
+    )
+
+    assert attempts == ['OCBT_Shchyhliivka_AAS_v3']
 
 
 def test_round_result_matches_selected_map_from_winner_layer():

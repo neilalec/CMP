@@ -466,6 +466,16 @@ def select_captains(teams):
     return {'team1': None, 'team2': None}
 
 
+def team_assignment_matches_queue_format(teams, queue_config):
+    team_size = int((queue_config or {}).get('team_size') or 0)
+    if team_size <= 0:
+        return False
+    return (
+        len((teams or {}).get('team1') or []) == team_size
+        and len((teams or {}).get('team2') or []) == team_size
+    )
+
+
 def create_lobby(players_override=None, queue_mode=None):
     app = _app()
     resolved_queue_mode = queue_mode
@@ -494,6 +504,14 @@ def create_lobby(players_override=None, queue_mode=None):
             (app.pending_match.get(queue_config['id']) or {}).get('id')
         )
         teams = assign_teams(players)
+        if not team_assignment_matches_queue_format(teams, queue_config):
+            app.logger.warning(
+                "Refusing to create lobby for mode=%s because team assignment is invalid: team1=%s team2=%s",
+                queue_config['id'],
+                teams.get('team1', []),
+                teams.get('team2', [])
+            )
+            return False
         captains = select_captains(teams)
         map_pool = build_lobby_map_pool(queue_config)
         lobby_id = f"lobby_{int(time.time())}"

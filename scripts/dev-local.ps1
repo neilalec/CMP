@@ -14,6 +14,11 @@ function Start-CmpJob($name, $workingDirectory, $scriptBlock) {
     Start-Job -Name $name -ArgumentList $workingDirectory -ScriptBlock $scriptBlock
 }
 
+function Test-PortAvailable($port) {
+    $listener = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
+    return -not $listener
+}
+
 if (-not (Test-Command "npm")) {
     throw "npm was not found on PATH."
 }
@@ -27,6 +32,10 @@ if (-not $pythonCommand) {
     throw "Neither python nor py was found on PATH."
 }
 
+if (-not (Test-PortAvailable 5173)) {
+    throw "Frontend port 5173 is already in use. Stop the existing Vite process before starting local dev."
+}
+
 $jobs = @()
 
 try {
@@ -34,7 +43,7 @@ try {
         param($workingDirectory)
         Set-Location $workingDirectory
         $env:CMP_DEV_MODE = "1"
-        $env:FRONTEND_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173"
+        $env:FRONTEND_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174"
         $env:BACKEND_PUBLIC_URL = "http://localhost:5000"
         $env:DATABASE_PATH = Join-Path $workingDirectory "app.db"
         $env:SQUADJS_BRIDGE_URL = "http://127.0.0.1:3001"
@@ -44,7 +53,7 @@ try {
     $jobs += Start-CmpJob "frontend" $frontend {
         param($workingDirectory)
         Set-Location $workingDirectory
-        npm run dev
+        npm run dev -- --host 127.0.0.1 --port 5173 --strictPort
     }
 
     $jobs += Start-CmpJob "squadjs" $squadjs {

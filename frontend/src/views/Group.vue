@@ -8,10 +8,12 @@ const {
   handleJoin,
   handleKickMember,
   handleLeave,
+  handleSeedGroup,
   handleTransferOwnership,
   getMemberDisplayName,
   isGroupLeader,
-  joinCode
+  joinCode,
+  seedCount
 } = useGroupView();
 
 </script>
@@ -106,6 +108,26 @@ const {
             <span v-else class="member-role">Member</span>
           </li>
         </ul>
+      </div>
+
+      <div v-if="authStore.isAdmin" class="group-seed-panel">
+        <div class="group-seed-copy">
+          <span class="eyebrow">Admin Seeding</span>
+          <strong>Add Bots</strong>
+        </div>
+        <div class="group-seed-control">
+          <input
+            v-model.number="seedCount"
+            type="number"
+            min="1"
+            step="1"
+            inputmode="numeric"
+            aria-label="Bots to add"
+          />
+          <button type="button" :disabled="groupStore.loading" @click="handleSeedGroup">
+            Add to Group
+          </button>
+        </div>
       </div>
 
       <div class="group-actions action-row">
@@ -268,6 +290,38 @@ const {
   line-height: 1.2;
 }
 
+.group-seed-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px;
+  background: color-mix(in srgb, var(--surface) 82%, var(--app-bg));
+  border: 1px solid var(--surface-border);
+}
+
+.group-seed-copy {
+  display: grid;
+  gap: 2px;
+}
+
+.group-seed-copy strong {
+  color: var(--accent-strong);
+  font-size: 0.96rem;
+}
+
+.group-seed-control {
+  display: grid;
+  grid-template-columns: 74px auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.group-seed-control input {
+  min-width: 0;
+  text-align: center;
+}
+
 .leader-name {
   color: var(--accent-strong);
   font-weight: 700;
@@ -335,9 +389,16 @@ button {
   .group-create-button,
   .group-join-control button,
   .group-join-control input,
+  .group-seed-control button,
+  .group-seed-control input,
   .group-actions button {
     width: 100%;
     justify-self: center;
+  }
+
+  .group-seed-panel,
+  .group-seed-control {
+    grid-template-columns: 1fr;
   }
 
   .member-actions {

@@ -15,6 +15,7 @@ const {
   canDirectConnect,
   connectToServer,
   directConnectToServer,
+  forceLiveReady,
   deleteLobby,
   getConnectionFlagClass,
   getConnectionLabel,
@@ -62,10 +63,13 @@ const {
         :is-countdown-paused="isCountdownPaused"
         :can-admin="canAdminLobby"
         :is-dev="isDev"
+        :is-spectator="lobbyStore.isSpectator"
+        :admin-live-ready-override="lobbyStore.adminLiveReadyOverride"
         @pause="toggleCountdownPause"
         @skip="skipPhase"
         @prev="prevPhase"
         @delete="deleteLobby"
+        @force-live-ready="forceLiveReady"
       />
 
       <div class="lobby-panel">
@@ -94,6 +98,7 @@ const {
                 :selected-map="lobbyStore.mapVotes[authStore.username]"
                 :get-votes-for-map="lobbyStore.getVotesForMap"
                 :voted-count="Object.keys(lobbyStore.mapVotes || {}).length"
+                :disabled="lobbyStore.isSpectator"
                 @vote="handleVoteMap"
               />
             </template>
@@ -161,7 +166,7 @@ const {
         <div v-if="!lobbyStore.loading" class="leave-lobby-card window-panel">
           <div class="leave-lobby-card-body panel-body">
             <button class="leave-lobby-button" type="button" @click="handleLeaveLobby">
-              Leave Lobby
+              {{ lobbyStore.isSpectator ? 'Stop Spectating' : 'Leave Lobby' }}
             </button>
           </div>
         </div>
@@ -263,6 +268,26 @@ const {
   .lobby-panel {
     width: 100%;
     margin-inline: 0;
+  }
+
+  .lobby-section {
+    padding: 12px 8px 16px;
+    --middle-column-width: 100%;
+    --phase-column-gap: 12px;
+  }
+
+  .loading {
+    min-height: 260px;
+  }
+
+  .leave-lobby-button {
+    width: min(100%, 220px);
+  }
+}
+
+@media (max-width: 420px) {
+  .lobby-section {
+    padding-inline: 6px;
   }
 }
 </style>

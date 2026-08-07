@@ -43,7 +43,7 @@ def test_seed_queue_uses_mock_usernames_and_creates_groups():
         hash_password=lambda value: hashed_passwords.append(value) or f'hashed:{value}',
         queue_lock=DummyLock(),
         matchmaking_queue=matchmaking_queue,
-        queue_modes={'skirmish': {'max_players': 12}},
+        queue_modes={'skirmish': {'max_players': 12, 'team_size': 5}},
         upsert_player_activity=lambda username, **kwargs: statuses.__setitem__(username, kwargs.get('status')),
         save_queue=lambda: None,
         build_queue_payload=lambda **kwargs: {'queueMode': kwargs.get('queue_mode')},
@@ -111,6 +111,45 @@ def test_admin_can_seed_queue_without_extra_feature_flag():
     assert response['success'] is True
     assert len(response['seeded']) == 2
     assert matchmaking_queue['skirmish'] == response['seeded']
+
+
+def test_seed_queue_respects_one_player_team_size():
+    users = {}
+    groups = {}
+    user_to_group = {}
+    matchmaking_queue = {'ocbt1': []}
+
+    response = handle_seed_queue_event(
+        {'queueMode': 'ocbt1', 'count': 2},
+        request=DummyRequest(),
+        socket_events={},
+        socketio=None,
+        broadcast_queue_update=lambda: None,
+        logger=DummyLogger(),
+        get_username_by_sid=lambda sid: 'neil',
+        is_admin_user=lambda username: username == 'neil',
+        users=users,
+        save_users=lambda: None,
+        hash_password=lambda value: f'hashed:{value}',
+        queue_lock=DummyLock(),
+        matchmaking_queue=matchmaking_queue,
+        queue_modes={'ocbt1': {'max_players': 2, 'team_size': 1}},
+        upsert_player_activity=lambda username, **kwargs: None,
+        save_queue=lambda: None,
+        build_queue_payload=lambda **kwargs: {'queueMode': kwargs.get('queue_mode')},
+        check_queue_and_start_countdown=lambda: None,
+        get_pending_match=lambda queue_mode: None,
+        finalize_pending_match=lambda match_id: None,
+        group_lock=DummyLock(),
+        groups=groups,
+        user_to_group=user_to_group,
+    )
+
+    assert response['success'] is True
+    assert len(response['seeded']) == 2
+    assert response['seededGroups'] == []
+    assert groups == {}
+    assert user_to_group == {}
 
 
 def test_admin_can_clear_queue_without_extra_feature_flag():

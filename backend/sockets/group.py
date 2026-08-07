@@ -1,6 +1,39 @@
+import random
 import time
 
 from services.queue import find_user_queue_mode, get_queue_for_mode
+
+
+GROUP_SEED_NAME_PREFIXES = [
+    'Alpha', 'Archer', 'Atlas', 'Bandit', 'Blitz', 'Bravo', 'Cinder', 'Comet',
+    'Cross', 'Delta', 'Echo', 'Falcon', 'Frost', 'Ghost', 'Havoc', 'Hunter',
+    'Jester', 'Knight', 'Maverick', 'Nomad', 'Oracle', 'Phoenix', 'Ranger',
+    'Scout', 'Shadow', 'Slate', 'Striker', 'Talon', 'Vector', 'Viper'
+]
+GROUP_SEED_NAME_SUFFIXES = [
+    'Ace', 'Bolt', 'Brick', 'Cobra', 'Drift', 'Hawk', 'Juno', 'Kane', 'Nova',
+    'Pike', 'Quinn', 'Reed', 'Riot', 'Rush', 'Sage', 'Stone', 'Storm', 'Ward'
+]
+
+
+def _generate_group_seed_username(users, members, created):
+    existing = set(users or {})
+    existing.update(members or [])
+    existing.update(created or [])
+    for _ in range(300):
+        username = (
+            f"GroupBot_{random.choice(GROUP_SEED_NAME_PREFIXES)}"
+            f"{random.choice(GROUP_SEED_NAME_SUFFIXES)}{random.randint(10, 99)}"
+        )
+        if username not in existing:
+            return username
+
+    suffix = len(existing) + 1
+    while True:
+        username = f'group_seed_{suffix:03d}'
+        if username not in existing:
+            return username
+        suffix += 1
 
 
 def _find_queued_member(matchmaking_queue, members):
@@ -457,6 +490,85 @@ def handle_group_status_event(data, *, logger, group_lock, get_user_group, get_g
     except Exception as e:
         logger.error(f"Error getting group status: {str(e)}")
         return {'success': False, 'message': 'Failed to get group status'}
+
+
+def handle_group_seed_event(
+    data,
+    *,
+    request,
+    logger,
+    group_lock,
+    get_user_group,
+    queue_lock,
+    matchmaking_queue,
+    is_user_in_any_lobby,
+    groups,
+    user_to_group,
+    users,
+    save_users,
+    hash_password,
+    upsert_player_activity,
+    get_group_payload,
+    broadcast_group_update,
+    get_username_by_sid,
+    is_admin_user,
+    max_group_members
+):
+    try:
+        username = get_username_by_sid(request.sid)
+        if not is_admin_user(username):
+            return {'success': False, 'message': 'Admin only'}
+
+        requested_count = int((data or {}).get('count') or 0)
+        if requested_count < 1:
+            return {'success': False, 'message': 'Enter at least 1 bot'}
+
+        seeded = []
+        payload = None
+
+        with group_lock:
+            code = get_user_group(username)
+            if not code:
+                return {'success': False, 'message': 'Create or join a group first'}
+            group = groups.get(code)
+            if not group:
+                return {'success': False, 'message': 'Group not found'}
+
+            with queue_lock:
+                if _find_queued_member(matchmaking_queue, group['members']):
+                    return {'success': False, 'message': 'Leave the queue before changing group members'}
+            if _find_lobby_member(is_user_in_any_lobby, group['members']):
+                return {'success': False, 'message': 'Leave the lobby before changing group members'}
+
+            available_slots = max(0, int(max_group_members or 0) - len(group['members']))
+            if available_slots < 1:
+                return {'success': False, 'message': 'Group is full'}
+
+            seed_count = min(requested_count, available_slots)
+            seed_password_hash = hash_password('seed-player-dev-password')
+            for _index in range(seed_count):
+                seed_username = _generate_group_seed_username(users, group['members'], seeded)
+                steam_suffix = len(users) + len(seeded) + 1
+                users[seed_username] = {
+                    'password': seed_password_hash,
+                    'steam_id': str(76561199050000000 + steam_suffix)
+                }
+                group['members'].append(seed_username)
+                user_to_group[seed_username] = code
+                upsert_player_activity(seed_username, status='authenticated')
+                seeded.append(seed_username)
+
+            if seeded:
+                save_users()
+            payload = get_group_payload(code)
+
+        broadcast_group_update(code, payload)
+        return {'success': True, 'group': payload, 'seeded': seeded}
+    except (TypeError, ValueError):
+        return {'success': False, 'message': 'Enter a valid bot count'}
+    except Exception as e:
+        logger.error(f"Error seeding group: {str(e)}")
+        return {'success': False, 'message': 'Failed to seed group'}
 
 
 def handle_group_queue_event(

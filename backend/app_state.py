@@ -266,6 +266,26 @@ QUEUE_MODES = {
         'vote_pool': ALL_OCBT_VOTE_MAPS,
         'map_variants': OCBT_MAP_VARIANTS,
     },
+    'ocbt5': {
+        'id': 'ocbt5',
+        'label': '5v5 Open Clan Battle',
+        'short_label': 'OCBT 5v5',
+        'max_players': 10,
+        'team_size': 5,
+        'map_pool': ALL_OCBT_MAPS,
+        'vote_pool': ALL_OCBT_VOTE_MAPS,
+        'map_variants': OCBT_MAP_VARIANTS,
+    },
+    'ocbt1': {
+        'id': 'ocbt1',
+        'label': '1v1 Open Clan Battle',
+        'short_label': 'OCBT 1v1',
+        'max_players': 2,
+        'team_size': 1,
+        'map_pool': ALL_OCBT_MAPS,
+        'vote_pool': ALL_OCBT_VOTE_MAPS,
+        'map_variants': OCBT_MAP_VARIANTS,
+    },
     'balt26': {
         'id': 'balt26',
         'label': '26v26 Balt Layers',
@@ -292,7 +312,7 @@ LEGACY_USERS_FILE = os.path.join(BASE_DIR, 'users.json')
 DATABASE_PATH = os.getenv('DATABASE_PATH', os.path.join(BASE_DIR, 'app.db'))
 DEV_MODE = os.getenv('CMP_DEV_MODE', '0') == '1'
 ADMIN_TEAM_ENFORCEMENT_BYPASS_ENABLED = os.getenv('ADMIN_TEAM_ENFORCEMENT_BYPASS_ENABLED', '1') == '1'
-LIVE_ROLL_READY_OVERRIDE_ENABLED = DEV_MODE or os.getenv('LIVE_ROLL_READY_OVERRIDE_ENABLED', '0') == '1'
+LIVE_ROLL_READY_OVERRIDE_ENABLED = os.getenv('LIVE_ROLL_READY_OVERRIDE_ENABLED', '0') == '1'
 DEV_LIVE_ROLL_OVERRIDE_USERNAME = os.getenv('DEV_LIVE_ROLL_OVERRIDE_USERNAME', '').strip().lower()
 DEV_LIVE_ROLL_OVERRIDE_STEAM_ID = os.getenv('DEV_LIVE_ROLL_OVERRIDE_STEAM_ID', '').strip()
 PASSWORD_AUTH_ENABLED = os.getenv(

@@ -18,6 +18,127 @@ def select_map_from_votes(lobby, all_skirmish_maps):
     return random.choice(pool), {}
 
 
+def build_lobby_data_payload(lobby_id, lobby):
+    return {
+        'lobby_id': lobby_id,
+        'players': lobby.get('players', []),
+        'player_profiles': build_player_profile_map(lobby.get('players', [])),
+        'teams': lobby.get('teams', {}),
+        'captains': lobby.get('captains'),
+        'map_pool': lobby.get('map_pool', []),
+        'selected_map': lobby.get('selected_map'),
+        'queue_mode': lobby.get('queue_mode'),
+        'queue_label': lobby.get('queue_label'),
+        'match_size_label': lobby.get('match_size_label'),
+        'max_players': lobby.get('max_players'),
+        'server_ip': lobby.get('server_ip'),
+        'step': lobby.get('step'),
+        'voting_countdown': lobby.get('voting_countdown'),
+        'player_groups': lobby.get('player_groups', {}),
+        'map_votes': lobby.get('map_votes', {}),
+        'vote_counts': lobby.get('vote_counts', {}),
+        'server_details': lobby.get('server_details'),
+        'team_labels': lobby.get('team_labels', {}),
+        'server_details_provided_at': lobby.get('server_details_provided_at'),
+        'live_started_at': lobby.get('live_started_at'),
+        'live_match_max_seconds': lobby.get('live_match_max_seconds'),
+        'live_roll_ready_at': lobby.get('live_roll_ready_at'),
+        'live_roll_countdown': lobby.get('live_roll_countdown'),
+        'announcement': lobby.get('announcement'),
+        'admin_live_ready_override': bool(lobby.get('live_roll_admin_ready_override'))
+    }
+
+
+def force_lobby_to_join_server_phase(
+    lobby_id,
+    lobby,
+    *,
+    logger,
+    socketio,
+    username,
+    select_map_from_votes_fn,
+    start_live_roll_monitor,
+    get_server_connection_details,
+    get_selected_map_team_labels,
+    ready_grace_seconds,
+    record_lobby_event=None,
+    event_type='phase_skipped_to_server'
+):
+    lobby['skip_phase'] = True
+    lobby['countdown_token'] = lobby.get('countdown_token', 0) + 1
+    selected_map, vote_counts = select_map_from_votes_fn(lobby)
+    lobby['selected_map'] = selected_map
+
+    try:
+        lobby['server_details'] = get_server_connection_details(server_id=lobby.get('server_id'))
+    except Exception as details_error:
+        logger.warning(
+            'Could not refresh server details while forcing lobby %s ready: %s',
+            lobby_id,
+            details_error,
+            exc_info=True
+        )
+        lobby['server_details'] = lobby.get('server_details') or {
+            'bridgeAvailable': False,
+            'bridgeError': str(details_error)
+        }
+
+    try:
+        lobby['team_labels'] = get_selected_map_team_labels(
+            selected_map,
+            server_id=lobby.get('server_id')
+        )
+    except Exception as labels_error:
+        logger.warning(
+            'Could not resolve team labels while forcing lobby %s ready: %s',
+            lobby_id,
+            labels_error,
+            exc_info=True
+        )
+        lobby['team_labels'] = lobby.get('team_labels') or {}
+
+    lobby['server_details_provided_at'] = time.time()
+    lobby['live_roll_ready_at'] = lobby['server_details_provided_at'] + ready_grace_seconds
+    lobby['live_roll_countdown'] = ready_grace_seconds
+    lobby['live_roll_command_sent'] = False
+    lobby['live_roll_next_layer_sent'] = False
+    lobby['live_roll_change_attempts'] = 0
+    lobby['live_roll_last_change_attempt_at'] = None
+    lobby['live_roll_team_swap_attempts'] = {}
+    lobby['live_roll_done'] = False
+    lobby['live_broadcast_sent'] = False
+    lobby['live_broadcast_attempts'] = 0
+    lobby['live_broadcast_last_attempt_at'] = None
+    lobby['live_broadcast_ready_at'] = None
+    lobby['live_broadcast_error'] = None
+    lobby['round_result'] = None
+    lobby['step'] = 3
+    lobby['announcement'] = None
+    lobby['skip_phase'] = False
+
+    if record_lobby_event:
+        try:
+            record_lobby_event(lobby_id, event_type, {
+                'username': username,
+                'selected_map': selected_map,
+                'vote_counts': vote_counts,
+                'server_details': lobby.get('server_details'),
+                'team_labels': lobby.get('team_labels', {})
+            }, created_at=lobby['server_details_provided_at'])
+        except Exception as event_error:
+            logger.warning(
+                'Could not record %s for lobby %s: %s',
+                event_type,
+                lobby_id,
+                event_error,
+                exc_info=True
+            )
+
+    socketio.emit('lobby_update', build_lobby_data_payload(lobby_id, lobby), room=lobby_id)
+    start_live_roll_monitor(lobby_id)
+    return selected_map, vote_counts
+
+
 def handle_toggle_countdown_pause_event(
     data,
     *,
@@ -96,24 +217,33 @@ def handle_join_lobby_event(
         emit,
     emit_active_lobby_sync,
     assign_teams,
-    select_captains
+    select_captains,
+    is_admin_user=None
 ):
     try:
         lobby_id = data.get('lobby_id')
         username = data.get('username')
         is_rejoin = data.get('rejoin', False)
         allow_new = data.get('allow_new', False)
+        spectate = data.get('spectate', False)
 
         logger.info(f"Join lobby request from {username} for lobby {lobby_id} (rejoin: {is_rejoin})")
 
         if lobby_id in lobbies:
             lobby = lobbies[lobby_id]
             max_players = int(lobby.get('max_players') or MAX_LOBBY_PLAYERS)
+            is_admin_spectator = bool(spectate and is_admin_user and is_admin_user(username))
 
             is_lobby_member = username in lobby['players']
             was_disconnected = username in lobby.get('disconnected_players', set())
             has_open_slot = len(lobby['players']) < max_players
             is_finalized = lobby.get('step') == 5
+
+            if spectate and not is_admin_spectator:
+                return {
+                    'success': False,
+                    'message': 'Admin access required'
+                }
 
             if allow_new and not is_lobby_member and not was_disconnected and is_finalized:
                 return {
@@ -121,7 +251,12 @@ def handle_join_lobby_event(
                     'message': 'This lobby has finished and is closed to new players.'
                 }
 
-            if not is_lobby_member and not (is_rejoin and was_disconnected) and not (allow_new and has_open_slot):
+            if (
+                not is_admin_spectator
+                and not is_lobby_member
+                and not (is_rejoin and was_disconnected)
+                and not (allow_new and has_open_slot)
+            ):
                 logger.warning(f"Unauthorized lobby join attempt by {username}")
                 return {
                     'success': False,
@@ -187,13 +322,16 @@ def handle_join_lobby_event(
 
             join_room(lobby_id)
 
-            upsert_player_activity(
-                username,
-                sid=request.sid,
-                status='in_lobby',
-                lobby_id=lobby_id,
-                last_seen=time.time()
-            )
+            activity_updates = {
+                'sid': request.sid,
+                'status': 'spectating_lobby' if is_admin_spectator and not is_lobby_member else 'in_lobby',
+                'last_seen': time.time()
+            }
+            if is_admin_spectator and not is_lobby_member:
+                activity_updates['spectating_lobby_id'] = lobby_id
+            else:
+                activity_updates['lobby_id'] = lobby_id
+            upsert_player_activity(username, **activity_updates)
             join_room(get_user_room(username))
 
             if 'player_groups' not in lobby:
@@ -223,17 +361,22 @@ def handle_join_lobby_event(
                 'map_votes': lobby.get('map_votes', {}),
                 'vote_counts': lobby.get('vote_counts', {}),
                 'player_groups': lobby.get('player_groups', {}),
-                'announcement': lobby.get('announcement')
+                'announcement': lobby.get('announcement'),
+                'is_spectator': bool(is_admin_spectator and not is_lobby_member),
+                'admin_live_ready_override': bool(lobby.get('live_roll_admin_ready_override'))
             }
 
             if was_disconnected:
                 emit('player_reconnected', {'username': username}, room=lobby_id)
-            emit_active_lobby_sync(username, lobby_id)
+            if not (is_admin_spectator and not is_lobby_member):
+                emit_active_lobby_sync(username, lobby_id)
 
             return {
                 'success': True,
                 'data': lobby_state,
-                'message': 'Rejoined lobby successfully' if was_disconnected else 'Joined lobby successfully'
+                'message': 'Joined lobby as spectator' if is_admin_spectator and not is_lobby_member else (
+                    'Rejoined lobby successfully' if was_disconnected else 'Joined lobby successfully'
+                )
             }
 
         logger.warning(f"Attempted to join non-existent lobby: {lobby_id}")
@@ -247,6 +390,110 @@ def handle_join_lobby_event(
             'success': False,
             'message': 'Failed to join lobby'
         }
+
+
+def handle_force_live_ready_event(
+    data,
+    *,
+    request,
+    logger,
+    lobbies,
+    socketio,
+    get_username_by_sid,
+    is_admin_user,
+    select_map_from_votes_fn=None,
+    start_live_roll_monitor=None,
+    get_server_connection_details=None,
+    get_selected_map_team_labels=None,
+    ready_grace_seconds=600,
+    record_lobby_event=None,
+    save_runtime_state=None
+):
+    try:
+        username = get_username_by_sid(request.sid)
+        if not is_admin_user(username):
+            return {'success': False, 'message': 'Admin access required'}
+
+        lobby_id = data.get('lobby_id') if data else None
+        lobby = lobbies.get(lobby_id)
+        if not lobby:
+            return {'success': False, 'message': 'Lobby not found'}
+        force_lobby_ready = bool((data or {}).get('force_lobby_ready'))
+        logger.info(
+            'Force live ready requested: lobby_id=%s username=%s step=%s force_lobby_ready=%s selected_map=%s',
+            lobby_id,
+            username,
+            lobby.get('step'),
+            force_lobby_ready,
+            lobby.get('selected_map')
+        )
+        if lobby.get('step') != 3 and not force_lobby_ready:
+            return {'success': False, 'message': 'Live ready override is only available while players are joining the server.'}
+        if force_lobby_ready and lobby.get('step') != 3:
+            if lobby.get('step') != 2:
+                return {'success': False, 'message': 'Lobby cannot be forced ready from this phase.'}
+            if not all([select_map_from_votes_fn, start_live_roll_monitor, get_server_connection_details, get_selected_map_team_labels]):
+                return {'success': False, 'message': 'Force-ready dependencies unavailable'}
+            force_lobby_to_join_server_phase(
+                lobby_id,
+                lobby,
+                logger=logger,
+                socketio=socketio,
+                username=username,
+                select_map_from_votes_fn=select_map_from_votes_fn,
+                start_live_roll_monitor=start_live_roll_monitor,
+                get_server_connection_details=get_server_connection_details,
+                get_selected_map_team_labels=get_selected_map_team_labels,
+                ready_grace_seconds=ready_grace_seconds,
+                record_lobby_event=record_lobby_event,
+                event_type='admin_forced_lobby_ready'
+            )
+
+        lobby['live_roll_admin_ready_override'] = True
+        lobby['announcement'] = 'Admin forced the lobby ready to roll live.'
+        lobby['live_roll_countdown'] = 0
+
+        if record_lobby_event:
+            try:
+                record_lobby_event(lobby_id, 'admin_live_ready_override', {
+                    'username': username,
+                    'step': lobby.get('step')
+                }, created_at=time.time())
+            except Exception as event_error:
+                logger.warning(
+                    'Could not record admin_live_ready_override for lobby %s: %s',
+                    lobby_id,
+                    event_error,
+                    exc_info=True
+                )
+        if save_runtime_state:
+            try:
+                save_runtime_state()
+            except Exception as save_error:
+                logger.warning(
+                    'Could not save runtime state after force live ready for lobby %s: %s',
+                    lobby_id,
+                    save_error,
+                    exc_info=True
+                )
+
+        socketio.emit('lobby_update', build_lobby_data_payload(lobby_id, lobby), room=lobby_id)
+
+        logger.info(
+            'Force live ready applied: lobby_id=%s username=%s step=%s selected_map=%s',
+            lobby_id,
+            username,
+            lobby.get('step'),
+            lobby.get('selected_map')
+        )
+        return {
+            'success': True,
+            'message': 'Lobby forced ready for live roll',
+            'data': build_lobby_data_payload(lobby_id, lobby)
+        }
+    except Exception as e:
+        logger.error(f"Error in handle_force_live_ready: {str(e)}")
+        return {'success': False, 'message': 'Failed to force live ready'}
 
 
 def handle_leave_lobby_event(
@@ -281,6 +528,22 @@ def handle_leave_lobby_event(
 
         if lobby_id in lobbies:
             lobby = lobbies[lobby_id]
+            is_spectator = (
+                username in player_activity
+                and player_activity[username].get('spectating_lobby_id') == lobby_id
+                and username not in lobby.get('players', [])
+            )
+
+            if is_spectator:
+                player_activity[username].pop('spectating_lobby_id', None)
+                player_activity[username]['status'] = 'authenticated'
+                player_activity[username]['last_seen'] = time.time()
+                for sid in get_player_sids(username):
+                    socketio.server.leave_room(sid, lobby_id)
+                return {
+                    'success': True,
+                    'message': 'Stopped spectating lobby'
+                }
 
             if username in lobby['players']:
                 if record_lobby_event:
@@ -453,59 +716,34 @@ def handle_skip_phase_event(
         lobby['skip_phase'] = True
         lobby['countdown_token'] = lobby.get('countdown_token', 0) + 1
         step = lobby.get('step', 1)
+        logger.info(
+            'Skip phase requested: lobby_id=%s username=%s step=%s selected_map=%s',
+            lobby_id,
+            username,
+            step,
+            lobby.get('selected_map')
+        )
 
         if step == 2:
-            selected_map, vote_counts = select_map_from_votes_fn(lobby)
-            lobby['selected_map'] = selected_map
-            lobby['server_details'] = get_server_connection_details(server_id=lobby.get('server_id'))
-            lobby['team_labels'] = get_selected_map_team_labels(
-                selected_map,
-                server_id=lobby.get('server_id')
+            force_lobby_to_join_server_phase(
+                lobby_id,
+                lobby,
+                logger=logger,
+                socketio=socketio,
+                username=username,
+                select_map_from_votes_fn=select_map_from_votes_fn,
+                start_live_roll_monitor=start_live_roll_monitor,
+                get_server_connection_details=get_server_connection_details,
+                get_selected_map_team_labels=get_selected_map_team_labels,
+                ready_grace_seconds=ready_grace_seconds,
+                record_lobby_event=record_lobby_event,
+                event_type='phase_skipped_to_server'
             )
-            lobby['server_details_provided_at'] = time.time()
-            lobby['live_roll_ready_at'] = lobby['server_details_provided_at'] + ready_grace_seconds
-            lobby['live_roll_countdown'] = ready_grace_seconds
-            lobby['live_roll_command_sent'] = False
-            lobby['live_roll_next_layer_sent'] = False
-            lobby['live_roll_change_attempts'] = 0
-            lobby['live_roll_last_change_attempt_at'] = None
-            lobby['live_roll_team_swap_attempts'] = {}
-            lobby['live_roll_done'] = False
-            lobby['live_broadcast_sent'] = False
-            lobby['live_broadcast_attempts'] = 0
-            lobby['live_broadcast_last_attempt_at'] = None
-            lobby['live_broadcast_ready_at'] = None
-            lobby['live_broadcast_error'] = None
-            lobby['round_result'] = None
-            lobby['step'] = 3
-            lobby['announcement'] = None
-            if record_lobby_event:
-                record_lobby_event(lobby_id, 'phase_skipped_to_server', {
-                    'selected_map': selected_map,
-                    'vote_counts': vote_counts,
-                    'server_details': lobby.get('server_details'),
-                    'team_labels': lobby.get('team_labels', {})
-                }, created_at=lobby['server_details_provided_at'])
-            socketio.emit('lobby_update', {
-                'lobby_id': lobby_id,
-                'selected_map': selected_map,
+            return {
+                'success': True,
                 'step': 3,
-                'vote_counts': vote_counts,
-                'server_details': lobby.get('server_details'),
-                'team_labels': lobby.get('team_labels', {}),
-                'server_details_provided_at': lobby.get('server_details_provided_at'),
-                'live_roll_ready_at': lobby.get('live_roll_ready_at'),
-                'live_roll_countdown': lobby.get('live_roll_countdown'),
-                'announcement': None,
-                'queue_mode': lobby.get('queue_mode'),
-                'queue_label': lobby.get('queue_label'),
-                'match_size_label': lobby.get('match_size_label'),
-                'max_players': lobby.get('max_players'),
-                'map_pool': lobby.get('map_pool', [])
-            }, room=lobby_id)
-            start_live_roll_monitor(lobby_id)
-            lobby['skip_phase'] = False
-            return {'success': True, 'step': 3}
+                'data': build_lobby_data_payload(lobby_id, lobby)
+            }
 
         lobby['skip_phase'] = False
         return {'success': False, 'message': 'No skippable phase'}
@@ -558,6 +796,13 @@ def handle_prev_phase_event(
 
         current_step = lobby.get('step', 2)
         lobby['step'] = max(2, current_step - 1)
+        logger.info(
+            'Prev phase requested: lobby_id=%s username=%s from_step=%s to_step=%s',
+            lobby_id,
+            username,
+            current_step,
+            lobby['step']
+        )
 
         if lobby['step'] == 2:
             lobby['selected_map'] = None
@@ -577,31 +822,13 @@ def handle_prev_phase_event(
                 'selected_map': lobby.get('selected_map')
             }, created_at=time.time())
 
-        socketio.emit('lobby_update', {
-            'lobby_id': lobby_id,
-            'step': lobby['step'],
-            'players': lobby.get('players'),
-            'player_profiles': build_player_profile_map(lobby.get('players')),
-            'teams': lobby.get('teams'),
-            'captains': lobby.get('captains'),
-            'selected_map': lobby.get('selected_map'),
-            'server_details': lobby.get('server_details'),
-            'team_labels': lobby.get('team_labels', {}),
-            'server_details_provided_at': lobby.get('server_details_provided_at'),
-            'live_started_at': lobby.get('live_started_at'),
-            'live_match_max_seconds': lobby.get('live_match_max_seconds'),
-            'live_roll_ready_at': lobby.get('live_roll_ready_at'),
-            'live_roll_countdown': lobby.get('live_roll_countdown'),
-            'announcement': lobby.get('announcement'),
-            'countdown': lobby.get('countdown'),
-            'queue_mode': lobby.get('queue_mode'),
-            'queue_label': lobby.get('queue_label'),
-            'match_size_label': lobby.get('match_size_label'),
-            'max_players': lobby.get('max_players'),
-            'map_pool': lobby.get('map_pool', [])
-        }, room=lobby_id)
+        socketio.emit('lobby_update', build_lobby_data_payload(lobby_id, lobby), room=lobby_id)
 
-        return {'success': True, 'step': lobby['step']}
+        return {
+            'success': True,
+            'step': lobby['step'],
+            'data': build_lobby_data_payload(lobby_id, lobby)
+        }
     except Exception as e:
         logger.error(f"Error in handle_prev_phase: {str(e)}")
         return {'success': False, 'message': 'Failed to go back a phase'}
@@ -622,33 +849,12 @@ def handle_get_lobby_data_event(data, *, lobbies, emit, socket_events):
     lobby_id = data.get('lobby_id')
     lobby = lobbies.get(lobby_id)
     if lobby:
-        emit(socket_events['LOBBY']['DATA'], {
-            'lobby_id': lobby_id,
-            'players': lobby['players'],
-            'player_profiles': build_player_profile_map(lobby['players']),
-            'teams': lobby['teams'],
-            'captains': lobby.get('captains'),
-            'map_pool': lobby.get('map_pool', []),
-            'selected_map': lobby.get('selected_map'),
-            'queue_mode': lobby.get('queue_mode'),
-            'queue_label': lobby.get('queue_label'),
-            'match_size_label': lobby.get('match_size_label'),
-            'max_players': lobby.get('max_players'),
-            'server_ip': lobby.get('server_ip'),
-            'step': lobby.get('step'),
-            'voting_countdown': lobby.get('voting_countdown'),
-            'player_groups': lobby.get('player_groups', {}),
-            'map_votes': lobby.get('map_votes', {}),
-            'vote_counts': lobby.get('vote_counts', {}),
-            'server_details': lobby.get('server_details'),
-            'team_labels': lobby.get('team_labels', {}),
-            'server_details_provided_at': lobby.get('server_details_provided_at'),
-            'live_roll_ready_at': lobby.get('live_roll_ready_at'),
-            'live_roll_countdown': lobby.get('live_roll_countdown'),
-            'announcement': lobby.get('announcement')
-        })
+        payload = build_lobby_data_payload(lobby_id, lobby)
+        emit(socket_events['LOBBY']['DATA'], payload)
+        return {'success': True, 'data': payload}
     else:
         emit(socket_events['ERROR'], {'msg': 'Lobby not found.'})
+        return {'success': False, 'message': 'Lobby not found'}
 
 
 def handle_server_presence_event(data, *, logger, build_lobby_server_presence):
@@ -687,6 +893,8 @@ def vote_map_event(data, *, request, logger, lobbies, socketio, get_username_by_
         if not username:
             logger.error(f"User not found for SID: {request.sid}")
             return {'success': False, 'message': 'User not found'}
+        if username not in lobby.get('players', []):
+            return {'success': False, 'message': 'Only lobby players can vote'}
 
         logger.info(f"Processing vote for {username} in lobby {lobby_id}")
 

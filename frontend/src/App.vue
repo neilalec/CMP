@@ -648,12 +648,13 @@ const lobbyTrackerPhases = [
 @media (max-width: 768px) {
   .app-shell {
     grid-template-columns: 1fr;
-    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    grid-template-rows: auto auto auto minmax(0, 1fr) auto;
     min-height: 0;
-    height: 100vh;
-    height: 100dvh;
-    gap: 10px;
-    padding: 10px;
+    height: auto;
+    min-height: 100vh;
+    min-height: 100dvh;
+    gap: 8px;
+    padding: 8px;
   }
 
   .app-left,
@@ -663,13 +664,21 @@ const lobbyTrackerPhases = [
     height: auto;
   }
 
+  .app-main {
+    overflow: visible;
+  }
+
+  .main-window-body {
+    overflow: visible;
+  }
+
   .app-left .side-link,
   .app-right .profile-button,
   .app-right .group-button,
   .app-right .add-server-button,
   .app-right .admin-button,
   .app-right .theme-button {
-    width: auto;
+    width: max-content;
     min-width: 0;
     display: inline-flex;
     gap: 8px;
@@ -679,7 +688,12 @@ const lobbyTrackerPhases = [
   .sidebar-body {
     flex-direction: row;
     justify-content: flex-start;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    gap: 6px;
+    padding: 8px;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
   }
 
   .theme-button {
@@ -693,14 +707,55 @@ const lobbyTrackerPhases = [
     padding-inline: 12px;
   }
 
+  .app-shell {
+    gap: 6px;
+    padding: 6px;
+  }
+
+  .top-banner {
+    min-height: 48px;
+    padding: 0;
+  }
+
+  .brand-mark {
+    width: 36px;
+    height: 36px;
+  }
+
   .app-left .side-link,
   .app-right .profile-button,
   .app-right .group-button,
   .app-right .add-server-button,
   .app-right .admin-button,
   .app-right .theme-button {
-    width: 100%;
+    width: max-content;
     justify-content: center;
+  }
+
+  .nav-label {
+    left: 0;
+    padding-right: 0;
+  }
+
+  .lobby-titlebar {
+    height: auto;
+    min-height: 34px;
+    flex-wrap: wrap;
+    padding: 7px 8px;
+  }
+
+  .lobby-titlebar .window-titlebar-label {
+    min-width: 0;
+  }
+
+  .lobby-titlebar :deep(.phase-tracker) {
+    flex-basis: 100%;
+    min-height: 34px;
+  }
+
+  .legal-footer {
+    padding-inline: 4px;
+    font-size: 0.56rem;
   }
 
 }

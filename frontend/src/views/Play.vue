@@ -26,6 +26,7 @@ const {
   serverAvailable,
   serverAvailabilityReason,
   seedQueue,
+  spectateLobby,
   queueStore,
 } = useHomeView();
 </script>
@@ -64,6 +65,7 @@ const {
       :is-admin="authStore.isAdmin"
       :get-lobby-label="getLobbyLabel"
       @join-lobby="joinOpenLobby"
+      @spectate-lobby="spectateLobby"
       @delete-lobby="deleteLobby"
     />
   </div>

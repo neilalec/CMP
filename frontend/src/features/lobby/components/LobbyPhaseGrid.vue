@@ -75,4 +75,13 @@ defineProps({
     width: 100%;
   }
 }
+
+@media (max-width: 520px) {
+  .map-vote-layout,
+  .match-ready-layout,
+  .server-details-layout {
+    gap: 12px;
+    min-height: 0;
+  }
+}
 </style>
