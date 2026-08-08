@@ -113,40 +113,40 @@ export const createDefaultQueueModes = () => ({
     playersInQueue: 0,
     inQueue: false
   },
-  ocbt1: {
-    id: 'ocbt1',
-    label: '1v1 Open Clan Battle',
-    shortLabel: 'OCBT 1v1',
+  s3osmall1: {
+    id: 's3osmall1',
+    label: '1v1 S3O Small Format',
+    shortLabel: 'S3O 1v1',
     teamSize: 1,
     maxPlayers: 2,
     queue: [],
     playersInQueue: 0,
     inQueue: false
   },
-  ocbt2: {
-    id: 'ocbt2',
-    label: '2v2 Open Clan Battle',
-    shortLabel: 'OCBT 2v2',
+  s3osmall2: {
+    id: 's3osmall2',
+    label: '2v2 S3O Small Format',
+    shortLabel: 'S3O 2v2',
     teamSize: 2,
     maxPlayers: 4,
     queue: [],
     playersInQueue: 0,
     inQueue: false
   },
-  ocbt3: {
-    id: 'ocbt3',
-    label: '3v3 Open Clan Battle',
-    shortLabel: 'OCBT 3v3',
+  s3osmall3: {
+    id: 's3osmall3',
+    label: '3v3 S3O Small Format',
+    shortLabel: 'S3O 3v3',
     teamSize: 3,
     maxPlayers: 6,
     queue: [],
     playersInQueue: 0,
     inQueue: false
   },
-  ocbt4: {
-    id: 'ocbt4',
-    label: '4v4 Open Clan Battle',
-    shortLabel: 'OCBT 4v4',
+  s3osmall4: {
+    id: 's3osmall4',
+    label: '4v4 S3O Small Format',
+    shortLabel: 'S3O 4v4',
     teamSize: 4,
     maxPlayers: 8,
     queue: [],

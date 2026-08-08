@@ -123,6 +123,15 @@ ALL_S3O_MAPS = [
     'S3O_36_Harju_AAS_v3',
     'S3O_36_Sanxian_AAS_v4',
 ]
+ALL_S3O_SMALL_MAPS = [
+    'S3O_Sumari_Tournament_v1',
+    'S3O_BlackCoast_Tournament_v1',
+    'S3O_Fallujah_Tournament_v1',
+    'S3O_FoolsRoad_Tournament_v1',
+    'S3O_Kokan_Tournament_v1',
+    'S3O_Mutaha_Tournament_v1',
+    'S3O_Narva_Tournament_v1',
+]
 ALL_OCBT_MAPS = [
     'OCBT_UrbanQuarter_AAS_v1',
     'OCBT_UrbanQuarter_AAS_v2',
@@ -135,7 +144,6 @@ ALL_OCBT_MAPS = [
     'OCBT_Kalinovo_AAS_v3',
     'OCBT_AzureIsland_AAS_v1',
     'OCBT_AzureIsland_AAS_v2',
-    'OCBT_AzureIsland_AAS_v3',
     'OCBT_AzureIsland_AAS_v4',
     'OCBT_Shchyhliivka_AAS_v1',
     'OCBT_Shchyhliivka_AAS_v2',
@@ -168,7 +176,6 @@ OCBT_MAP_VARIANTS = {
     'OCBT_AzureIsland': [
         'OCBT_AzureIsland_AAS_v1',
         'OCBT_AzureIsland_AAS_v2',
-        'OCBT_AzureIsland_AAS_v3',
         'OCBT_AzureIsland_AAS_v4',
     ],
     'OCBT_Shchyhliivka': [
@@ -277,45 +284,37 @@ QUEUE_MODES = {
         'vote_pool': ALL_OCBT_VOTE_MAPS,
         'map_variants': OCBT_MAP_VARIANTS,
     },
-    'ocbt1': {
-        'id': 'ocbt1',
-        'label': '1v1 Open Clan Battle',
-        'short_label': 'OCBT 1v1',
+    's3osmall1': {
+        'id': 's3osmall1',
+        'label': '1v1 S3O Small Format',
+        'short_label': 'S3O 1v1',
         'max_players': 2,
         'team_size': 1,
-        'map_pool': ALL_OCBT_MAPS,
-        'vote_pool': ALL_OCBT_VOTE_MAPS,
-        'map_variants': OCBT_MAP_VARIANTS,
+        'map_pool': ALL_S3O_SMALL_MAPS,
     },
-    'ocbt2': {
-        'id': 'ocbt2',
-        'label': '2v2 Open Clan Battle',
-        'short_label': 'OCBT 2v2',
+    's3osmall2': {
+        'id': 's3osmall2',
+        'label': '2v2 S3O Small Format',
+        'short_label': 'S3O 2v2',
         'max_players': 4,
         'team_size': 2,
-        'map_pool': ALL_OCBT_MAPS,
-        'vote_pool': ALL_OCBT_VOTE_MAPS,
-        'map_variants': OCBT_MAP_VARIANTS,
+        'map_pool': ALL_S3O_SMALL_MAPS,
     },
-    'ocbt3': {
-        'id': 'ocbt3',
-        'label': '3v3 Open Clan Battle',
-        'short_label': 'OCBT 3v3',
+    's3osmall3': {
+        'id': 's3osmall3',
+        'label': '3v3 S3O Small Format',
+        'short_label': 'S3O 3v3',
         'max_players': 6,
         'team_size': 3,
-        'map_pool': ALL_OCBT_MAPS,
-        'vote_pool': ALL_OCBT_VOTE_MAPS,
-        'map_variants': OCBT_MAP_VARIANTS,
+        'map_pool': ALL_S3O_SMALL_MAPS,
     },
-    'ocbt4': {
-        'id': 'ocbt4',
-        'label': '4v4 Open Clan Battle',
-        'short_label': 'OCBT 4v4',
+    's3osmall4': {
+        'id': 's3osmall4',
+        'label': '4v4 S3O Small Format',
+        'short_label': 'S3O 4v4',
         'max_players': 8,
         'team_size': 4,
-        'map_pool': ALL_OCBT_MAPS,
-        'vote_pool': ALL_OCBT_VOTE_MAPS,
-        'map_variants': OCBT_MAP_VARIANTS,
+        'map_pool': ALL_S3O_SMALL_MAPS,
     },
     'balt26': {
         'id': 'balt26',
@@ -383,7 +382,7 @@ if AUTOMATION_CONTROL['mode'] not in AUTOMATION_MODES:
 
 
 def get_map_vote_countdown(queue_mode=None):
-    if str(queue_mode or '').strip().lower() == 'ocbt1':
+    if str(queue_mode or '').strip().lower() == 's3osmall1':
         return OCBT_1V1_MAP_VOTE_COUNTDOWN
     return MAP_VOTE_COUNTDOWN
 

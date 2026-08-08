@@ -67,7 +67,7 @@ const props = defineProps({
 const emit = defineEmits(['join-queue', 'leave-queue', 'seed-queue', 'clear-queue', 'set-queue-enabled'])
 
 const SEC_MODE_IDS = ['sec26', 'sec36', 'sec46']
-const OCBT_SMALL_MODE_IDS = ['ocbt1', 'ocbt2', 'ocbt3', 'ocbt4']
+const S3O_SMALL_MODE_IDS = ['s3osmall1', 's3osmall2', 's3osmall3', 's3osmall4']
 const QUEUE_MOD_LINKS = {
   skirmish: 'https://steamcommunity.com/sharedfiles/filedetails/?id=3294562930',
   sec26: 'https://steamcommunity.com/sharedfiles/filedetails/?id=3661196801',
@@ -76,17 +76,17 @@ const QUEUE_MOD_LINKS = {
   rivals36: 'https://steamcommunity.com/sharedfiles/filedetails/?id=3661196801',
   osi40: 'https://steamcommunity.com/sharedfiles/filedetails/?id=3661196801',
   s30: 'https://steamcommunity.com/sharedfiles/filedetails/?id=3735813803',
+  s3osmall1: 'https://steamcommunity.com/sharedfiles/filedetails/?id=3664077364',
+  s3osmall2: 'https://steamcommunity.com/sharedfiles/filedetails/?id=3664077364',
+  s3osmall3: 'https://steamcommunity.com/sharedfiles/filedetails/?id=3664077364',
+  s3osmall4: 'https://steamcommunity.com/sharedfiles/filedetails/?id=3664077364',
   ocbt15: 'https://steamcommunity.com/sharedfiles/filedetails/?id=3264205573',
   ocbt5: 'https://steamcommunity.com/sharedfiles/filedetails/?id=3264205573',
-  ocbt1: 'https://steamcommunity.com/sharedfiles/filedetails/?id=3264205573',
-  ocbt2: 'https://steamcommunity.com/sharedfiles/filedetails/?id=3264205573',
-  ocbt3: 'https://steamcommunity.com/sharedfiles/filedetails/?id=3264205573',
-  ocbt4: 'https://steamcommunity.com/sharedfiles/filedetails/?id=3264205573',
   balt26: 'https://steamcommunity.com/sharedfiles/filedetails/?id=3686670558',
   outofthebox40: 'https://steamcommunity.com/sharedfiles/filedetails/?id=3746481178'
 }
 const selectedSecModeId = ref(null)
-const selectedOcbtSmallModeId = ref(null)
+const selectedS3oSmallModeId = ref(null)
 
 const secModes = computed(() => {
   return SEC_MODE_IDS
@@ -94,8 +94,8 @@ const secModes = computed(() => {
     .filter(Boolean)
 })
 
-const ocbtSmallModes = computed(() => {
-  return OCBT_SMALL_MODE_IDS
+const s3oSmallModes = computed(() => {
+  return S3O_SMALL_MODE_IDS
     .map((modeId) => props.queueModes.find((queueMode) => queueMode.id === modeId))
     .filter(Boolean)
 })
@@ -103,7 +103,7 @@ const ocbtSmallModes = computed(() => {
 const queueCards = computed(() => {
   const cards = []
   let secCardAdded = false
-  let ocbtSmallCardAdded = false
+  let s3oSmallCardAdded = false
 
   for (const queueMode of props.queueModes) {
     if (SEC_MODE_IDS.includes(queueMode.id)) {
@@ -113,10 +113,10 @@ const queueCards = computed(() => {
       }
       continue
     }
-    if (OCBT_SMALL_MODE_IDS.includes(queueMode.id)) {
-      if (!ocbtSmallCardAdded && ocbtSmallModes.value.length) {
-        cards.push({ id: 'ocbt-small', type: 'ocbt-small' })
-        ocbtSmallCardAdded = true
+    if (S3O_SMALL_MODE_IDS.includes(queueMode.id)) {
+      if (!s3oSmallCardAdded && s3oSmallModes.value.length) {
+        cards.push({ id: 's3o-small', type: 's3o-small' })
+        s3oSmallCardAdded = true
       }
       continue
     }
@@ -131,8 +131,8 @@ const activeSecMode = computed(() => {
   return secModes.value.find((queueMode) => queueMode.id === props.currentQueueMode) || null
 })
 
-const activeOcbtSmallMode = computed(() => {
-  return ocbtSmallModes.value.find((queueMode) => queueMode.id === props.currentQueueMode) || null
+const activeS3oSmallMode = computed(() => {
+  return s3oSmallModes.value.find((queueMode) => queueMode.id === props.currentQueueMode) || null
 })
 
 const selectedSecMode = computed(() => {
@@ -140,9 +140,9 @@ const selectedSecMode = computed(() => {
   return secModes.value.find((queueMode) => queueMode.id === selectedSecModeId.value) || null
 })
 
-const selectedOcbtSmallMode = computed(() => {
-  if (activeOcbtSmallMode.value) return activeOcbtSmallMode.value
-  return ocbtSmallModes.value.find((queueMode) => queueMode.id === selectedOcbtSmallModeId.value) || null
+const selectedS3oSmallMode = computed(() => {
+  if (activeS3oSmallMode.value) return activeS3oSmallMode.value
+  return s3oSmallModes.value.find((queueMode) => queueMode.id === selectedS3oSmallModeId.value) || null
 })
 
 watch(activeSecMode, (mode) => {
@@ -151,18 +151,20 @@ watch(activeSecMode, (mode) => {
   }
 }, { immediate: true })
 
-watch(activeOcbtSmallMode, (mode) => {
+watch(activeS3oSmallMode, (mode) => {
   if (mode?.id) {
-    selectedOcbtSmallModeId.value = mode.id
+    selectedS3oSmallModeId.value = mode.id
   }
 }, { immediate: true })
 
 const isSecQueueMode = (modeId) => SEC_MODE_IDS.includes(modeId)
-const isOcbtQueueMode = (modeId) => modeId === 'ocbt15' || modeId === 'ocbt5' || OCBT_SMALL_MODE_IDS.includes(modeId)
+const isOcbtQueueMode = (modeId) => modeId === 'ocbt15' || modeId === 'ocbt5'
+const isS3oSmallQueueMode = (modeId) => S3O_SMALL_MODE_IDS.includes(modeId)
 
 const getQueueTitle = (queueMode) => {
   if (queueMode.id === 'hotdrop') return 'Hotdrop Tournament Layers'
   if (queueMode.id === 's30') return 'S3O Layers'
+  if (isS3oSmallQueueMode(queueMode.id)) return 'S3O Small Formats'
   if (queueMode.id === 'rivals36') return 'Rivals Layers'
   if (queueMode.id === 'osi40') return 'Offworld Squad Invitational Layers'
   if (isOcbtQueueMode(queueMode.id)) return 'Open Clan Battle Layers'
@@ -254,18 +256,18 @@ const handleSecJoin = () => {
   emit('join-queue', selectedSecMode.value.id)
 }
 
-const handleOcbtSmallSelect = (modeId) => {
-  selectedOcbtSmallModeId.value = modeId
+const handleS3oSmallSelect = (modeId) => {
+  selectedS3oSmallModeId.value = modeId
 }
 
-const handleOcbtSmallReset = () => {
-  if (activeOcbtSmallMode.value) return
-  selectedOcbtSmallModeId.value = null
+const handleS3oSmallReset = () => {
+  if (activeS3oSmallMode.value) return
+  selectedS3oSmallModeId.value = null
 }
 
-const handleOcbtSmallJoin = () => {
-  if (!selectedOcbtSmallMode.value) return
-  emit('join-queue', selectedOcbtSmallMode.value.id)
+const handleS3oSmallJoin = () => {
+  if (!selectedS3oSmallMode.value) return
+  emit('join-queue', selectedS3oSmallMode.value.id)
 }
 </script>
 
@@ -484,53 +486,53 @@ const handleOcbtSmallJoin = () => {
             'queue-card',
             'window-panel',
             'format-queue-card',
-            { 'is-active': !!activeOcbtSmallMode, 'no-dev-tools-card': !canManageQueueTools }
+            { 'is-active': !!activeS3oSmallMode, 'no-dev-tools-card': !canManageQueueTools }
           ]"
         >
           <div class="window-titlebar">
             <span class="window-titlebar-label">
-              {{ selectedOcbtSmallMode ? `${selectedOcbtSmallMode.teamSize}v${selectedOcbtSmallMode.teamSize}` : 'Below 5v5' }}
+              {{ selectedS3oSmallMode ? `${selectedS3oSmallMode.teamSize}v${selectedS3oSmallMode.teamSize}` : 'S3O Small' }}
             </span>
             <button
-              v-if="selectedOcbtSmallMode && !activeOcbtSmallMode"
+              v-if="selectedS3oSmallMode && !activeS3oSmallMode"
               type="button"
               class="sec-back-button"
-              @click="handleOcbtSmallReset"
+              @click="handleS3oSmallReset"
             >
               Back to Formats
             </button>
             <span class="window-titlebar-meta">
-              {{ selectedOcbtSmallMode ? getQueueStatusLabel(selectedOcbtSmallMode) : 'Choose format' }}
+              {{ selectedS3oSmallMode ? getQueueStatusLabel(selectedS3oSmallMode) : 'Choose format' }}
             </span>
           </div>
           <div class="queue-card-body" :class="{ 'no-dev-tools': !canManageQueueTools }">
             <div class="queue-card-top">
               <a
                 class="queue-title-link"
-                href="https://steamcommunity.com/sharedfiles/filedetails/?id=3264205573"
+                href="https://steamcommunity.com/sharedfiles/filedetails/?id=3664077364"
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                Below 5v5 Open Clan Battle Layers
+                S3O Small Formats
               </a>
             </div>
 
-            <div v-if="selectedOcbtSmallMode" class="queue-progress-row">
+            <div v-if="selectedS3oSmallMode" class="queue-progress-row">
               <div class="queue-meter" aria-hidden="true">
                 <span
                   class="queue-meter-fill"
-                  :style="{ width: `${getQueueProgressPercent(selectedOcbtSmallMode.id)}%` }"
+                  :style="{ width: `${getQueueProgressPercent(selectedS3oSmallMode.id)}%` }"
                 ></span>
                 <strong class="queue-meter-label">
-                  {{ selectedOcbtSmallMode.playersInQueue }}/{{ selectedOcbtSmallMode.maxPlayers }}
+                  {{ selectedS3oSmallMode.playersInQueue }}/{{ selectedS3oSmallMode.maxPlayers }}
                 </strong>
               </div>
             </div>
 
-            <div v-if="!selectedOcbtSmallMode" class="sec-mini-meter-grid small-format-grid">
+            <div v-if="!selectedS3oSmallMode" class="sec-mini-meter-grid small-format-grid">
               <div
-                v-for="queueMode in ocbtSmallModes"
-                :key="`ocbt-small-meter-${queueMode.id}`"
+                v-for="queueMode in s3oSmallModes"
+                :key="`s3o-small-meter-${queueMode.id}`"
                 class="sec-mini-meter-card"
               >
                 <div class="sec-mini-meter" aria-hidden="true">
@@ -545,44 +547,44 @@ const handleOcbtSmallJoin = () => {
               </div>
             </div>
 
-            <div v-if="!selectedOcbtSmallMode" class="queue-action-slot">
+            <div v-if="!selectedS3oSmallMode" class="queue-action-slot">
               <div class="sec-option-grid small-format-grid">
                 <button
-                  v-for="queueMode in ocbtSmallModes"
-                  :key="`ocbt-small-option-${queueMode.id}`"
+                  v-for="queueMode in s3oSmallModes"
+                  :key="`s3o-small-option-${queueMode.id}`"
                   type="button"
                   class="queue-action sec-option-button"
                   :disabled="loading"
-                  @click="handleOcbtSmallSelect(queueMode.id)"
+                  @click="handleS3oSmallSelect(queueMode.id)"
                 >
                   {{ queueMode.teamSize }}v{{ queueMode.teamSize }}
                 </button>
               </div>
             </div>
 
-            <div v-if="selectedOcbtSmallMode" class="queue-action-slot">
+            <div v-if="selectedS3oSmallMode" class="queue-action-slot">
               <button
-                v-if="activeOcbtSmallMode"
+                v-if="activeS3oSmallMode"
                 class="queue-action is-danger"
                 :disabled="isLeaveDisabled()"
-                @click="emit('leave-queue', activeOcbtSmallMode.id)"
+                @click="emit('leave-queue', activeS3oSmallMode.id)"
               >
-                {{ getPrimaryLabel(activeOcbtSmallMode) }}
+                {{ getPrimaryLabel(activeS3oSmallMode) }}
               </button>
 
               <button
                 v-else
                 class="queue-action"
-                :disabled="isJoinDisabled(selectedOcbtSmallMode)"
-                @click="handleOcbtSmallJoin"
+                :disabled="isJoinDisabled(selectedS3oSmallMode)"
+                @click="handleS3oSmallJoin"
               >
-                {{ getPrimaryLabel(selectedOcbtSmallMode) }}
+                {{ getPrimaryLabel(selectedS3oSmallMode) }}
               </button>
             </div>
 
             <div v-if="canManageQueueTools" class="queue-dev-actions sec-dev-actions">
               <button
-                v-for="queueMode in ocbtSmallModes"
+                v-for="queueMode in s3oSmallModes"
                 :key="`seed-${queueMode.id}`"
                 type="button"
                 @click="emit('seed-queue', queueMode.id)"
@@ -591,7 +593,7 @@ const handleOcbtSmallJoin = () => {
                 Seed {{ queueMode.shortLabel }}
               </button>
               <button
-                v-for="queueMode in ocbtSmallModes"
+                v-for="queueMode in s3oSmallModes"
                 :key="`clear-${queueMode.id}`"
                 type="button"
                 @click="emit('clear-queue', queueMode.id)"
@@ -600,7 +602,7 @@ const handleOcbtSmallJoin = () => {
                 Clear {{ queueMode.shortLabel }}
               </button>
               <button
-                v-for="queueMode in ocbtSmallModes"
+                v-for="queueMode in s3oSmallModes"
                 :key="`toggle-${queueMode.id}`"
                 type="button"
                 class="queue-toggle-button"

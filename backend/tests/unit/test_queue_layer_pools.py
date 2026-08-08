@@ -5,6 +5,8 @@ from app_state import (
     ALL_OUT_OF_THE_BOX_40_MAPS,
     ALL_OSI_40_MAPS,
     ALL_RIVALS_36_MAPS,
+    ALL_S3O_MAPS,
+    ALL_S3O_SMALL_MAPS,
     ALL_SEC_26_MAPS,
     ALL_SEC_36_MAPS,
     ALL_SEC_46_MAPS,
@@ -124,7 +126,6 @@ def test_ocbt_and_balt_layer_pools_match_workshop_listing():
         'OCBT_Kalinovo_AAS_v3',
         'OCBT_AzureIsland_AAS_v1',
         'OCBT_AzureIsland_AAS_v2',
-        'OCBT_AzureIsland_AAS_v3',
         'OCBT_AzureIsland_AAS_v4',
         'OCBT_Shchyhliivka_AAS_v1',
         'OCBT_Shchyhliivka_AAS_v2',
@@ -150,7 +151,7 @@ def test_out_of_the_box_layer_pool_matches_command_ready_listing():
     ]
 
 
-def test_ocbt_map_vote_uses_base_maps_then_resolves_variant(monkeypatch):
+def test_ocbt_and_s3o_small_map_pools(monkeypatch):
     assert ALL_OCBT_VOTE_MAPS == [
         'OCBT_UrbanQuarter',
         'OCBT_Oasis',
@@ -160,10 +161,19 @@ def test_ocbt_map_vote_uses_base_maps_then_resolves_variant(monkeypatch):
     ]
     assert build_lobby_map_pool(QUEUE_MODES['ocbt15']) == ALL_OCBT_VOTE_MAPS
     assert build_lobby_map_pool(QUEUE_MODES['ocbt5']) == ALL_OCBT_VOTE_MAPS
-    assert build_lobby_map_pool(QUEUE_MODES['ocbt1']) == ALL_OCBT_VOTE_MAPS
-    assert build_lobby_map_pool(QUEUE_MODES['ocbt2']) == ALL_OCBT_VOTE_MAPS
-    assert build_lobby_map_pool(QUEUE_MODES['ocbt3']) == ALL_OCBT_VOTE_MAPS
-    assert build_lobby_map_pool(QUEUE_MODES['ocbt4']) == ALL_OCBT_VOTE_MAPS
+    assert ALL_S3O_SMALL_MAPS == [
+        'S3O_Sumari_Tournament_v1',
+        'S3O_BlackCoast_Tournament_v1',
+        'S3O_Fallujah_Tournament_v1',
+        'S3O_FoolsRoad_Tournament_v1',
+        'S3O_Kokan_Tournament_v1',
+        'S3O_Mutaha_Tournament_v1',
+        'S3O_Narva_Tournament_v1',
+    ]
+    for mode_id in ('s3osmall1', 's3osmall2', 's3osmall3', 's3osmall4'):
+        pool = build_lobby_map_pool(QUEUE_MODES[mode_id])
+        assert len(pool) == 5
+        assert set(pool).issubset(set(ALL_S3O_SMALL_MAPS))
 
     monkeypatch.setattr('matchmaking.random.choice', lambda options: list(options)[0])
     selected_map, vote_counts = select_map_from_votes({
@@ -183,8 +193,9 @@ def test_ocbt_map_vote_uses_base_maps_then_resolves_variant(monkeypatch):
     }
 
 
-def test_ocbt_1v1_uses_short_map_vote_countdown():
-    assert get_map_vote_countdown('ocbt1') == 15
+def test_s3o_small_1v1_uses_short_map_vote_countdown():
+    assert get_map_vote_countdown('s3osmall1') == 15
+    assert get_map_vote_countdown('s3osmall2') == 60
     assert get_map_vote_countdown('ocbt5') == 60
     assert get_map_vote_countdown('ocbt15') == 60
 
@@ -217,6 +228,11 @@ def test_queue_modes_expose_each_tournament_format():
     assert QUEUE_MODES['osi40']['max_players'] == 80
     assert QUEUE_MODES['osi40']['map_pool'] is ALL_OSI_40_MAPS
 
+    assert QUEUE_MODES['s30']['label'] == '36v36 S3O Layers'
+    assert QUEUE_MODES['s30']['team_size'] == 36
+    assert QUEUE_MODES['s30']['max_players'] == 72
+    assert QUEUE_MODES['s30']['map_pool'] is ALL_S3O_MAPS
+
     assert QUEUE_MODES['ocbt15']['label'] == '10v10 Open Clan Battle'
     assert QUEUE_MODES['ocbt15']['team_size'] == 10
     assert QUEUE_MODES['ocbt15']['max_players'] == 20
@@ -231,33 +247,25 @@ def test_queue_modes_expose_each_tournament_format():
     assert QUEUE_MODES['ocbt5']['vote_pool'] is ALL_OCBT_VOTE_MAPS
     assert QUEUE_MODES['ocbt5']['map_variants'] is OCBT_MAP_VARIANTS
 
-    assert QUEUE_MODES['ocbt1']['label'] == '1v1 Open Clan Battle'
-    assert QUEUE_MODES['ocbt1']['team_size'] == 1
-    assert QUEUE_MODES['ocbt1']['max_players'] == 2
-    assert QUEUE_MODES['ocbt1']['map_pool'] is ALL_OCBT_MAPS
-    assert QUEUE_MODES['ocbt1']['vote_pool'] is ALL_OCBT_VOTE_MAPS
-    assert QUEUE_MODES['ocbt1']['map_variants'] is OCBT_MAP_VARIANTS
+    assert QUEUE_MODES['s3osmall1']['label'] == '1v1 S3O Small Format'
+    assert QUEUE_MODES['s3osmall1']['team_size'] == 1
+    assert QUEUE_MODES['s3osmall1']['max_players'] == 2
+    assert QUEUE_MODES['s3osmall1']['map_pool'] is ALL_S3O_SMALL_MAPS
 
-    assert QUEUE_MODES['ocbt2']['label'] == '2v2 Open Clan Battle'
-    assert QUEUE_MODES['ocbt2']['team_size'] == 2
-    assert QUEUE_MODES['ocbt2']['max_players'] == 4
-    assert QUEUE_MODES['ocbt2']['map_pool'] is ALL_OCBT_MAPS
-    assert QUEUE_MODES['ocbt2']['vote_pool'] is ALL_OCBT_VOTE_MAPS
-    assert QUEUE_MODES['ocbt2']['map_variants'] is OCBT_MAP_VARIANTS
+    assert QUEUE_MODES['s3osmall2']['label'] == '2v2 S3O Small Format'
+    assert QUEUE_MODES['s3osmall2']['team_size'] == 2
+    assert QUEUE_MODES['s3osmall2']['max_players'] == 4
+    assert QUEUE_MODES['s3osmall2']['map_pool'] is ALL_S3O_SMALL_MAPS
 
-    assert QUEUE_MODES['ocbt3']['label'] == '3v3 Open Clan Battle'
-    assert QUEUE_MODES['ocbt3']['team_size'] == 3
-    assert QUEUE_MODES['ocbt3']['max_players'] == 6
-    assert QUEUE_MODES['ocbt3']['map_pool'] is ALL_OCBT_MAPS
-    assert QUEUE_MODES['ocbt3']['vote_pool'] is ALL_OCBT_VOTE_MAPS
-    assert QUEUE_MODES['ocbt3']['map_variants'] is OCBT_MAP_VARIANTS
+    assert QUEUE_MODES['s3osmall3']['label'] == '3v3 S3O Small Format'
+    assert QUEUE_MODES['s3osmall3']['team_size'] == 3
+    assert QUEUE_MODES['s3osmall3']['max_players'] == 6
+    assert QUEUE_MODES['s3osmall3']['map_pool'] is ALL_S3O_SMALL_MAPS
 
-    assert QUEUE_MODES['ocbt4']['label'] == '4v4 Open Clan Battle'
-    assert QUEUE_MODES['ocbt4']['team_size'] == 4
-    assert QUEUE_MODES['ocbt4']['max_players'] == 8
-    assert QUEUE_MODES['ocbt4']['map_pool'] is ALL_OCBT_MAPS
-    assert QUEUE_MODES['ocbt4']['vote_pool'] is ALL_OCBT_VOTE_MAPS
-    assert QUEUE_MODES['ocbt4']['map_variants'] is OCBT_MAP_VARIANTS
+    assert QUEUE_MODES['s3osmall4']['label'] == '4v4 S3O Small Format'
+    assert QUEUE_MODES['s3osmall4']['team_size'] == 4
+    assert QUEUE_MODES['s3osmall4']['max_players'] == 8
+    assert QUEUE_MODES['s3osmall4']['map_pool'] is ALL_S3O_SMALL_MAPS
 
     assert QUEUE_MODES['balt26']['label'] == '26v26 Balt Layers'
     assert QUEUE_MODES['balt26']['team_size'] == 26
@@ -276,8 +284,10 @@ def test_queue_modes_expose_each_tournament_format():
         + len(ALL_SEC_46_MAPS)
         + len(ALL_RIVALS_36_MAPS)
         + len(ALL_OSI_40_MAPS)
+        + len(ALL_S3O_MAPS)
+        + len(ALL_S3O_SMALL_MAPS)
         + len(ALL_OCBT_MAPS)
         + len(ALL_BALT_26_MAPS)
         + len(ALL_OUT_OF_THE_BOX_40_MAPS)
     )
-    assert tournament_layer_count == 101
+    assert tournament_layer_count == 110
