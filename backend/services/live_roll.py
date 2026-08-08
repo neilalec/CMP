@@ -145,6 +145,8 @@ def get_live_roll_readiness(
     ready_ratio,
     threshold_grace_seconds=300,
     ready_grace_seconds=600,
+    ratio_ready_enabled=True,
+    force_requires_aligned=True,
     now=None
 ):
     players = presence.get('players') or []
@@ -163,19 +165,27 @@ def get_live_roll_readiness(
     threshold_ready = elapsed_seconds >= threshold_grace_seconds
     force_ready = elapsed_seconds >= ready_grace_seconds
     grace_ready = (
+        ratio_ready_enabled
+        and
         total_players > 0
         and aligned_count >= required_after_grace
         and threshold_ready
         and connected_players_aligned
     )
+    force_ready_allowed = force_ready and (
+        connected_players_aligned if force_requires_aligned else True
+    )
 
     return {
-        'ready': all_connected or grace_ready or (force_ready and connected_players_aligned),
+        'ready': all_connected or grace_ready or force_ready_allowed,
         'allConnected': all_connected,
         'connectedPlayersAligned': connected_players_aligned,
         'graceReady': grace_ready,
         'thresholdReady': threshold_ready,
         'forceReady': force_ready,
+        'forceReadyAllowed': force_ready_allowed,
+        'ratioReadyEnabled': ratio_ready_enabled,
+        'forceRequiresAligned': force_requires_aligned,
         'connectedCount': connected_count,
         'alignedCount': aligned_count,
         'totalPlayers': total_players,
@@ -483,6 +493,26 @@ def start_live_roll_monitor(
     if not lobby:
         return
 
+    def get_effective_live_roll_readiness_settings(current_lobby):
+        is_s3o_small = str(current_lobby.get('queue_mode') or '').strip().lower().startswith('s3osmall')
+        if is_s3o_small:
+            return {
+                'ready_ratio': 1.0,
+                'threshold_grace_seconds': ready_grace_seconds,
+                'ready_grace_seconds': 300,
+                'ratio_ready_enabled': False,
+                'force_requires_aligned': False,
+                'mode': 's3o_small_force_only'
+            }
+        return {
+            'ready_ratio': ready_ratio,
+            'threshold_grace_seconds': threshold_grace_seconds,
+            'ready_grace_seconds': ready_grace_seconds,
+            'ratio_ready_enabled': True,
+            'force_requires_aligned': True,
+            'mode': 'standard'
+        }
+
     lobby['live_roll_token'] = lobby.get('live_roll_token', 0) + 1
     token = lobby['live_roll_token']
     lobby.setdefault('live_roll_command_sent', False)
@@ -521,8 +551,34 @@ def start_live_roll_monitor(
             'announcement': announcement
         }, room=lobby_id)
 
+    def log_live_roll_state(message, current_lobby, presence=None, readiness=None, **extra):
+        presence = presence or {}
+        readiness = readiness or {}
+        current_logger.info(
+            'Live roll state: lobby_id=%s %s step=%s selected_map=%s override=%s command_sent=%s live_done=%s connected=%s aligned=%s total=%s ready=%s writes_enabled=%s extra=%s',
+            lobby_id,
+            message,
+            current_lobby.get('step'),
+            current_lobby.get('selected_map'),
+            bool(current_lobby.get('live_roll_admin_ready_override')),
+            bool(current_lobby.get('live_roll_command_sent')),
+            bool(current_lobby.get('live_roll_done')),
+            readiness.get('connectedCount'),
+            readiness.get('alignedCount'),
+            readiness.get('totalPlayers') or len(current_lobby.get('players') or []),
+            readiness.get('ready'),
+            extra.pop('automation_writes_enabled', None),
+            extra
+        )
+
     def attempt_live_roll_change(current_lobby, selected_map, event_type):
         try:
+            current_logger.info(
+                'Live roll command attempt: lobby_id=%s selected_map=%s attempts_before=%s',
+                lobby_id,
+                selected_map,
+                current_lobby.get('live_roll_change_attempts', 0)
+            )
             response = change_server_to_selected_map(selected_map)
             mark_live_roll_change_attempt(current_lobby, response=response)
             record_event(event_type, {
@@ -530,6 +586,13 @@ def start_live_roll_monitor(
                 'attempts': current_lobby.get('live_roll_change_attempts'),
                 'response': current_lobby.get('live_roll_command_response')
             })
+            current_logger.info(
+                'Live roll command succeeded: lobby_id=%s selected_map=%s attempts=%s response=%s',
+                lobby_id,
+                selected_map,
+                current_lobby.get('live_roll_change_attempts'),
+                current_lobby.get('live_roll_command_response')
+            )
             return True
         except BridgeUnavailable:
             raise
@@ -768,12 +831,15 @@ def start_live_roll_monitor(
                     'players': kicked_unauthorized_players
                 })
 
+            readiness_settings = get_effective_live_roll_readiness_settings(current_lobby)
             readiness = get_live_roll_readiness(
                 current_lobby,
                 presence,
-                ready_ratio=ready_ratio,
-                threshold_grace_seconds=threshold_grace_seconds,
-                ready_grace_seconds=ready_grace_seconds
+                **{
+                    key: value
+                    for key, value in readiness_settings.items()
+                    if key != 'mode'
+                }
             )
             current_lobby['live_roll_countdown'] = int(readiness['remainingGraceSeconds'])
             ready_override = bool(current_lobby.get('live_roll_admin_ready_override'))
@@ -823,7 +889,32 @@ def start_live_roll_monitor(
                     pause_aware_sleep(2)
                     continue
 
-            if waiting_for_initial_live_roll and has_connected_team_mismatch:
+            force_timer_allows_mismatch = (
+                readiness.get('forceReady')
+                and not readiness.get('forceRequiresAligned')
+            )
+            if (
+                waiting_for_initial_live_roll
+                and has_connected_team_mismatch
+                and not force_timer_allows_mismatch
+            ):
+                log_live_roll_state(
+                    'blocked_team_mismatch',
+                    current_lobby,
+                    presence=presence,
+                    readiness=readiness,
+                    automation_writes_enabled=automation_writes_enabled,
+                    mismatched_players=[
+                        {
+                            'username': row.get('username'),
+                            'connected': row.get('connected'),
+                            'teamAligned': row.get('teamAligned'),
+                            'expectedTeam': row.get('expectedTeam'),
+                            'serverTeam': row.get('serverTeam')
+                        }
+                        for row in mismatched_players
+                    ]
+                )
                 mismatch_message = (
                     f"Waiting for connected players to be on the correct side: "
                     f"{readiness['alignedCount']}/{readiness['connectedCount']} aligned."
@@ -840,17 +931,34 @@ def start_live_roll_monitor(
                 continue
 
             if waiting_for_initial_live_roll and not readiness['ready'] and not ready_override:
-                threshold_minutes = max(1, int(threshold_grace_seconds / 60))
-                force_minutes = max(1, int(ready_grace_seconds / 60))
-                waiting_message = (
-                    f"Please join the server: {readiness['alignedCount']}/"
-                    f"{readiness['totalPlayers']} on the correct team "
-                    f"({readiness['connectedCount']} connected). "
-                    f"Rolling to live once everyone is connected, "
-                    f"or {readiness['requiredAfterGrace']}/{readiness['totalPlayers']} "
-                    f"({int(ready_ratio * 100)}%) are connected after {threshold_minutes} minutes. "
-                    f"Force rolling after {force_minutes} minutes."
+                log_live_roll_state(
+                    'blocked_readiness',
+                    current_lobby,
+                    presence=presence,
+                    readiness=readiness,
+                    automation_writes_enabled=automation_writes_enabled,
+                    remaining_grace=readiness.get('remainingGraceSeconds')
                 )
+                threshold_minutes = max(1, int(threshold_grace_seconds / 60))
+                force_minutes = max(1, int(readiness_settings['ready_grace_seconds'] / 60))
+                if readiness.get('ratioReadyEnabled'):
+                    waiting_message = (
+                        f"Please join the server: {readiness['alignedCount']}/"
+                        f"{readiness['totalPlayers']} on the correct team "
+                        f"({readiness['connectedCount']} connected). "
+                        f"Rolling to live once everyone is connected, "
+                        f"or {readiness['requiredAfterGrace']}/{readiness['totalPlayers']} "
+                        f"({int(readiness_settings['ready_ratio'] * 100)}%) are connected after {threshold_minutes} minutes. "
+                        f"Force rolling after {force_minutes} minutes."
+                    )
+                else:
+                    waiting_message = (
+                        f"Please join the server: {readiness['alignedCount']}/"
+                        f"{readiness['totalPlayers']} on the correct team "
+                        f"({readiness['connectedCount']} connected). "
+                        f"Rolling to live once everyone is connected. "
+                        f"Force rolling after {force_minutes} minutes."
+                    )
                 if current_lobby.get('announcement') != waiting_message:
                     current_lobby['announcement'] = waiting_message
                     socketio.emit('lobby_update', {
@@ -864,6 +972,13 @@ def start_live_roll_monitor(
 
             try:
                 selected_map = current_lobby.get('selected_map')
+                log_live_roll_state(
+                    'ready_to_process',
+                    current_lobby,
+                    presence=presence,
+                    readiness=readiness,
+                    automation_writes_enabled=automation_writes_enabled
+                )
                 round_result = fetch_latest_round_result()
                 layer_status = None
 
@@ -894,6 +1009,13 @@ def start_live_roll_monitor(
 
                 if not current_lobby.get('live_roll_command_sent'):
                     if not automation_writes_enabled:
+                        log_live_roll_state(
+                            'blocked_monitor_only',
+                            current_lobby,
+                            presence=presence,
+                            readiness=readiness,
+                            automation_writes_enabled=automation_writes_enabled
+                        )
                         waiting_message = 'Automation is monitor only. Manual admin control required.'
                         if current_lobby.get('announcement') != waiting_message:
                             current_lobby['announcement'] = waiting_message
@@ -908,6 +1030,15 @@ def start_live_roll_monitor(
                         retry_seconds=retry_seconds
                     )
                     if current_lobby.get('live_roll_change_attempts') and not retry_state.get('shouldRetry'):
+                        log_live_roll_state(
+                            'waiting_retry',
+                            current_lobby,
+                            presence=presence,
+                            readiness=readiness,
+                            automation_writes_enabled=automation_writes_enabled,
+                            retry_state=retry_state,
+                            last_error=current_lobby.get('live_roll_command_error')
+                        )
                         retry_message = (
                             f'Could not roll server live on {selected_map}. '
                             f'Retrying in {retry_state.get("remainingSeconds")}s.'

@@ -1251,7 +1251,7 @@ def register_socket_routes(socketio):
             get_selected_map_team_labels=backend.get_selected_map_team_labels,
             ready_grace_seconds=backend.LIVE_ROLL_READY_GRACE_SECONDS,
             record_lobby_event=backend.record_lobby_event,
-            save_runtime_state=backend.save_runtime_state
+            save_runtime_state=getattr(backend, 'save_runtime_state', None)
         )
 
     @socketio.on(_socket_backend_api().SOCKET_EVENTS['LOBBY']['VOTE_MAP'])

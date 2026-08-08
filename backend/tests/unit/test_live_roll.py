@@ -99,6 +99,44 @@ def test_live_roll_ready_after_grace_period_at_ninety_percent():
     assert readiness['forceReady'] is False
 
 
+def test_live_roll_ratio_path_can_be_disabled_for_small_formats():
+    readiness = get_live_roll_readiness(
+        {'server_details_provided_at': 1000},
+        build_presence(total_players=8, connected_players=8, aligned_players=7),
+        ready_ratio=1.0,
+        threshold_grace_seconds=300,
+        ready_grace_seconds=300,
+        ratio_ready_enabled=False,
+        force_requires_aligned=False,
+        now=1299
+    )
+
+    assert readiness['ready'] is False
+    assert readiness['graceReady'] is False
+    assert readiness['thresholdReady'] is False
+    assert readiness['forceReady'] is False
+    assert readiness['ratioReadyEnabled'] is False
+
+
+def test_live_roll_force_path_can_ignore_ratio_for_small_formats():
+    readiness = get_live_roll_readiness(
+        {'server_details_provided_at': 1000},
+        build_presence(total_players=8, connected_players=7, aligned_players=7),
+        ready_ratio=1.0,
+        threshold_grace_seconds=300,
+        ready_grace_seconds=300,
+        ratio_ready_enabled=False,
+        force_requires_aligned=False,
+        now=1300
+    )
+
+    assert readiness['ready'] is True
+    assert readiness['forceReady'] is True
+    assert readiness['forceReadyAllowed'] is True
+    assert readiness['graceReady'] is False
+    assert readiness['remainingGraceSeconds'] == 0
+
+
 def test_live_roll_force_ready_after_grace_period_below_threshold():
     readiness = get_live_roll_readiness(
         {'server_details_provided_at': 1000},
@@ -564,6 +602,87 @@ def test_admin_force_live_button_rolls_without_admin_server_presence(monkeypatch
     )
 
     assert attempts == ['OCBT_Shchyhliivka_AAS_v3']
+
+
+def test_s3o_small_rolls_after_five_minutes_without_ratio_gate(monkeypatch):
+    import services.live_roll as live_roll_module
+
+    class DummySocketIO:
+        def __init__(self):
+            self.emits = []
+
+        def emit(self, event, payload=None, **kwargs):
+            self.emits.append((event, payload, kwargs))
+
+    monkeypatch.setattr(live_roll_module.eventlet, 'spawn', lambda fn, *args, **kwargs: fn(*args, **kwargs))
+
+    lobby_id = 'lobby_s3o_small_force_timer'
+    lobbies = {
+        lobby_id: {
+            'players': [f'player_{index}' for index in range(8)],
+            'teams': {
+                'team1': [f'player_{index}' for index in range(4)],
+                'team2': [f'player_{index}' for index in range(4, 8)],
+            },
+            'step': 3,
+            'queue_mode': 's3osmall4',
+            'selected_map': 'S3O_Sumari_Tournament_v1',
+            'server_details_provided_at': 1000,
+        }
+    }
+    attempts = []
+    now = {'value': 1299}
+
+    def build_presence(_lobby_id, tolerate_bridge_unavailable=False):
+        return {
+            'players': [
+                {
+                    'username': f'player_{index}',
+                    'connected': index < 7,
+                    'teamAligned': index < 7,
+                }
+                for index in range(8)
+            ],
+            'connected': [f'player_{index}' for index in range(7)],
+            'connectedSteamIds': [str(76561198000000000 + index) for index in range(7)],
+            'aligned': [f'player_{index}' for index in range(7)],
+            'mismatched': [],
+            'missing': ['player_7'],
+            'unauthorizedPlayers': [],
+        }
+
+    def fake_time():
+        return now['value']
+
+    def advance_then_stop(_seconds):
+        if now['value'] < 1300:
+            now['value'] = 1300
+            return
+        if attempts:
+            lobbies.pop(lobby_id, None)
+
+    monkeypatch.setattr(live_roll_module.time, 'time', fake_time)
+
+    start_live_roll_monitor(
+        lobby_id,
+        lobbies,
+        DummySocketIO(),
+        build_lobby_server_presence=build_presence,
+        pause_aware_sleep=advance_then_stop,
+        broadcast_server_message=lambda _message: {'ok': True},
+        change_server_to_selected_map=lambda selected_map: attempts.append((selected_map, now['value'])),
+        set_next_server_map=lambda _selected_map: {'ok': True},
+        force_player_to_expected_team=lambda _steam_id: {'ok': True},
+        get_server_layer_status=lambda _selected_map: {'currentMatches': False},
+        get_server_connection_details=lambda: {},
+        fetch_latest_round_result=lambda: None,
+        record_lobby_event=lambda *_args, **_kwargs: None,
+        save_completed_match=lambda *_args, **_kwargs: None,
+        pre_live_roll_broadcast_delay_seconds=0,
+    )
+
+    assert attempts == [('S3O_Sumari_Tournament_v1', 1300)]
+    assert lobbies == {}
 
 
 def test_round_result_matches_selected_map_from_winner_layer():

@@ -6,7 +6,7 @@ from functools import wraps
 
 import eventlet
 
-from app_state import DEFAULT_QUEUE_MODE, MATCH_ACCEPT_COUNTDOWN, MAX_LOBBY_PLAYERS, QUEUE_MODES, get_map_vote_countdown
+from app_state import DEFAULT_QUEUE_MODE, MATCH_ACCEPT_COUNTDOWN, MAX_LOBBY_PLAYERS, QUEUE_MODES, get_live_roll_ready_grace_seconds, get_map_vote_countdown
 from services.queue import (
     add_to_queue as add_to_queue_service,
     build_queue_payload as build_queue_payload_service,
@@ -66,6 +66,7 @@ def build_lobby_map_pool(queue_config):
     if (
         queue_config.get('id') == 'hotdrop'
         or str(queue_config.get('id') or '').startswith('sec')
+        or str(queue_config.get('id') or '').startswith('s3osmall')
         or 'hotdrop' in queue_identity
         or 'esports cup' in queue_identity
         or queue_config.get('max_players') == 60
@@ -363,8 +364,9 @@ def start_map_voting(lobby_id):
             server_id=lobby.get('server_id')
         )
         lobby['server_details_provided_at'] = time.time()
-        lobby['live_roll_ready_at'] = lobby['server_details_provided_at'] + app.LIVE_ROLL_READY_GRACE_SECONDS
-        lobby['live_roll_countdown'] = app.LIVE_ROLL_READY_GRACE_SECONDS
+        live_roll_ready_grace_seconds = get_live_roll_ready_grace_seconds(lobby.get('queue_mode'))
+        lobby['live_roll_ready_at'] = lobby['server_details_provided_at'] + live_roll_ready_grace_seconds
+        lobby['live_roll_countdown'] = live_roll_ready_grace_seconds
         lobby['live_roll_command_sent'] = False
         lobby['live_roll_next_layer_sent'] = False
         lobby['live_roll_change_attempts'] = 0

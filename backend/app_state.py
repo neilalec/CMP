@@ -13,6 +13,7 @@ OCBT_1V1_MAP_VOTE_COUNTDOWN = int(os.getenv('OCBT_1V1_MAP_VOTE_COUNTDOWN', '15')
 LIVE_ROLL_READY_RATIO = float(os.getenv('LIVE_ROLL_READY_RATIO', '0.95'))
 LIVE_ROLL_THRESHOLD_GRACE_SECONDS = int(os.getenv('LIVE_ROLL_THRESHOLD_GRACE_SECONDS', '300'))
 LIVE_ROLL_READY_GRACE_SECONDS = int(os.getenv('LIVE_ROLL_READY_GRACE_SECONDS', '600'))
+S3O_SMALL_LIVE_ROLL_READY_GRACE_SECONDS = int(os.getenv('S3O_SMALL_LIVE_ROLL_READY_GRACE_SECONDS', '300'))
 LIVE_ROLL_POLL_SECONDS = int(os.getenv('LIVE_ROLL_POLL_SECONDS', '5'))
 LIVE_ROLL_RETRY_SECONDS = int(os.getenv('LIVE_ROLL_RETRY_SECONDS', '15'))
 LIVE_ROLL_TEAM_SWAP_RETRY_SECONDS = int(os.getenv('LIVE_ROLL_TEAM_SWAP_RETRY_SECONDS', '10'))
@@ -385,6 +386,18 @@ def get_map_vote_countdown(queue_mode=None):
     if str(queue_mode or '').strip().lower() == 's3osmall1':
         return OCBT_1V1_MAP_VOTE_COUNTDOWN
     return MAP_VOTE_COUNTDOWN
+
+
+def is_s3o_small_queue_mode(queue_mode=None):
+    return str(queue_mode or '').strip().lower().startswith('s3osmall')
+
+
+def get_live_roll_ready_grace_seconds(queue_mode=None, default_grace_seconds=None):
+    if is_s3o_small_queue_mode(queue_mode):
+        return S3O_SMALL_LIVE_ROLL_READY_GRACE_SECONDS
+    if default_grace_seconds is not None:
+        return default_grace_seconds
+    return LIVE_ROLL_READY_GRACE_SECONDS
 
 bridge_status = {
     'available': None,

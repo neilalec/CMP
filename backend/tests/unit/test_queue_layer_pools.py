@@ -171,9 +171,7 @@ def test_ocbt_and_s3o_small_map_pools(monkeypatch):
         'S3O_Narva_Tournament_v1',
     ]
     for mode_id in ('s3osmall1', 's3osmall2', 's3osmall3', 's3osmall4'):
-        pool = build_lobby_map_pool(QUEUE_MODES[mode_id])
-        assert len(pool) == 5
-        assert set(pool).issubset(set(ALL_S3O_SMALL_MAPS))
+        assert build_lobby_map_pool(QUEUE_MODES[mode_id]) == ALL_S3O_SMALL_MAPS
 
     monkeypatch.setattr('matchmaking.random.choice', lambda options: list(options)[0])
     selected_map, vote_counts = select_map_from_votes({

@@ -1,7 +1,7 @@
 import random
 import time
 
-from app_state import get_map_vote_countdown
+from app_state import get_live_roll_ready_grace_seconds, get_map_vote_countdown
 from state.lobby import build_player_profile_map
 
 
@@ -97,9 +97,13 @@ def force_lobby_to_join_server_phase(
         )
         lobby['team_labels'] = lobby.get('team_labels') or {}
 
+    effective_ready_grace_seconds = get_live_roll_ready_grace_seconds(
+        lobby.get('queue_mode'),
+        default_grace_seconds=ready_grace_seconds
+    )
     lobby['server_details_provided_at'] = time.time()
-    lobby['live_roll_ready_at'] = lobby['server_details_provided_at'] + ready_grace_seconds
-    lobby['live_roll_countdown'] = ready_grace_seconds
+    lobby['live_roll_ready_at'] = lobby['server_details_provided_at'] + effective_ready_grace_seconds
+    lobby['live_roll_countdown'] = effective_ready_grace_seconds
     lobby['live_roll_command_sent'] = False
     lobby['live_roll_next_layer_sent'] = False
     lobby['live_roll_change_attempts'] = 0
@@ -420,19 +424,46 @@ def handle_force_live_ready_event(
             return {'success': False, 'message': 'Lobby not found'}
         force_lobby_ready = bool((data or {}).get('force_lobby_ready'))
         logger.info(
-            'Force live ready requested: lobby_id=%s username=%s step=%s force_lobby_ready=%s selected_map=%s',
+            'Force live ready requested: lobby_id=%s username=%s step=%s force_lobby_ready=%s selected_map=%s players=%s teams=%s server_id=%s live_roll_done=%s command_sent=%s override=%s',
             lobby_id,
             username,
             lobby.get('step'),
             force_lobby_ready,
-            lobby.get('selected_map')
+            lobby.get('selected_map'),
+            list(lobby.get('players') or []),
+            lobby.get('teams'),
+            lobby.get('server_id'),
+            lobby.get('live_roll_done'),
+            lobby.get('live_roll_command_sent'),
+            lobby.get('live_roll_admin_ready_override')
         )
         if lobby.get('step') != 3 and not force_lobby_ready:
+            logger.info(
+                'Force live ready rejected: lobby_id=%s username=%s reason=wrong_phase step=%s force_lobby_ready=%s',
+                lobby_id,
+                username,
+                lobby.get('step'),
+                force_lobby_ready
+            )
             return {'success': False, 'message': 'Live ready override is only available while players are joining the server.'}
         if force_lobby_ready and lobby.get('step') != 3:
             if lobby.get('step') != 2:
+                logger.info(
+                    'Force lobby ready rejected: lobby_id=%s username=%s reason=unsupported_phase step=%s',
+                    lobby_id,
+                    username,
+                    lobby.get('step')
+                )
                 return {'success': False, 'message': 'Lobby cannot be forced ready from this phase.'}
             if not all([select_map_from_votes_fn, start_live_roll_monitor, get_server_connection_details, get_selected_map_team_labels]):
+                logger.error(
+                    'Force lobby ready dependencies unavailable: lobby_id=%s select_map=%s start_monitor=%s server_details=%s team_labels=%s',
+                    lobby_id,
+                    bool(select_map_from_votes_fn),
+                    bool(start_live_roll_monitor),
+                    bool(get_server_connection_details),
+                    bool(get_selected_map_team_labels)
+                )
                 return {'success': False, 'message': 'Force-ready dependencies unavailable'}
             force_lobby_to_join_server_phase(
                 lobby_id,
@@ -480,11 +511,16 @@ def handle_force_live_ready_event(
         socketio.emit('lobby_update', build_lobby_data_payload(lobby_id, lobby), room=lobby_id)
 
         logger.info(
-            'Force live ready applied: lobby_id=%s username=%s step=%s selected_map=%s',
+            'Force live ready applied: lobby_id=%s username=%s step=%s selected_map=%s ready_at=%s countdown=%s override=%s command_sent=%s live_done=%s',
             lobby_id,
             username,
             lobby.get('step'),
-            lobby.get('selected_map')
+            lobby.get('selected_map'),
+            lobby.get('live_roll_ready_at'),
+            lobby.get('live_roll_countdown'),
+            lobby.get('live_roll_admin_ready_override'),
+            lobby.get('live_roll_command_sent'),
+            lobby.get('live_roll_done')
         )
         return {
             'success': True,
@@ -492,7 +528,7 @@ def handle_force_live_ready_event(
             'data': build_lobby_data_payload(lobby_id, lobby)
         }
     except Exception as e:
-        logger.error(f"Error in handle_force_live_ready: {str(e)}")
+        logger.error(f"Error in handle_force_live_ready: {str(e)}", exc_info=True)
         return {'success': False, 'message': 'Failed to force live ready'}
 
 
