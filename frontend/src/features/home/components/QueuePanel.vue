@@ -67,6 +67,7 @@ const props = defineProps({
 const emit = defineEmits(['join-queue', 'leave-queue', 'seed-queue', 'clear-queue', 'set-queue-enabled'])
 
 const SEC_MODE_IDS = ['sec26', 'sec36', 'sec46']
+const OCBT_SMALL_MODE_IDS = ['ocbt1', 'ocbt2', 'ocbt3', 'ocbt4']
 const QUEUE_MOD_LINKS = {
   skirmish: 'https://steamcommunity.com/sharedfiles/filedetails/?id=3294562930',
   sec26: 'https://steamcommunity.com/sharedfiles/filedetails/?id=3661196801',
@@ -78,10 +79,14 @@ const QUEUE_MOD_LINKS = {
   ocbt15: 'https://steamcommunity.com/sharedfiles/filedetails/?id=3264205573',
   ocbt5: 'https://steamcommunity.com/sharedfiles/filedetails/?id=3264205573',
   ocbt1: 'https://steamcommunity.com/sharedfiles/filedetails/?id=3264205573',
+  ocbt2: 'https://steamcommunity.com/sharedfiles/filedetails/?id=3264205573',
+  ocbt3: 'https://steamcommunity.com/sharedfiles/filedetails/?id=3264205573',
+  ocbt4: 'https://steamcommunity.com/sharedfiles/filedetails/?id=3264205573',
   balt26: 'https://steamcommunity.com/sharedfiles/filedetails/?id=3686670558',
   outofthebox40: 'https://steamcommunity.com/sharedfiles/filedetails/?id=3746481178'
 }
 const selectedSecModeId = ref(null)
+const selectedOcbtSmallModeId = ref(null)
 
 const secModes = computed(() => {
   return SEC_MODE_IDS
@@ -89,15 +94,29 @@ const secModes = computed(() => {
     .filter(Boolean)
 })
 
+const ocbtSmallModes = computed(() => {
+  return OCBT_SMALL_MODE_IDS
+    .map((modeId) => props.queueModes.find((queueMode) => queueMode.id === modeId))
+    .filter(Boolean)
+})
+
 const queueCards = computed(() => {
   const cards = []
   let secCardAdded = false
+  let ocbtSmallCardAdded = false
 
   for (const queueMode of props.queueModes) {
     if (SEC_MODE_IDS.includes(queueMode.id)) {
       if (!secCardAdded && secModes.value.length) {
         cards.push({ id: 'sec', type: 'sec' })
         secCardAdded = true
+      }
+      continue
+    }
+    if (OCBT_SMALL_MODE_IDS.includes(queueMode.id)) {
+      if (!ocbtSmallCardAdded && ocbtSmallModes.value.length) {
+        cards.push({ id: 'ocbt-small', type: 'ocbt-small' })
+        ocbtSmallCardAdded = true
       }
       continue
     }
@@ -112,9 +131,18 @@ const activeSecMode = computed(() => {
   return secModes.value.find((queueMode) => queueMode.id === props.currentQueueMode) || null
 })
 
+const activeOcbtSmallMode = computed(() => {
+  return ocbtSmallModes.value.find((queueMode) => queueMode.id === props.currentQueueMode) || null
+})
+
 const selectedSecMode = computed(() => {
   if (activeSecMode.value) return activeSecMode.value
   return secModes.value.find((queueMode) => queueMode.id === selectedSecModeId.value) || null
+})
+
+const selectedOcbtSmallMode = computed(() => {
+  if (activeOcbtSmallMode.value) return activeOcbtSmallMode.value
+  return ocbtSmallModes.value.find((queueMode) => queueMode.id === selectedOcbtSmallModeId.value) || null
 })
 
 watch(activeSecMode, (mode) => {
@@ -123,14 +151,21 @@ watch(activeSecMode, (mode) => {
   }
 }, { immediate: true })
 
+watch(activeOcbtSmallMode, (mode) => {
+  if (mode?.id) {
+    selectedOcbtSmallModeId.value = mode.id
+  }
+}, { immediate: true })
+
 const isSecQueueMode = (modeId) => SEC_MODE_IDS.includes(modeId)
+const isOcbtQueueMode = (modeId) => modeId === 'ocbt15' || modeId === 'ocbt5' || OCBT_SMALL_MODE_IDS.includes(modeId)
 
 const getQueueTitle = (queueMode) => {
   if (queueMode.id === 'hotdrop') return 'Hotdrop Tournament Layers'
   if (queueMode.id === 's30') return 'S3O Layers'
   if (queueMode.id === 'rivals36') return 'Rivals Layers'
   if (queueMode.id === 'osi40') return 'Offworld Squad Invitational Layers'
-  if (queueMode.id === 'ocbt15' || queueMode.id === 'ocbt5' || queueMode.id === 'ocbt1') return 'Open Clan Battle Layers'
+  if (isOcbtQueueMode(queueMode.id)) return 'Open Clan Battle Layers'
   if (queueMode.id === 'balt26') return 'Squad Balt Layers'
   if (queueMode.id === 'outofthebox40') return 'Out of The Box Layers'
   if (isSecQueueMode(queueMode.id)) return 'Squad Esports Cup Layers'
@@ -217,6 +252,20 @@ const handleSecReset = () => {
 const handleSecJoin = () => {
   if (!selectedSecMode.value) return
   emit('join-queue', selectedSecMode.value.id)
+}
+
+const handleOcbtSmallSelect = (modeId) => {
+  selectedOcbtSmallModeId.value = modeId
+}
+
+const handleOcbtSmallReset = () => {
+  if (activeOcbtSmallMode.value) return
+  selectedOcbtSmallModeId.value = null
+}
+
+const handleOcbtSmallJoin = () => {
+  if (!selectedOcbtSmallMode.value) return
+  emit('join-queue', selectedOcbtSmallMode.value.id)
 }
 </script>
 
@@ -305,7 +354,7 @@ const handleSecJoin = () => {
         </article>
 
         <article
-          v-else
+          v-else-if="queueCard.type === 'sec'"
           :class="[
             'queue-card',
             'window-panel',
@@ -424,6 +473,142 @@ const handleSecJoin = () => {
                 :disabled="loading"
               >
                 Clear {{ queueMode.shortLabel }}
+              </button>
+            </div>
+          </div>
+        </article>
+
+        <article
+          v-else
+          :class="[
+            'queue-card',
+            'window-panel',
+            'format-queue-card',
+            { 'is-active': !!activeOcbtSmallMode, 'no-dev-tools-card': !canManageQueueTools }
+          ]"
+        >
+          <div class="window-titlebar">
+            <span class="window-titlebar-label">
+              {{ selectedOcbtSmallMode ? `${selectedOcbtSmallMode.teamSize}v${selectedOcbtSmallMode.teamSize}` : 'Below 5v5' }}
+            </span>
+            <button
+              v-if="selectedOcbtSmallMode && !activeOcbtSmallMode"
+              type="button"
+              class="sec-back-button"
+              @click="handleOcbtSmallReset"
+            >
+              Back to Formats
+            </button>
+            <span class="window-titlebar-meta">
+              {{ selectedOcbtSmallMode ? getQueueStatusLabel(selectedOcbtSmallMode) : 'Choose format' }}
+            </span>
+          </div>
+          <div class="queue-card-body" :class="{ 'no-dev-tools': !canManageQueueTools }">
+            <div class="queue-card-top">
+              <a
+                class="queue-title-link"
+                href="https://steamcommunity.com/sharedfiles/filedetails/?id=3264205573"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Below 5v5 Open Clan Battle Layers
+              </a>
+            </div>
+
+            <div v-if="selectedOcbtSmallMode" class="queue-progress-row">
+              <div class="queue-meter" aria-hidden="true">
+                <span
+                  class="queue-meter-fill"
+                  :style="{ width: `${getQueueProgressPercent(selectedOcbtSmallMode.id)}%` }"
+                ></span>
+                <strong class="queue-meter-label">
+                  {{ selectedOcbtSmallMode.playersInQueue }}/{{ selectedOcbtSmallMode.maxPlayers }}
+                </strong>
+              </div>
+            </div>
+
+            <div v-if="!selectedOcbtSmallMode" class="sec-mini-meter-grid small-format-grid">
+              <div
+                v-for="queueMode in ocbtSmallModes"
+                :key="`ocbt-small-meter-${queueMode.id}`"
+                class="sec-mini-meter-card"
+              >
+                <div class="sec-mini-meter" aria-hidden="true">
+                  <span
+                    class="sec-mini-meter-fill"
+                    :style="{ width: `${getQueueProgressPercent(queueMode.id)}%` }"
+                  ></span>
+                  <strong class="sec-mini-meter-label">
+                    {{ queueMode.playersInQueue }}/{{ queueMode.maxPlayers }}
+                  </strong>
+                </div>
+              </div>
+            </div>
+
+            <div v-if="!selectedOcbtSmallMode" class="queue-action-slot">
+              <div class="sec-option-grid small-format-grid">
+                <button
+                  v-for="queueMode in ocbtSmallModes"
+                  :key="`ocbt-small-option-${queueMode.id}`"
+                  type="button"
+                  class="queue-action sec-option-button"
+                  :disabled="loading"
+                  @click="handleOcbtSmallSelect(queueMode.id)"
+                >
+                  {{ queueMode.teamSize }}v{{ queueMode.teamSize }}
+                </button>
+              </div>
+            </div>
+
+            <div v-if="selectedOcbtSmallMode" class="queue-action-slot">
+              <button
+                v-if="activeOcbtSmallMode"
+                class="queue-action is-danger"
+                :disabled="isLeaveDisabled()"
+                @click="emit('leave-queue', activeOcbtSmallMode.id)"
+              >
+                {{ getPrimaryLabel(activeOcbtSmallMode) }}
+              </button>
+
+              <button
+                v-else
+                class="queue-action"
+                :disabled="isJoinDisabled(selectedOcbtSmallMode)"
+                @click="handleOcbtSmallJoin"
+              >
+                {{ getPrimaryLabel(selectedOcbtSmallMode) }}
+              </button>
+            </div>
+
+            <div v-if="canManageQueueTools" class="queue-dev-actions sec-dev-actions">
+              <button
+                v-for="queueMode in ocbtSmallModes"
+                :key="`seed-${queueMode.id}`"
+                type="button"
+                @click="emit('seed-queue', queueMode.id)"
+                :disabled="loading"
+              >
+                Seed {{ queueMode.shortLabel }}
+              </button>
+              <button
+                v-for="queueMode in ocbtSmallModes"
+                :key="`clear-${queueMode.id}`"
+                type="button"
+                @click="emit('clear-queue', queueMode.id)"
+                :disabled="loading"
+              >
+                Clear {{ queueMode.shortLabel }}
+              </button>
+              <button
+                v-for="queueMode in ocbtSmallModes"
+                :key="`toggle-${queueMode.id}`"
+                type="button"
+                class="queue-toggle-button"
+                :class="{ 'is-enable': queueMode.disabled || queueMode.enabled === false }"
+                :disabled="loading"
+                @click="emit('set-queue-enabled', queueMode.id, queueMode.disabled || queueMode.enabled === false)"
+              >
+                {{ queueMode.disabled || queueMode.enabled === false ? 'Enable' : 'Disable' }} {{ queueMode.shortLabel }}
               </button>
             </div>
           </div>
@@ -632,6 +817,10 @@ const handleSecJoin = () => {
   width: 100%;
 }
 
+.small-format-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
 .sec-mini-meter-card {
   display: block;
 }
@@ -719,6 +908,10 @@ const handleSecJoin = () => {
   .sec-option-grid {
     grid-template-columns: 1fr;
   }
+
+  .small-format-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 520px) {
@@ -753,7 +946,8 @@ const handleSecJoin = () => {
   }
 
   .sec-mini-meter-grid,
-  .sec-option-grid {
+  .sec-option-grid,
+  .small-format-grid {
     grid-template-columns: 1fr;
   }
 

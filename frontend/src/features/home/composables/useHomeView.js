@@ -20,7 +20,7 @@ export function useHomeView() {
   const loading = ref(false);
   let isDisposed = false;
   const isDev = import.meta.env.DEV;
-  const queueDisplayOrder = ['ocbt15', 'ocbt5', 'ocbt1'];
+  const queueDisplayOrder = ['ocbt15', 'ocbt5', 'ocbt1', 'ocbt2', 'ocbt3', 'ocbt4'];
   const canManageQueueTools = computed(() => !!authStore.isAdmin);
   const queueModes = computed(() => (
     queueDisplayOrder

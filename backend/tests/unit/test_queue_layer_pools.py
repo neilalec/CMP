@@ -161,6 +161,9 @@ def test_ocbt_map_vote_uses_base_maps_then_resolves_variant(monkeypatch):
     assert build_lobby_map_pool(QUEUE_MODES['ocbt15']) == ALL_OCBT_VOTE_MAPS
     assert build_lobby_map_pool(QUEUE_MODES['ocbt5']) == ALL_OCBT_VOTE_MAPS
     assert build_lobby_map_pool(QUEUE_MODES['ocbt1']) == ALL_OCBT_VOTE_MAPS
+    assert build_lobby_map_pool(QUEUE_MODES['ocbt2']) == ALL_OCBT_VOTE_MAPS
+    assert build_lobby_map_pool(QUEUE_MODES['ocbt3']) == ALL_OCBT_VOTE_MAPS
+    assert build_lobby_map_pool(QUEUE_MODES['ocbt4']) == ALL_OCBT_VOTE_MAPS
 
     monkeypatch.setattr('matchmaking.random.choice', lambda options: list(options)[0])
     selected_map, vote_counts = select_map_from_votes({
@@ -234,6 +237,27 @@ def test_queue_modes_expose_each_tournament_format():
     assert QUEUE_MODES['ocbt1']['map_pool'] is ALL_OCBT_MAPS
     assert QUEUE_MODES['ocbt1']['vote_pool'] is ALL_OCBT_VOTE_MAPS
     assert QUEUE_MODES['ocbt1']['map_variants'] is OCBT_MAP_VARIANTS
+
+    assert QUEUE_MODES['ocbt2']['label'] == '2v2 Open Clan Battle'
+    assert QUEUE_MODES['ocbt2']['team_size'] == 2
+    assert QUEUE_MODES['ocbt2']['max_players'] == 4
+    assert QUEUE_MODES['ocbt2']['map_pool'] is ALL_OCBT_MAPS
+    assert QUEUE_MODES['ocbt2']['vote_pool'] is ALL_OCBT_VOTE_MAPS
+    assert QUEUE_MODES['ocbt2']['map_variants'] is OCBT_MAP_VARIANTS
+
+    assert QUEUE_MODES['ocbt3']['label'] == '3v3 Open Clan Battle'
+    assert QUEUE_MODES['ocbt3']['team_size'] == 3
+    assert QUEUE_MODES['ocbt3']['max_players'] == 6
+    assert QUEUE_MODES['ocbt3']['map_pool'] is ALL_OCBT_MAPS
+    assert QUEUE_MODES['ocbt3']['vote_pool'] is ALL_OCBT_VOTE_MAPS
+    assert QUEUE_MODES['ocbt3']['map_variants'] is OCBT_MAP_VARIANTS
+
+    assert QUEUE_MODES['ocbt4']['label'] == '4v4 Open Clan Battle'
+    assert QUEUE_MODES['ocbt4']['team_size'] == 4
+    assert QUEUE_MODES['ocbt4']['max_players'] == 8
+    assert QUEUE_MODES['ocbt4']['map_pool'] is ALL_OCBT_MAPS
+    assert QUEUE_MODES['ocbt4']['vote_pool'] is ALL_OCBT_VOTE_MAPS
+    assert QUEUE_MODES['ocbt4']['map_variants'] is OCBT_MAP_VARIANTS
 
     assert QUEUE_MODES['balt26']['label'] == '26v26 Balt Layers'
     assert QUEUE_MODES['balt26']['team_size'] == 26

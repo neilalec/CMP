@@ -123,6 +123,36 @@ export const createDefaultQueueModes = () => ({
     playersInQueue: 0,
     inQueue: false
   },
+  ocbt2: {
+    id: 'ocbt2',
+    label: '2v2 Open Clan Battle',
+    shortLabel: 'OCBT 2v2',
+    teamSize: 2,
+    maxPlayers: 4,
+    queue: [],
+    playersInQueue: 0,
+    inQueue: false
+  },
+  ocbt3: {
+    id: 'ocbt3',
+    label: '3v3 Open Clan Battle',
+    shortLabel: 'OCBT 3v3',
+    teamSize: 3,
+    maxPlayers: 6,
+    queue: [],
+    playersInQueue: 0,
+    inQueue: false
+  },
+  ocbt4: {
+    id: 'ocbt4',
+    label: '4v4 Open Clan Battle',
+    shortLabel: 'OCBT 4v4',
+    teamSize: 4,
+    maxPlayers: 8,
+    queue: [],
+    playersInQueue: 0,
+    inQueue: false
+  },
   balt26: {
     id: 'balt26',
     label: '26v26 Balt Layers',
