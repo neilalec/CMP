@@ -9,7 +9,7 @@ const isUnresolvedRound = (roundResult) => Boolean(
 
 const resultLabel = (roundResult) => {
   if (!roundResult) return 'Unknown'
-  if (isUnresolvedRound(roundResult)) return 'Draw'
+  if (isUnresolvedRound(roundResult)) return 'Unresolved'
   if (roundResult.winner && roundResult.loser) return 'Complete'
   return 'Complete'
 }
@@ -55,7 +55,7 @@ export const mapMatchToHistoryRow = (match) => {
     loser: teamLabel(loser),
     score: score.value,
     hasScore: score.hasScore,
-    note: isUnresolvedRound(roundResult) ? 'Ticket totals unavailable' : '',
+    note: isUnresolvedRound(roundResult) ? 'Winner or ticket totals unavailable' : '',
     players: Array.isArray(match.players) ? match.players : []
   }
 }

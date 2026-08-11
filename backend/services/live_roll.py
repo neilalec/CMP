@@ -373,7 +373,12 @@ def summarize_round_result(round_result):
             'tickets': loser.get('tickets'),
             'inferred': bool(loser.get('inferred'))
         } if loser else None,
-        'partial': bool(round_result.get('partial'))
+        'partial': bool(round_result.get('partial')),
+        'roundAudit': {
+            'eventCount': len((round_result.get('roundAudit') or {}).get('events') or []),
+            'emittedBy': (round_result.get('roundAudit') or {}).get('emittedBy'),
+            'completeAtEmit': (round_result.get('roundAudit') or {}).get('completeAtEmit')
+        } if round_result.get('roundAudit') else None
     }
 
 
