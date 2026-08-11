@@ -144,3 +144,52 @@ export async function executeBroadcastCommand(server, state, message) {
     throw error;
   }
 }
+
+export async function executeSlomoCommand(server, state, value) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue) || numericValue <= 0 || numericValue > 100) {
+    throw new Error('slomo value must be a number between 0 and 100');
+  }
+
+  const command = `AdminSlomo ${numericValue}`;
+  const auditBase = {
+    type: 'slomo',
+    action: 'slomo',
+    command,
+    value: numericValue,
+    startedAt: Date.now() / 1000,
+    layerStatusBefore: compactLayerStatus(state.layerStatus)
+  };
+
+  try {
+    await ensureRconConnected(server, state);
+    const response = await server.rcon.execute(command);
+
+    const audit = recordCommand(state, {
+      ...auditBase,
+      ok: true,
+      response: response || null,
+      completedAt: Date.now() / 1000,
+      layerStatusAfter: compactLayerStatus(state.layerStatus)
+    });
+
+    return {
+      ok: true,
+      command,
+      value: numericValue,
+      response: response || null,
+      audit
+    };
+  } catch (error) {
+    const audit = recordCommand(state, {
+      ...auditBase,
+      ok: false,
+      error: error.message,
+      completedAt: Date.now() / 1000,
+      layerStatusAfter: compactLayerStatus(state.layerStatus)
+    });
+
+    error.audit = audit;
+    throw error;
+  }
+}

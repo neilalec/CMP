@@ -266,6 +266,13 @@ export default class SquadServer extends EventEmitter {
         data.teamkill =
           data.victim.teamID === data.attacker.teamID && data.victim.eosID !== data.attacker.eosID;
 
+      data.victimFallback = { name: data.victimName };
+      data.attackerFallback = {
+        eosID: data.attackerEOSID,
+        steamID: data.attackerSteamID,
+        playerID: data.attackerPlayerController
+      };
+
       delete data.victimName;
       delete data.attackerName;
 
@@ -283,6 +290,13 @@ export default class SquadServer extends EventEmitter {
         data.teamkill =
           data.victim.teamID === data.attacker.teamID && data.victim.eosID !== data.attacker.eosID;
 
+      data.victimFallback = { name: data.victimName };
+      data.attackerFallback = {
+        eosID: data.attackerEOSID,
+        steamID: data.attackerSteamID,
+        playerID: data.attackerPlayerController
+      };
+
       delete data.victimName;
       delete data.attackerName;
 
@@ -293,6 +307,9 @@ export default class SquadServer extends EventEmitter {
       data.victim = await this.getPlayerByEOSID(data.victimEOSID);
       data.attacker = await this.getPlayerByEOSID(data.attackerEOSID);
       data.reviver = await this.getPlayerByEOSID(data.reviverEOSID);
+
+      data.victimFallback = { name: data.victimName, eosID: data.victimEOSID, steamID: data.victimSteamID };
+      data.reviverFallback = { name: data.reviverName, eosID: data.reviverEOSID, steamID: data.reviverSteamID };
 
       delete data.victimName;
       delete data.attackerName;

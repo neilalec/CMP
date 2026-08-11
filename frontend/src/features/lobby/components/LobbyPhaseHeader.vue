@@ -42,6 +42,10 @@ const props = defineProps({
     type: String,
     default: ''
   },
+  serverDetails: {
+    type: Object,
+    default: null
+  },
   step: {
     type: Number,
     default: 0
@@ -76,12 +80,32 @@ defineEmits(['pause', 'skip', 'prev', 'delete', 'force-live-ready'])
 
 const showCountdownTitle = computed(() => props.activeCountdown !== null)
 
+const liveRoundNumber = computed(() => {
+  const round = Number(
+    props.serverDetails?.matchCurrentRound
+    || props.serverDetails?.match_current_round
+    || 1
+  )
+  return Number.isFinite(round) && round > 0 ? Math.round(round) : 1
+})
+
+const liveRequiredRounds = computed(() => {
+  const required = Number(
+    props.serverDetails?.matchRequiredRounds
+    || props.serverDetails?.match_required_rounds
+    || 2
+  )
+  return Number.isFinite(required) && required > 0 ? Math.round(required) : 2
+})
+
+const liveRoundLabel = computed(() => `LIVE Round ${liveRoundNumber.value}`)
+
 const phaseTitle = computed(() => {
   if (showCountdownTitle.value) {
     return `${props.activeCountdownLabel} ${props.activeCountdown ?? 0}s`
   }
   if (props.step === 5) return 'SCORE'
-  if (props.step === 4) return 'LIVE'
+  if (props.step === 4) return liveRoundLabel.value
   if (props.step === 3) return 'JOIN SERVER'
   if (props.step === 2) return 'MAP VOTE'
   return 'LOBBY'
@@ -96,10 +120,19 @@ const phaseTitleClass = computed(() => ({
 
 const statusSentence = computed(() => {
   const announcement = String(props.announcement || '').trim()
-  if (announcement && announcement.toLowerCase() !== 'live') return announcement
+  const normalizedAnnouncement = announcement.toLowerCase()
+  if (
+    announcement
+    && normalizedAnnouncement !== 'live'
+    && !normalizedAnnouncement.startsWith('live round ')
+  ) {
+    return announcement
+  }
 
   if (props.step === 5) return 'Score captured. Review the final result.'
-  if (props.step === 4) return 'Match is live. The scoreboard will appear when the round ends.'
+  if (props.step === 4) {
+    return `${liveRoundLabel.value} is being played, round ${liveRoundNumber.value} of ${liveRequiredRounds.value}. The scoreboard will update when this round ends.`
+  }
   if (props.step === 3) {
     const totalPlayers = Math.max(0, props.totalPlayers || 0)
     const connectedCount = Math.max(0, Math.min(props.connectedCount || 0, totalPlayers))

@@ -82,16 +82,8 @@ onMounted(loadResults);
             </div>
             <div class="result-grid">
               <div>
-                <span class="data-card-label">Result</span>
-                <strong>{{ match.result }}</strong>
-              </div>
-              <div>
-                <span class="data-card-label">Score</span>
+                <span class="data-card-label">Ticket Totals</span>
                 <strong>{{ match.score || '-' }}</strong>
-              </div>
-              <div>
-                <span class="data-card-label">Winner</span>
-                <strong>{{ match.winner || '-' }}</strong>
               </div>
               <div>
                 <span class="data-card-label">Server</span>
@@ -99,6 +91,46 @@ onMounted(loadResults);
               </div>
             </div>
             <p v-if="match.note" class="result-note">{{ match.note }}</p>
+            <div v-if="match.rounds.some((round) => round.stats.hasStats)" class="round-scoreboards">
+              <details v-for="round in match.rounds" :key="`stats-${round.key}`" class="result-stats">
+                <summary class="result-stats-header">
+                  <span class="data-card-label">Round {{ round.roundNumber }} Scoreboard</span>
+                  <span class="info-row-meta">
+                    {{ round.score || round.result }} &middot; {{ round.stats.players.length }} players &middot; {{ round.stats.eventCount }} events
+                  </span>
+                </summary>
+                <div class="result-stats-table-wrap">
+                  <div v-for="group in round.stats.teamGroups" :key="group.key" class="result-stats-team">
+                    <table class="result-stats-table">
+                      <thead>
+                        <tr>
+                          <th>{{ group.label }}</th>
+                          <th>Kills</th>
+                          <th>Deaths</th>
+                          <th>Incaps</th>
+                          <th>Revives</th>
+                          <th>Teamkills</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="player in group.players" :key="player.key || player.name">
+                          <td>
+                            <strong>{{ player.name }}</strong>
+                            <span v-if="player.fromLobby" class="player-source-note">Lobby</span>
+                          </td>
+                          <td>{{ player.kills }}</td>
+                          <td>{{ player.deaths }}</td>
+                          <td>{{ player.wounds }}</td>
+                          <td>{{ player.revives }}</td>
+                          <td>{{ player.teamkills }}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </details>
+            </div>
+            <p v-else class="result-note">No player stats captured for this match.</p>
           </article>
         </div>
       </div>
@@ -187,6 +219,88 @@ onMounted(loadResults);
 
 .result-note {
   margin: 0;
+}
+
+.round-scoreboards {
+  display: grid;
+  gap: 10px;
+}
+
+.result-stats {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid var(--surface-border);
+  padding-top: 10px;
+}
+
+.result-stats-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.result-stats-header::-webkit-details-marker {
+  display: none;
+}
+
+.result-stats-header::before {
+  content: "+";
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.result-stats[open] .result-stats-header::before {
+  content: "-";
+}
+
+.result-stats-table-wrap {
+  display: grid;
+  gap: 12px;
+  overflow-x: auto;
+}
+
+.result-stats-table {
+  width: 100%;
+  min-width: 460px;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+}
+
+.result-stats-table th,
+.result-stats-table td {
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--surface-border);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.result-stats-table th:first-child,
+.result-stats-table td:first-child {
+  max-width: 220px;
+  min-width: 160px;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+}
+
+.result-stats-table th {
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.result-stats-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.player-source-note {
+  display: inline-block;
+  margin-left: 6px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
 }
 
 .results-error {

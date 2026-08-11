@@ -77,14 +77,28 @@ function emitPendingRoundEnd(logParser) {
     time: data.time,
     layer: data.layer,
     partial: data.partial,
+    resultQuality: data.partial ? 'partial' : 'complete',
+    emitReason: data.roundAudit?.emittedBy || null,
+    emittedAfterMs: data.roundAudit?.emittedAfterMs || null,
+    auditEvents: data.roundAudit?.events?.map((event) => event.type) || [],
     hasWinner: !!data.winner,
     hasLoser: !!data.loser,
+    winnerTickets: data.winner?.tickets ?? null,
+    loserTickets: data.loser?.tickets ?? null,
     previousState: data.previousState,
     nextState: data.nextState
   }));
   logParser.emit('ROUND_ENDED', data);
   clearRoundTicketState(logParser);
   delete logParser.eventStore.ROUND_END_PENDING;
+}
+
+function getRoundEndSettleMs() {
+  const configuredValue = Number.parseInt(process.env.CMP_ROUND_END_SETTLE_MS || '', 10);
+  if (Number.isFinite(configuredValue) && configuredValue >= 3000) {
+    return configuredValue;
+  }
+  return 12000;
 }
 
 export default {
@@ -133,9 +147,15 @@ export default {
       return;
     }
 
+    const settleMs = getRoundEndSettleMs();
+    recordRoundAuditEvent(logParser, {
+      type: 'settle_timer_started',
+      settleMs
+    });
+
     pendingRoundEnd.timeout = setTimeout(() => {
       pendingRoundEnd.emitReason = 'settle_timeout';
       pendingRoundEnd.flush();
-    }, 3000);
+    }, settleMs);
   }
 };

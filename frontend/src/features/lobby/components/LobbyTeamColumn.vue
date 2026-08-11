@@ -171,11 +171,11 @@ defineProps({
   margin-inline: auto;
   padding: 2px 8px;
   border-radius: var(--radius-sm);
-  border: 1px solid var(--accent-border);
-  background: var(--accent-soft);
-  color: var(--accent-strong);
+  border: 1px solid var(--lobby-player-current-border, var(--accent-border));
+  background: var(--lobby-player-current-bg, var(--accent-soft));
+  color: var(--lobby-player-current-text, var(--accent-strong));
   font-weight: 800;
-  box-shadow: none;
+  box-shadow: var(--lobby-player-current-shadow, none);
   text-shadow: none;
 }
 

@@ -52,12 +52,15 @@ from services.bridge import (
     create_synthetic_lobby_join_url as create_synthetic_lobby_join_url_service,
     end_match as end_match_service,
     force_team_change as force_team_change_service,
+    fetch_best_round_result as fetch_best_round_result_service,
     fetch_latest_round_result as fetch_latest_round_result_service,
     get_server_layer_status as get_server_layer_status_service,
     get_selected_map_team_labels as get_selected_map_team_labels_service,
     get_bridge_health as get_bridge_health_service,
     get_database_health as get_database_health_service,
     kick_player as kick_player_service,
+    register_match_context as register_match_context_service,
+    set_server_slomo as set_server_slomo_service,
     set_next_server_map as set_next_server_map_service,
     squadjs_bridge_request as squadjs_bridge_request_service
 )
@@ -562,19 +565,23 @@ def get_server_connection_details(server_id=None, lobby_id=None):
     return details
 
 
-def change_server_to_selected_map(selected_map, server_id=None, lobby_id=None):
+def change_server_to_selected_map(selected_map, server_id=None, lobby_id=None, faction1=None, faction2=None):
     require_rcon_writes_enabled('change layer')
     return change_server_to_selected_map_service(
         selected_map,
-        get_bridge_request_for_server(server_id=server_id, lobby_id=lobby_id)
+        get_bridge_request_for_server(server_id=server_id, lobby_id=lobby_id),
+        faction1=faction1,
+        faction2=faction2
     )
 
 
-def set_next_server_map(selected_map, server_id=None, lobby_id=None):
+def set_next_server_map(selected_map, server_id=None, lobby_id=None, faction1=None, faction2=None):
     require_rcon_writes_enabled('set next layer')
     return set_next_server_map_service(
         selected_map,
-        get_bridge_request_for_server(server_id=server_id, lobby_id=lobby_id)
+        get_bridge_request_for_server(server_id=server_id, lobby_id=lobby_id),
+        faction1=faction1,
+        faction2=faction2
     )
 
 
@@ -631,6 +638,23 @@ def get_selected_map_team_labels(selected_map, server_id=None, lobby_id=None):
 def fetch_latest_round_result(server_id=None, lobby_id=None):
     return fetch_latest_round_result_service(
         get_bridge_request_for_server(server_id=server_id, lobby_id=lobby_id)
+    )
+
+
+def fetch_best_round_result(lobby_id=None, selected_layer='', live_started_at=None, server_details_provided_at=None, server_id=None):
+    return fetch_best_round_result_service(
+        get_bridge_request_for_server(server_id=server_id, lobby_id=lobby_id),
+        lobby_id=lobby_id or '',
+        selected_layer=selected_layer or '',
+        live_started_at=live_started_at,
+        server_details_provided_at=server_details_provided_at
+    )
+
+
+def register_match_context(lobby_id, context):
+    return register_match_context_service(
+        get_bridge_request_for_server(lobby_id=lobby_id),
+        context
     )
 
 
@@ -796,6 +820,14 @@ def broadcast_server_message(message, server_id=None, lobby_id=None):
     )
 
 
+def set_server_slomo(value, server_id=None, lobby_id=None):
+    require_rcon_writes_enabled('set server slomo')
+    return set_server_slomo_service(
+        value,
+        get_bridge_request_for_server(server_id=server_id, lobby_id=lobby_id)
+    )
+
+
 def build_lobby_server_presence(lobby_id, tolerate_bridge_unavailable=False):
     from app import lobbies as lobbies_ref
     return build_lobby_server_presence_service(
@@ -818,13 +850,30 @@ def start_live_roll_monitor(lobby_id):
         build_lobby_server_presence=build_lobby_server_presence,
         pause_aware_sleep=pause_aware_sleep,
         broadcast_server_message=lambda message: broadcast_server_message(message, lobby_id=lobby_id),
-        change_server_to_selected_map=lambda selected_map: change_server_to_selected_map(selected_map, lobby_id=lobby_id),
-        set_next_server_map=lambda selected_map: set_next_server_map(selected_map, lobby_id=lobby_id),
+        set_server_slomo=lambda value: set_server_slomo(value, lobby_id=lobby_id),
+        change_server_to_selected_map=lambda selected_map, faction1=None, faction2=None: change_server_to_selected_map(
+            selected_map,
+            lobby_id=lobby_id,
+            faction1=faction1,
+            faction2=faction2
+        ),
+        set_next_server_map=lambda selected_map, faction1=None, faction2=None: set_next_server_map(
+            selected_map,
+            lobby_id=lobby_id,
+            faction1=faction1,
+            faction2=faction2
+        ),
         end_server_match=lambda: end_server_match(lobby_id=lobby_id),
         force_player_to_expected_team=lambda steam_id: force_player_to_expected_team(steam_id, lobby_id=lobby_id),
         get_server_layer_status=lambda selected_map: get_server_layer_status(selected_map, lobby_id=lobby_id),
         get_server_connection_details=lambda: get_server_connection_details(lobby_id=lobby_id),
-        fetch_latest_round_result=lambda: fetch_latest_round_result(lobby_id=lobby_id),
+        fetch_latest_round_result=lambda selected_map=None, live_started_at=None, server_details_provided_at=None: fetch_best_round_result(
+            lobby_id=lobby_id,
+            selected_layer=selected_map,
+            live_started_at=live_started_at,
+            server_details_provided_at=server_details_provided_at
+        ) or fetch_latest_round_result(lobby_id=lobby_id),
+        register_match_context=lambda context: register_match_context(lobby_id, context),
         record_lobby_event=record_lobby_event,
         save_completed_match=save_completed_match,
         kick_player_from_server=kick_player_from_server,

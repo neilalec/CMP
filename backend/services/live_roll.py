@@ -246,6 +246,29 @@ def should_team_swap_block_live_roll(lobby):
     )
 
 
+def get_required_live_roll_confirmations(lobby):
+    return int(lobby.get('live_roll_required_confirmations') or 2)
+
+
+def get_live_roll_confirmed_rolls(lobby):
+    return int(lobby.get('live_roll_confirmed_rolls') or 0)
+
+
+def mark_live_roll_confirmation(lobby, *, now=None):
+    confirmed_rolls = get_live_roll_confirmed_rolls(lobby) + 1
+    lobby['live_roll_confirmed_rolls'] = confirmed_rolls
+    lobby['live_roll_last_confirmed_at'] = time.time() if now is None else now
+    return confirmed_rolls
+
+
+def reset_live_roll_command_for_second_pass(lobby):
+    lobby['live_roll_command_sent'] = False
+    lobby['live_roll_next_layer_sent'] = False
+    lobby['live_roll_command_error'] = None
+    lobby['live_roll_last_change_attempt_at'] = None
+    lobby['live_roll_next_layer_response'] = None
+
+
 def has_live_roll_ready_override(
     *,
     enabled,
@@ -332,22 +355,112 @@ def round_result_matches_selected_map(round_result, selected_map):
     )
 
 
+def round_result_has_complete_ticket_totals(round_result):
+    if not round_result or round_result.get('partial'):
+        return False
+    winner = round_result.get('winner') if isinstance(round_result.get('winner'), dict) else {}
+    loser = round_result.get('loser') if isinstance(round_result.get('loser'), dict) else {}
+    return bool(
+        winner
+        and loser
+        and winner.get('tickets') is not None
+        and loser.get('tickets') is not None
+    )
+
+
 def should_finalize_live_lobby(current_lobby, round_result, selected_map):
     observed_at = round_result.get('observedAt') if round_result else None
-    result_started_after = (
+    result_started_after = max(
         current_lobby.get('server_details_provided_at')
-        or current_lobby.get('live_started_at')
+        or 0,
+        current_lobby.get('live_started_at')
         or 0
     )
     return bool(
         round_result
         and observed_at
         and observed_at >= result_started_after
+        and round_result_has_complete_ticket_totals(round_result)
         and (
             round_result_matches_selected_map(round_result, selected_map)
             or not round_result_has_layer_data(round_result)
         )
     )
+
+
+def get_round_result_identity(round_result):
+    if not isinstance(round_result, dict):
+        return ''
+    return '|'.join(
+        str(part or '').strip()
+        for part in (
+            round_result.get('observedAt'),
+            round_result.get('time'),
+            round_result.get('layer')
+        )
+    )
+
+
+def annotate_match_round_result(round_result, round_number):
+    annotated = dict(round_result or {})
+    annotated['roundNumber'] = round_number
+    return annotated
+
+
+def get_recorded_match_round_identities(lobby):
+    identities = set()
+    for round_result in lobby.get('match_round_results') or []:
+        identity = get_round_result_identity(round_result)
+        if identity:
+            identities.add(identity)
+    return identities
+
+
+def get_match_required_rounds(lobby):
+    try:
+        return max(1, int(lobby.get('match_required_rounds') or 2))
+    except (TypeError, ValueError):
+        return 2
+
+
+def build_match_rounds_result(lobby, selected_map, rounds):
+    final_round = dict(rounds[-1] if rounds else {})
+    aggregate = {
+        **final_round,
+        'source': 'cmp-two-round-match' if len(rounds) > 1 else final_round.get('source'),
+        'layer': selected_map or final_round.get('layer'),
+        'roundCount': len(rounds),
+        'requiredRoundCount': get_match_required_rounds(lobby),
+        'rounds': list(rounds),
+        'partial': any(bool(round_result.get('partial')) for round_result in rounds),
+        'resultQuality': (
+            'complete'
+            if rounds and all(round_result_has_complete_ticket_totals(round_result) for round_result in rounds)
+            else 'partial'
+        )
+    }
+    if rounds:
+        aggregate['observedAt'] = final_round.get('observedAt')
+        aggregate['capturedAt'] = final_round.get('capturedAt') or final_round.get('observedAt')
+        aggregate['time'] = final_round.get('time')
+    return aggregate
+
+
+def extract_side_swap_factions(layer_status):
+    server_info = (layer_status or {}).get('serverInfo') or {}
+    teams = server_info.get('serverInfoTeams') or {}
+    if not isinstance(teams, dict):
+        return {}
+    team_one = str(teams.get('rawTeamOne') or teams.get('teamOne') or '').strip()
+    team_two = str(teams.get('rawTeamTwo') or teams.get('teamTwo') or '').strip()
+    if not team_one or not team_two:
+        return {}
+    return {
+        'team1': team_one,
+        'team2': team_two,
+        'swappedTeam1': team_two,
+        'swappedTeam2': team_one
+    }
 
 
 def summarize_round_result(round_result):
@@ -378,12 +491,17 @@ def summarize_round_result(round_result):
             'eventCount': len((round_result.get('roundAudit') or {}).get('events') or []),
             'emittedBy': (round_result.get('roundAudit') or {}).get('emittedBy'),
             'completeAtEmit': (round_result.get('roundAudit') or {}).get('completeAtEmit')
-        } if round_result.get('roundAudit') else None
+        } if round_result.get('roundAudit') else None,
+        'roundStats': {
+            'playerCount': len((round_result.get('roundStats') or {}).get('players') or []),
+            'rawEventCount': len((round_result.get('roundStats') or {}).get('rawEvents') or []),
+            'source': (round_result.get('roundStats') or {}).get('source')
+        } if round_result.get('roundStats') else None
     }
 
 
 def get_round_duration_seconds(lobby, round_result):
-    live_started_at = float(lobby.get('live_started_at') or 0)
+    live_started_at = float(lobby.get('match_started_at') or lobby.get('live_started_at') or 0)
     round_ended_at = float(
         (round_result or {}).get('observedAt')
         or (round_result or {}).get('capturedAt')
@@ -468,6 +586,8 @@ def start_live_roll_monitor(
     record_lobby_event,
     save_completed_match,
     kick_player_from_server=None,
+    register_match_context=None,
+    set_server_slomo=None,
     release_server_allocation=None,
     broadcast_open_lobbies_update=None,
     broadcast_queue_update=None,
@@ -485,6 +605,7 @@ def start_live_roll_monitor(
     pre_live_roll_broadcast_delay_seconds=3,
     finalized_cleanup_delay_seconds=60,
     live_match_max_seconds=3600,
+    round_result_settle_seconds=20,
     automation_mode_provider=None,
     save_runtime_state=None,
     dev_mode=False,
@@ -522,6 +643,8 @@ def start_live_roll_monitor(
     token = lobby['live_roll_token']
     lobby.setdefault('live_roll_command_sent', False)
     lobby.setdefault('live_roll_next_layer_sent', False)
+    lobby.setdefault('live_roll_required_confirmations', 2)
+    lobby.setdefault('live_roll_confirmed_rolls', 0)
     lobby.setdefault('live_roll_change_attempts', 0)
     lobby.setdefault('live_roll_last_change_attempt_at', None)
     lobby.setdefault('live_roll_broadcast_sent', False)
@@ -535,6 +658,11 @@ def start_live_roll_monitor(
     lobby.setdefault('live_broadcast_ready_at', None)
     lobby.setdefault('live_broadcast_error', None)
     lobby.setdefault('round_result', None)
+    lobby.setdefault('match_required_rounds', 2)
+    lobby.setdefault('match_round_results', [])
+    lobby.setdefault('match_current_round', 1)
+    lobby.setdefault('match_started_at', None)
+    lobby.setdefault('match_round_roll_pending', False)
 
     def record_event(event_type, payload=None):
         try:
@@ -547,6 +675,45 @@ def start_live_roll_monitor(
         except Exception as save_error:
             current_logger.warning(f"Failed to save runtime state after {event_type} for {lobby_id}: {save_error}")
 
+    def fetch_round_result_for_lobby(current_lobby, selected_map):
+        try:
+            return fetch_latest_round_result(
+                selected_map=selected_map,
+                live_started_at=current_lobby.get('live_started_at'),
+                server_details_provided_at=current_lobby.get('server_details_provided_at')
+            )
+        except TypeError:
+            return fetch_latest_round_result()
+
+    def try_register_match_context(current_lobby, selected_map, layer_status=None):
+        if not register_match_context or current_lobby.get('match_context_registered'):
+            return
+
+        context = {
+            'lobbyId': lobby_id,
+            'selectedLayer': selected_map,
+            'liveStartedAt': current_lobby.get('live_started_at'),
+            'serverDetailsProvidedAt': current_lobby.get('server_details_provided_at'),
+            'players': list(current_lobby.get('players') or []),
+            'teams': current_lobby.get('teams') or {},
+            'teamLabels': current_lobby.get('team_labels') or {},
+            'layerStatus': layer_status or {}
+        }
+        try:
+            response = register_match_context(context)
+            current_lobby['match_context_registered'] = True
+            current_lobby['match_context_response'] = response
+            record_event('match_context_registered', {
+                'context': context,
+                'response': response
+            })
+            current_logger.info(f"Registered match context for lobby {lobby_id}: {context}")
+        except Exception as context_error:
+            current_lobby['match_context_error'] = str(context_error)
+            current_logger.warning(
+                f"Failed to register match context for lobby {lobby_id}: {context_error}"
+            )
+
     def emit_announcement(current_lobby, announcement):
         if current_lobby.get('announcement') == announcement:
             return
@@ -555,6 +722,16 @@ def start_live_roll_monitor(
             'lobby_id': lobby_id,
             'announcement': announcement
         }, room=lobby_id)
+
+    def get_live_round_number(current_lobby):
+        try:
+            round_number = int(current_lobby.get('match_current_round') or 1)
+        except (TypeError, ValueError):
+            round_number = 1
+        return max(1, round_number)
+
+    def get_live_announcement(current_lobby):
+        return f'Live Round {get_live_round_number(current_lobby)}'
 
     def log_live_roll_state(message, current_lobby, presence=None, readiness=None, **extra):
         presence = presence or {}
@@ -576,25 +753,73 @@ def start_live_roll_monitor(
             extra
         )
 
-    def attempt_live_roll_change(current_lobby, selected_map, event_type):
+    def attempt_server_slomo(current_lobby, value, reason):
+        if not set_server_slomo:
+            return None
+        try:
+            response = set_server_slomo(value)
+            current_lobby['last_slomo_value'] = value
+            current_lobby['last_slomo_response'] = response
+            current_lobby['last_slomo_error'] = None
+            record_event('server_slomo_set', {
+                'value': value,
+                'reason': reason,
+                'response': response
+            })
+            current_logger.info(
+                'Server slomo set: lobby_id=%s value=%s reason=%s response=%s',
+                lobby_id,
+                value,
+                reason,
+                response
+            )
+            return response
+        except BridgeUnavailable:
+            raise
+        except Exception as slomo_error:
+            current_lobby['last_slomo_error'] = str(slomo_error)
+            record_event('server_slomo_failed', {
+                'value': value,
+                'reason': reason,
+                'error': str(slomo_error)
+            })
+            current_logger.warning(
+                'Failed to set server slomo for lobby %s value=%s reason=%s: %s',
+                lobby_id,
+                value,
+                reason,
+                slomo_error
+            )
+            return None
+
+    def attempt_live_roll_change(current_lobby, selected_map, event_type, faction1=None, faction2=None):
         try:
             current_logger.info(
-                'Live roll command attempt: lobby_id=%s selected_map=%s attempts_before=%s',
+                'Live roll command attempt: lobby_id=%s selected_map=%s faction1=%s faction2=%s attempts_before=%s',
                 lobby_id,
                 selected_map,
+                faction1,
+                faction2,
                 current_lobby.get('live_roll_change_attempts', 0)
             )
-            response = change_server_to_selected_map(selected_map)
+            try:
+                response = change_server_to_selected_map(selected_map, faction1=faction1, faction2=faction2)
+            except TypeError:
+                response = change_server_to_selected_map(selected_map)
             mark_live_roll_change_attempt(current_lobby, response=response)
             record_event(event_type, {
                 'selected_map': selected_map,
+                'faction1': faction1,
+                'faction2': faction2,
                 'attempts': current_lobby.get('live_roll_change_attempts'),
                 'response': current_lobby.get('live_roll_command_response')
             })
             current_logger.info(
-                'Live roll command succeeded: lobby_id=%s selected_map=%s attempts=%s response=%s',
+                'Live roll command succeeded: lobby_id=%s selected_map=%s faction1=%s faction2=%s attempts=%s response=%s',
                 lobby_id,
                 selected_map,
+                faction1,
+                faction2,
                 current_lobby.get('live_roll_change_attempts'),
                 current_lobby.get('live_roll_command_response')
             )
@@ -606,6 +831,8 @@ def start_live_roll_monitor(
             error_text = str(change_error)
             record_event(f'{event_type}_failed', {
                 'selected_map': selected_map,
+                'faction1': faction1,
+                'faction2': faction2,
                 'attempts': current_lobby.get('live_roll_change_attempts'),
                 'error': error_text
             })
@@ -636,6 +863,120 @@ def start_live_roll_monitor(
                 'reason': reason,
                 'error': str(release_error)
             })
+
+    def remember_round_factions(current_lobby, layer_status, round_number=None):
+        factions = extract_side_swap_factions(layer_status)
+        if not factions:
+            return {}
+        current_lobby.setdefault('match_round_factions', [])
+        if round_number is not None:
+            factions = {
+                **factions,
+                'roundNumber': round_number
+            }
+        if not current_lobby.get('match_initial_factions'):
+            current_lobby['match_initial_factions'] = factions
+        if round_number is not None and not any(
+            existing.get('roundNumber') == round_number
+            for existing in current_lobby.get('match_round_factions') or []
+        ):
+            current_lobby['match_round_factions'].append(factions)
+        return factions
+
+    def get_pending_side_swap_factions(current_lobby):
+        initial = current_lobby.get('match_initial_factions') or {}
+        if not initial.get('team1') or not initial.get('team2'):
+            return {}
+        return {
+            'faction1': initial.get('team2'),
+            'faction2': initial.get('team1')
+        }
+
+    def prepare_next_match_round(current_lobby, selected_map, next_round_number, layer_status=None):
+        remember_round_factions(current_lobby, layer_status, round_number=next_round_number - 1)
+        side_swap = get_pending_side_swap_factions(current_lobby)
+        now = time.time()
+        current_lobby['match_round_roll_pending'] = True
+        current_lobby['match_round_roll_pending_round'] = next_round_number
+        current_lobby['match_round_roll_pending_factions'] = side_swap
+        current_lobby['match_round_roll_pending_since'] = now
+        current_lobby['match_current_round'] = next_round_number
+        current_lobby['live_started_at'] = now
+        current_lobby['match_context_registered'] = False
+        current_lobby.pop('live_layer_transitioned_away_at', None)
+        current_lobby.pop('live_layer_transition_defer_logged_at', None)
+        current_lobby['live_broadcast_sent'] = False
+        current_lobby['live_broadcast_ready_at'] = None
+        current_lobby['announcement'] = (
+            f'Round {next_round_number - 1} complete. Rolling side-swap round '
+            f'{next_round_number}/{get_match_required_rounds(current_lobby)} on {selected_map}.'
+        )
+        current_lobby['server_details'] = {
+            **(current_lobby.get('server_details') or {}),
+            'matchRoundResults': list(current_lobby.get('match_round_results') or []),
+            'matchCurrentRound': next_round_number,
+            'matchRequiredRounds': get_match_required_rounds(current_lobby),
+            'sideSwapFactions': side_swap
+        }
+        record_event('match_round_side_swap_pending', {
+            'selected_map': selected_map,
+            'next_round': next_round_number,
+            'factions': side_swap
+        })
+        socketio.emit('lobby_update', {
+            'lobby_id': lobby_id,
+            'announcement': current_lobby['announcement'],
+            'server_details': current_lobby.get('server_details'),
+            'live_started_at': current_lobby.get('live_started_at'),
+            'step': current_lobby.get('step')
+        }, room=lobby_id)
+
+    def attempt_pending_match_round_roll(current_lobby, selected_map):
+        if not current_lobby.get('match_round_roll_pending'):
+            return False
+        retry_state = get_live_roll_retry_state(current_lobby, retry_seconds=retry_seconds)
+        if current_lobby.get('match_round_roll_last_attempt_at') and not retry_state.get('shouldRetry'):
+            return True
+        factions = current_lobby.get('match_round_roll_pending_factions') or {}
+        next_round = current_lobby.get('match_round_roll_pending_round')
+        success = attempt_live_roll_change(
+            current_lobby,
+            selected_map,
+            'match_round_side_swap_roll_attempted',
+            faction1=factions.get('faction1'),
+            faction2=factions.get('faction2')
+        )
+        current_lobby['match_round_roll_last_attempt_at'] = time.time()
+        if not success:
+            current_lobby['announcement'] = (
+                f'Round {int(next_round or 2) - 1} complete. Retrying side-swap roll on {selected_map}.'
+            )
+            socketio.emit('lobby_update', {
+                'lobby_id': lobby_id,
+                'announcement': current_lobby['announcement']
+            }, room=lobby_id)
+            return True
+        current_lobby['match_round_roll_pending'] = False
+        current_lobby['match_round_roll_pending_error'] = None
+        current_lobby['live_started_at'] = time.time()
+        current_lobby['match_context_registered'] = False
+        current_lobby['announcement'] = (
+            f'Side-swap round {next_round}/{get_match_required_rounds(current_lobby)} is rolling on {selected_map}.'
+        )
+        record_event('match_round_side_swap_roll_sent', {
+            'selected_map': selected_map,
+            'next_round': next_round,
+            'factions': factions,
+            'response': current_lobby.get('live_roll_command_response')
+        })
+        socketio.emit('lobby_update', {
+            'lobby_id': lobby_id,
+            'announcement': current_lobby['announcement'],
+            'live_started_at': current_lobby.get('live_started_at'),
+            'server_details': current_lobby.get('server_details'),
+            'step': current_lobby.get('step')
+        }, room=lobby_id)
+        return True
 
     def cleanup_finalized_lobby(finalized_lobby):
         pause_aware_sleep(finalized_cleanup_delay_seconds)
@@ -757,6 +1098,54 @@ def start_live_roll_monitor(
         }, room=lobby_id)
         eventlet.spawn(cleanup_finalized_lobby, dict(current_lobby))
 
+    def handle_match_round_result(current_lobby, round_result, selected_map, layer_status=None, *, force=False):
+        if not round_result:
+            return False
+        if not force and not should_finalize_live_lobby(current_lobby, round_result, selected_map):
+            return False
+
+        result_identity = get_round_result_identity(round_result)
+        if result_identity and result_identity in get_recorded_match_round_identities(current_lobby):
+            return False
+
+        recorded_rounds = list(current_lobby.get('match_round_results') or [])
+        round_number = len(recorded_rounds) + 1
+        annotated_result = annotate_match_round_result(round_result, round_number)
+        recorded_rounds.append(annotated_result)
+        current_lobby['match_round_results'] = recorded_rounds
+        current_lobby['match_current_round'] = round_number
+        remember_round_factions(current_lobby, layer_status, round_number=round_number)
+
+        required_rounds = get_match_required_rounds(current_lobby)
+        current_logger.info(
+            'Captured match round: lobby_id=%s round=%s/%s result=%s',
+            lobby_id,
+            round_number,
+            required_rounds,
+            summarize_round_result(annotated_result)
+        )
+        record_event('match_round_captured', {
+            'selected_map': selected_map,
+            'round_number': round_number,
+            'required_rounds': required_rounds,
+            'round_result': annotated_result,
+            'round_result_summary': summarize_round_result(annotated_result)
+        })
+
+        if round_number < required_rounds:
+            prepare_next_match_round(current_lobby, selected_map, round_number + 1, layer_status=layer_status)
+            attempt_pending_match_round_roll(current_lobby, selected_map)
+            return 'round_advanced'
+
+        match_result = build_match_rounds_result(current_lobby, selected_map, recorded_rounds)
+        finalize_with_round_result(
+            current_lobby,
+            match_result,
+            selected_map,
+            f"Finalizing live lobby {lobby_id} after round {round_number}/{required_rounds}"
+        )
+        return 'finalized'
+
     def monitor():
         while True:
             current_lobby = lobbies.get(lobby_id)
@@ -768,10 +1157,6 @@ def start_live_roll_monitor(
                 return
             if current_lobby.get('step') == 5:
                 return
-            if current_lobby.get('live_roll_done'):
-                round_result = current_lobby.get('round_result')
-                if round_result:
-                    return
             if not current_lobby.get('selected_map'):
                 return
             automation_mode = (
@@ -984,24 +1369,29 @@ def start_live_roll_monitor(
                     readiness=readiness,
                     automation_writes_enabled=automation_writes_enabled
                 )
-                round_result = fetch_latest_round_result()
+                round_result = fetch_round_result_for_lobby(current_lobby, selected_map)
                 layer_status = None
 
                 if current_lobby.get('live_roll_done'):
                     layer_status = get_server_layer_status(selected_map)
+                    try_register_match_context(current_lobby, selected_map, layer_status)
 
-                if should_finalize_live_lobby(
+                if current_lobby.get('match_round_roll_pending'):
+                    attempt_pending_match_round_roll(current_lobby, selected_map)
+                    pause_aware_sleep(poll_seconds)
+                    continue
+
+                round_result_action = handle_match_round_result(
                     current_lobby,
                     round_result,
-                    selected_map
-                ):
-                    finalize_with_round_result(
-                        current_lobby,
-                        round_result,
-                        selected_map,
-                        f"Finalizing lobby {lobby_id} from matching round result"
-                    )
+                    selected_map,
+                    layer_status=layer_status
+                )
+                if round_result_action == 'finalized':
                     return
+                if round_result_action == 'round_advanced':
+                    pause_aware_sleep(poll_seconds)
+                    continue
 
                 live_timer_status = get_live_match_timer_status(
                     current_lobby,
@@ -1054,7 +1444,25 @@ def start_live_roll_monitor(
                         emit_announcement(current_lobby, retry_message)
                         pause_aware_sleep(poll_seconds)
                         continue
-                    announcement = f'Rolling to live on {selected_map}. Stand by.'
+                    confirmed_rolls = get_live_roll_confirmed_rolls(current_lobby)
+                    required_rolls = get_required_live_roll_confirmations(current_lobby)
+                    is_first_compatibility_roll = confirmed_rolls <= 0 and required_rolls > 1
+                    is_final_compatibility_roll = confirmed_rolls + 1 >= required_rolls
+                    if confirmed_rolls <= 0 and required_rolls > 1:
+                        announcement = (
+                            f'Applying compatibility roll 1/{required_rolls} on {selected_map}. '
+                            f'The server will roll this layer twice before going live.'
+                        )
+                    elif confirmed_rolls + 1 < required_rolls:
+                        announcement = (
+                            f'Applying compatibility roll {confirmed_rolls + 1}/{required_rolls} '
+                            f'on {selected_map}.'
+                        )
+                    else:
+                        announcement = (
+                            f'Applying final compatibility roll {confirmed_rolls + 1}/{required_rolls} '
+                            f'on {selected_map}. Stand by.'
+                        )
                     current_lobby['announcement'] = announcement
                     socketio.emit('lobby_update', {
                         'lobby_id': lobby_id,
@@ -1087,11 +1495,29 @@ def start_live_roll_monitor(
                             f"Failed to broadcast live roll announcement for lobby {lobby_id}: "
                             f"{broadcast_error}"
                         )
-                    attempt_live_roll_change(
+                    if automation_writes_enabled and is_first_compatibility_roll:
+                        attempt_server_slomo(
+                            current_lobby,
+                            20,
+                            'first_compatibility_roll_acceleration'
+                        )
+                    live_roll_sent = attempt_live_roll_change(
                         current_lobby,
                         selected_map,
                         'live_roll_attempted'
                     )
+                    if automation_writes_enabled and is_final_compatibility_roll and live_roll_sent:
+                        attempt_server_slomo(
+                            current_lobby,
+                            10,
+                            'final_compatibility_roll_acceleration_after_roll'
+                        )
+                        pause_aware_sleep(3)
+                        attempt_server_slomo(
+                            current_lobby,
+                            1,
+                            'final_compatibility_roll_reset_after_acceleration'
+                        )
                     pause_aware_sleep(2)
                     continue
 
@@ -1103,25 +1529,91 @@ def start_live_roll_monitor(
                 )
 
                 if has_live_layer_transitioned_away(current_lobby, layer_status):
+                    now = time.time()
+                    transitioned_at = current_lobby.setdefault(
+                        'live_layer_transitioned_away_at',
+                        now
+                    )
+                    latest_summary = summarize_round_result(round_result)
+                    elapsed_since_transition = max(0, now - transitioned_at)
+                    if elapsed_since_transition < round_result_settle_seconds:
+                        last_logged_at = current_lobby.get('live_layer_transition_defer_logged_at') or 0
+                        if not last_logged_at or now - last_logged_at >= 5:
+                            current_lobby['live_layer_transition_defer_logged_at'] = now
+                            current_logger.info(
+                                f"Deferring live lobby {lobby_id} finalization after layer transition "
+                                f"for round result settle window: elapsed={elapsed_since_transition:.1f}s "
+                                f"limit={round_result_settle_seconds}s "
+                                f"candidate={latest_summary} layer_status={layer_status}"
+                            )
+                            record_event('match_result_settle_waiting', {
+                                'selected_map': selected_map,
+                                'elapsed_seconds': elapsed_since_transition,
+                                'settle_seconds': round_result_settle_seconds,
+                                'round_result': latest_summary,
+                                'layer_status': layer_status
+                            })
+                        pause_aware_sleep(poll_seconds)
+                        continue
+
+                    current_logger.warning(
+                        f"Finalizing live lobby {lobby_id} with unresolved fallback after "
+                        f"round result settle window expired: elapsed={elapsed_since_transition:.1f}s "
+                        f"limit={round_result_settle_seconds}s candidate={latest_summary} "
+                        f"layer_status={layer_status}"
+                    )
                     fallback_result = build_unresolved_round_result(
                         current_lobby,
                         selected_map,
                         source='cmp-layer-transition-fallback'
                     )
-                    finalize_with_round_result(
+                    round_result_action = handle_match_round_result(
                         current_lobby,
                         fallback_result,
                         selected_map,
-                        f"Finalizing live lobby {lobby_id} after selected layer rolled away"
+                        layer_status=layer_status,
+                        force=True
                     )
-                    return
+                    if round_result_action == 'finalized':
+                        return
+                    if round_result_action == 'round_advanced':
+                        pause_aware_sleep(poll_seconds)
+                        continue
 
                 if has_selected_layer_started_after_roll(current_lobby, layer_status):
                     live_team_labels = layer_status.get('teamLabels') or {}
                     if live_team_labels:
                         current_lobby['team_labels'] = live_team_labels
 
+                    if not current_lobby.get('live_roll_done'):
+                        confirmed_rolls = mark_live_roll_confirmation(current_lobby)
+                        required_rolls = get_required_live_roll_confirmations(current_lobby)
+                        if confirmed_rolls < required_rolls:
+                            reset_live_roll_command_for_second_pass(current_lobby)
+                            compatibility_message = (
+                                f'Compatibility roll {confirmed_rolls}/{required_rolls} applied on {selected_map}. '
+                                f'Rolling the same layer again to complete the reconnect fix.'
+                            )
+                            current_lobby['announcement'] = compatibility_message
+                            record_event('live_roll_compatibility_pass_confirmed', {
+                                'selected_map': selected_map,
+                                'confirmed_rolls': confirmed_rolls,
+                                'required_rolls': required_rolls,
+                                'layer_status': layer_status
+                            })
+                            socketio.emit('lobby_update', {
+                                'lobby_id': lobby_id,
+                                'announcement': compatibility_message,
+                                'team_labels': current_lobby.get('team_labels', {}),
+                                'live_roll_ready_at': current_lobby.get('live_roll_ready_at'),
+                                'live_roll_countdown': 0,
+                                'step': current_lobby.get('step')
+                            }, room=lobby_id)
+                            pause_aware_sleep(2)
+                            continue
+
                     if current_lobby.get('live_roll_done'):
+                        live_announcement = get_live_announcement(current_lobby)
                         was_live_broadcast_sent = bool(current_lobby.get('live_broadcast_sent'))
                         if automation_writes_enabled:
                             try_broadcast_live_message(
@@ -1133,6 +1625,8 @@ def start_live_roll_monitor(
                         if current_lobby.get('live_broadcast_sent') and not was_live_broadcast_sent:
                             current_lobby['server_details'] = {
                                 **(current_lobby.get('server_details') or {}),
+                                'matchCurrentRound': get_live_round_number(current_lobby),
+                                'matchRequiredRounds': get_match_required_rounds(current_lobby),
                                 'liveBroadcastResponse': current_lobby.get('live_broadcast_response'),
                                 'liveBroadcastError': current_lobby.get('live_broadcast_error')
                             }
@@ -1141,25 +1635,25 @@ def start_live_roll_monitor(
                             })
                             socketio.emit('lobby_update', {
                                 'lobby_id': lobby_id,
-                                'announcement': 'Live',
+                                'announcement': live_announcement,
                                 'team_labels': current_lobby.get('team_labels', {}),
                                 'server_details': current_lobby.get('server_details'),
                                 'live_roll_ready_at': current_lobby.get('live_roll_ready_at'),
                                 'live_roll_countdown': 0,
                                 'step': 4
                             }, room=lobby_id)
-                        if current_lobby.get('step') == 4 and current_lobby.get('announcement') != 'Live':
-                            current_lobby['announcement'] = 'Live'
+                        if current_lobby.get('step') == 4 and current_lobby.get('announcement') != live_announcement:
+                            current_lobby['announcement'] = live_announcement
                             socketio.emit('lobby_update', {
                                 'lobby_id': lobby_id,
-                                'announcement': 'Live',
+                                'announcement': live_announcement,
                                 'team_labels': current_lobby.get('team_labels', {}),
+                                'server_details': current_lobby.get('server_details'),
                                 'live_roll_ready_at': current_lobby.get('live_roll_ready_at'),
                                 'live_roll_countdown': 0,
                                 'step': 4
                             }, room=lobby_id)
                     else:
-                        live_announcement = 'Live'
                         live_started_at = get_live_started_at_from_layer_status(layer_status)
                         schedule_live_broadcast(
                             current_lobby,
@@ -1170,13 +1664,28 @@ def start_live_roll_monitor(
                         server_details = get_server_connection_details()
                         current_lobby['live_roll_done'] = True
                         current_lobby['live_started_at'] = live_started_at
+                        if not current_lobby.get('match_started_at'):
+                            current_lobby['match_started_at'] = live_started_at
+                        current_lobby['match_current_round'] = max(
+                            1,
+                            len(current_lobby.get('match_round_results') or []) + 1
+                        )
+                        live_announcement = get_live_announcement(current_lobby)
                         current_lobby['live_match_max_seconds'] = live_match_max_seconds
                         current_lobby['announcement'] = live_announcement
+                        remember_round_factions(
+                            current_lobby,
+                            layer_status,
+                            round_number=current_lobby.get('match_current_round')
+                        )
                         current_lobby['server_details'] = {
                             **server_details,
                             'map': selected_map,
                             'bridge_response': current_lobby.get('live_roll_command_response'),
                             'layerStatus': layer_status,
+                            'matchCurrentRound': current_lobby.get('match_current_round'),
+                            'matchRequiredRounds': get_match_required_rounds(current_lobby),
+                            'matchRoundResults': list(current_lobby.get('match_round_results') or []),
                             'liveMatchMaxSeconds': live_match_max_seconds,
                             'liveRollBroadcastResponse': current_lobby.get('live_roll_broadcast_response'),
                             'liveRollBroadcastError': current_lobby.get('live_roll_broadcast_error'),
@@ -1184,6 +1693,7 @@ def start_live_roll_monitor(
                             'liveBroadcastResponse': current_lobby.get('live_broadcast_response'),
                             'liveBroadcastError': current_lobby.get('live_broadcast_error')
                         }
+                        try_register_match_context(current_lobby, selected_map, layer_status)
                         current_lobby['step'] = 4
                         record_event('live_started', {
                             'selected_map': selected_map,
@@ -1203,14 +1713,17 @@ def start_live_roll_monitor(
                             'step': 4
                         }, room=lobby_id)
 
-                    if should_finalize_live_lobby(current_lobby, round_result, selected_map):
-                        finalize_with_round_result(
-                            current_lobby,
-                            round_result,
-                            selected_map,
-                            f"Finalizing live lobby {lobby_id} after layer confirmation"
-                        )
+                    round_result_action = handle_match_round_result(
+                        current_lobby,
+                        round_result,
+                        selected_map,
+                        layer_status=layer_status
+                    )
+                    if round_result_action == 'finalized':
                         return
+                    if round_result_action == 'round_advanced':
+                        pause_aware_sleep(poll_seconds)
+                        continue
 
                     pause_aware_sleep(poll_seconds)
                     continue

@@ -4,6 +4,7 @@ import { normalizePlayer } from './players.js';
 import {
   executeBroadcastCommand,
   executeLayerCommand,
+  executeSlomoCommand,
   getCommandDiagnostics
 } from './commands.js';
 import {
@@ -49,6 +50,26 @@ export function createBridgeHandler(server, { host, port, token, state }) {
       if (req.method === 'GET' && url.pathname === '/round/latest') {
         sendJson(res, 200, {
           round: state.latestScoreboard || state.latestRoundEnded
+        });
+        return;
+      }
+
+      if (req.method === 'GET' && url.pathname === '/round/best') {
+        sendJson(res, 200, state.roundResults.getBestForContext({
+          lobbyId: url.searchParams.get('lobbyId') || '',
+          selectedLayer: url.searchParams.get('selectedLayer') || '',
+          liveStartedAt: url.searchParams.get('liveStartedAt') || '',
+          serverDetailsProvidedAt: url.searchParams.get('serverDetailsProvidedAt') || ''
+        }));
+        return;
+      }
+
+      if (req.method === 'POST' && url.pathname === '/match/context') {
+        const payload = await readJsonBody(req);
+        const context = state.roundResults.registerContext(payload);
+        sendJson(res, 200, {
+          ok: true,
+          context
         });
         return;
       }
@@ -149,6 +170,13 @@ export function createBridgeHandler(server, { host, port, token, state }) {
       if (req.method === 'POST' && url.pathname === '/broadcast') {
         const payload = await readJsonBody(req);
         const result = await executeBroadcastCommand(server, state, payload.message);
+        sendJson(res, 200, result);
+        return;
+      }
+
+      if (req.method === 'POST' && url.pathname === '/rcon/slomo') {
+        const payload = await readJsonBody(req);
+        const result = await executeSlomoCommand(server, state, payload.value);
         sendJson(res, 200, result);
         return;
       }

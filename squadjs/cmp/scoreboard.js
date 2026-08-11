@@ -61,7 +61,7 @@ function getResultQuality(roundEnded) {
   return 'partial';
 }
 
-export function buildScoreboardResult(server, roundEnded, activeRound = null) {
+export function buildScoreboardResult(server, roundEnded, activeRound = null, roundStats = null) {
   if (!roundEnded) return null;
 
   const resultQuality = getResultQuality(roundEnded);
@@ -83,7 +83,8 @@ export function buildScoreboardResult(server, roundEnded, activeRound = null) {
     level: getLevelLabel(server, roundEnded, activeRound),
     endedAt: roundEnded.time || null,
     capturedAt: observedAt,
-    teams: buildTeamSnapshot(server.players || [])
+    teams: buildTeamSnapshot(server.players || []),
+    roundStats
   };
 }
 

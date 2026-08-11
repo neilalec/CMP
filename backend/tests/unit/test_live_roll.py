@@ -604,6 +604,300 @@ def test_admin_force_live_button_rolls_without_admin_server_presence(monkeypatch
     assert attempts == ['OCBT_Shchyhliivka_AAS_v3']
 
 
+def test_live_roll_requires_second_same_layer_roll_before_live(monkeypatch):
+    import services.live_roll as live_roll_module
+
+    class DummySocketIO:
+        def __init__(self):
+            self.emits = []
+
+        def emit(self, event, payload=None, **kwargs):
+            self.emits.append((event, payload, kwargs))
+
+    monkeypatch.setattr(live_roll_module.eventlet, 'spawn', lambda fn, *args, **kwargs: fn(*args, **kwargs))
+
+    lobby_id = 'lobby_double_roll'
+    lobbies = {
+        lobby_id: {
+            'players': ['alice'],
+            'teams': {'team1': ['alice'], 'team2': []},
+            'step': 3,
+            'selected_map': 'OCBT_Shchyhliivka_AAS_v3',
+            'server_details_provided_at': 1000,
+        }
+    }
+    socketio = DummySocketIO()
+    attempts = []
+    slomo_values = []
+    actions = []
+    events = []
+
+    def fake_time():
+        return 1000 + len(attempts) + len(events)
+
+    def pause_then_stop(_seconds):
+        lobby = lobbies.get(lobby_id)
+        if lobby and lobby.get('live_roll_done'):
+            lobbies.pop(lobby_id, None)
+
+    monkeypatch.setattr(live_roll_module.time, 'time', fake_time)
+
+    start_live_roll_monitor(
+        lobby_id,
+        lobbies,
+        socketio,
+        build_lobby_server_presence=lambda _lobby_id, tolerate_bridge_unavailable=False: {
+            'players': [{'username': 'alice', 'connected': True, 'teamAligned': True}],
+            'connected': ['alice'],
+            'connectedSteamIds': ['76561198000000001'],
+            'aligned': ['alice'],
+            'mismatched': [],
+            'missing': [],
+            'unauthorizedPlayers': [],
+        },
+        pause_aware_sleep=pause_then_stop,
+        broadcast_server_message=lambda _message: {'ok': True},
+        set_server_slomo=lambda value: actions.append(('slomo', value)) or slomo_values.append(value) or {'ok': True, 'value': value},
+        change_server_to_selected_map=lambda selected_map: actions.append(('roll', selected_map)) or attempts.append(selected_map) or {'ok': True},
+        set_next_server_map=lambda _selected_map: {'ok': True},
+        force_player_to_expected_team=lambda _steam_id: {'ok': True},
+        get_server_layer_status=lambda _selected_map: {'currentMatches': True},
+        get_server_connection_details=lambda: {},
+        fetch_latest_round_result=lambda: None,
+        record_lobby_event=lambda _lobby_id, event_type, payload=None, created_at=None: events.append((event_type, payload)),
+        save_completed_match=lambda *_args, **_kwargs: None,
+        pre_live_roll_broadcast_delay_seconds=0,
+    )
+
+    assert attempts == ['OCBT_Shchyhliivka_AAS_v3', 'OCBT_Shchyhliivka_AAS_v3']
+    assert slomo_values == [20, 10, 1]
+    assert actions == [
+        ('slomo', 20),
+        ('roll', 'OCBT_Shchyhliivka_AAS_v3'),
+        ('roll', 'OCBT_Shchyhliivka_AAS_v3'),
+        ('slomo', 10),
+        ('slomo', 1),
+    ]
+    assert 'live_roll_compatibility_pass_confirmed' in [event_type for event_type, _payload in events]
+    announcements = [payload.get('announcement') for event, payload, _kwargs in socketio.emits if event == 'lobby_update']
+    assert any('Compatibility roll 1/2 applied' in announcement for announcement in announcements if announcement)
+    assert 'Live Round 1' in announcements
+
+
+def test_live_roll_waits_for_complete_result_after_layer_rolls_away(monkeypatch):
+    import services.live_roll as live_roll_module
+
+    class DummySocketIO:
+        def emit(self, event, payload=None, **kwargs):
+            return None
+
+    monkeypatch.setattr(live_roll_module.eventlet, 'spawn', lambda fn, *args, **kwargs: fn(*args, **kwargs))
+
+    lobby_id = 'lobby_wait_complete_result'
+    now = 1000
+    lobbies = {
+        lobby_id: {
+            'players': ['alice'],
+            'teams': {'team1': ['alice'], 'team2': []},
+            'step': 4,
+            'selected_map': 'S3O_FoolsRoad_Tournament_v1',
+            'server_details_provided_at': 900,
+            'live_roll_done': True,
+            'live_roll_command_sent': True,
+            'live_started_at': 950,
+            'live_roll_token': 1,
+            'match_required_rounds': 1,
+        }
+    }
+    saved_matches = []
+    events = []
+    round_results = [
+        {
+            'observedAt': 1010,
+            'layer': 'S3O_FoolsRoad_Tournament_v1',
+            'partial': True,
+            'winner': None,
+            'loser': None,
+        },
+        {
+            'observedAt': 1012,
+            'layer': 'S3O_FoolsRoad_Tournament_v1',
+            'partial': False,
+            'winner': {'team': '1', 'layer': 'S3O_FoolsRoad_Tournament_v1', 'tickets': 65},
+            'loser': {'team': '2', 'layer': 'S3O_FoolsRoad_Tournament_v1', 'tickets': 64},
+        }
+    ]
+
+    def fake_time():
+        return now
+
+    def pause_and_advance(_seconds):
+        nonlocal now
+        now += 5
+
+    def fetch_round_result():
+        if len(round_results) > 1:
+            return round_results.pop(0)
+        return round_results[0]
+
+    monkeypatch.setattr(live_roll_module.time, 'time', fake_time)
+
+    start_live_roll_monitor(
+        lobby_id,
+        lobbies,
+        DummySocketIO(),
+        build_lobby_server_presence=lambda _lobby_id, tolerate_bridge_unavailable=False: {
+            'players': [{'username': 'alice', 'connected': True, 'teamAligned': True}],
+            'connected': ['alice'],
+            'connectedSteamIds': ['76561198000000001'],
+            'aligned': ['alice'],
+            'mismatched': [],
+            'missing': [],
+            'unauthorizedPlayers': [],
+        },
+        pause_aware_sleep=pause_and_advance,
+        broadcast_server_message=lambda _message: {'ok': True},
+        change_server_to_selected_map=lambda _selected_map: {'ok': True},
+        set_next_server_map=lambda _selected_map: {'ok': True},
+        force_player_to_expected_team=lambda _steam_id: {'ok': True},
+        get_server_layer_status=lambda _selected_map: {
+            'currentMatches': False,
+            'currentLayer': 'AlBasrah_RAAS_v1',
+        },
+        get_server_connection_details=lambda: {},
+        fetch_latest_round_result=fetch_round_result,
+        record_lobby_event=lambda _lobby_id, event_type, payload=None, created_at=None: events.append((event_type, payload)),
+        save_completed_match=lambda _lobby_id, lobby, completed_at: saved_matches.append(dict(lobby)),
+        release_server_allocation=lambda _lobby_id, reason=None: None,
+        broadcast_open_lobbies_update=lambda: None,
+        broadcast_queue_update=lambda: None,
+        finalized_cleanup_delay_seconds=0,
+        round_result_settle_seconds=20,
+    )
+
+    assert saved_matches
+    saved_result = saved_matches[0]['round_result']
+    assert saved_result['winner']['tickets'] == 65
+    assert saved_result['loser']['tickets'] == 64
+    assert saved_result['partial'] is False
+    assert 'match_result_settle_waiting' in [event_type for event_type, _payload in events]
+
+
+def test_live_roll_default_match_requires_side_swap_second_round(monkeypatch):
+    import services.live_roll as live_roll_module
+
+    class DummySocketIO:
+        def __init__(self):
+            self.emits = []
+
+        def emit(self, event, payload=None, **kwargs):
+            self.emits.append((event, payload, kwargs))
+
+    monkeypatch.setattr(live_roll_module.eventlet, 'spawn', lambda fn, *args, **kwargs: fn(*args, **kwargs))
+
+    lobby_id = 'lobby_two_round_match'
+    now = {'value': 1000}
+    lobbies = {
+        lobby_id: {
+            'players': ['alice', 'bob'],
+            'teams': {'team1': ['alice'], 'team2': ['bob']},
+            'step': 4,
+            'selected_map': 'S3O_FoolsRoad_Tournament_v1',
+            'server_details_provided_at': 900,
+            'live_roll_done': True,
+            'live_roll_command_sent': True,
+            'live_started_at': 950,
+            'live_roll_token': 1,
+        }
+    }
+    round_results = [
+        {
+            'observedAt': 1010,
+            'layer': 'S3O_FoolsRoad_Tournament_v1',
+            'partial': False,
+            'winner': {'team': '1', 'layer': 'S3O_FoolsRoad_Tournament_v1', 'tickets': 65},
+            'loser': {'team': '2', 'layer': 'S3O_FoolsRoad_Tournament_v1', 'tickets': 64},
+        },
+        {
+            'observedAt': 1200,
+            'layer': 'S3O_FoolsRoad_Tournament_v1',
+            'partial': False,
+            'winner': {'team': '2', 'layer': 'S3O_FoolsRoad_Tournament_v1', 'tickets': 72},
+            'loser': {'team': '1', 'layer': 'S3O_FoolsRoad_Tournament_v1', 'tickets': 60},
+        }
+    ]
+    attempts = []
+    saved_matches = []
+    events = []
+
+    def fake_time():
+        return now['value']
+
+    def pause_and_advance(_seconds):
+        now['value'] += 10
+
+    def fetch_round_result(selected_map=None, live_started_at=None, server_details_provided_at=None):
+        if len(round_results) > 1:
+            return round_results.pop(0)
+        return round_results[0]
+
+    monkeypatch.setattr(live_roll_module.time, 'time', fake_time)
+
+    start_live_roll_monitor(
+        lobby_id,
+        lobbies,
+        DummySocketIO(),
+        build_lobby_server_presence=lambda _lobby_id, tolerate_bridge_unavailable=False: {
+            'players': [
+                {'username': 'alice', 'connected': True, 'teamAligned': True},
+                {'username': 'bob', 'connected': True, 'teamAligned': True},
+            ],
+            'connected': ['alice', 'bob'],
+            'connectedSteamIds': ['1', '2'],
+            'aligned': ['alice', 'bob'],
+            'mismatched': [],
+            'missing': [],
+            'unauthorizedPlayers': [],
+        },
+        pause_aware_sleep=pause_and_advance,
+        broadcast_server_message=lambda _message: {'ok': True},
+        change_server_to_selected_map=lambda selected_map, faction1=None, faction2=None: attempts.append((selected_map, faction1, faction2)) or {'ok': True},
+        set_next_server_map=lambda _selected_map: {'ok': True},
+        force_player_to_expected_team=lambda _steam_id: {'ok': True},
+        get_server_layer_status=lambda _selected_map: {
+            'currentMatches': True,
+            'teamLabels': {'team1': 'RGF', 'team2': 'BAF'},
+            'serverInfo': {
+                'serverInfoTeams': {
+                    'rawTeamOne': 'S3O_RGF_S_CombinedArms',
+                    'rawTeamTwo': 'S3O_BAF_S_CombinedArms',
+                }
+            }
+        },
+        get_server_connection_details=lambda: {},
+        fetch_latest_round_result=fetch_round_result,
+        record_lobby_event=lambda _lobby_id, event_type, payload=None, created_at=None: events.append((event_type, payload)),
+        save_completed_match=lambda _lobby_id, lobby, completed_at: saved_matches.append(dict(lobby)),
+        release_server_allocation=lambda _lobby_id, reason=None: None,
+        broadcast_open_lobbies_update=lambda: None,
+        broadcast_queue_update=lambda: None,
+        finalized_cleanup_delay_seconds=0,
+        poll_seconds=1,
+        retry_seconds=0,
+    )
+
+    assert attempts == [
+        ('S3O_FoolsRoad_Tournament_v1', 'S3O_BAF_S_CombinedArms', 'S3O_RGF_S_CombinedArms')
+    ]
+    assert saved_matches
+    saved_result = saved_matches[0]['round_result']
+    assert saved_result['roundCount'] == 2
+    assert [round_result['roundNumber'] for round_result in saved_result['rounds']] == [1, 2]
+    assert saved_result['winner']['tickets'] == 72
+    assert 'match_round_captured' in [event_type for event_type, _payload in events]
+    assert 'match_round_side_swap_roll_sent' in [event_type for event_type, _payload in events]
+
+
 def test_s3o_small_rolls_after_five_minutes_without_ratio_gate(monkeypatch):
     import services.live_roll as live_roll_module
 
@@ -709,6 +1003,38 @@ def test_round_result_matches_selected_map_handles_null_winner_and_loser():
     ) is True
 
 
+def test_s3o_tournament_selected_map_matches_scoreboard_display_layer():
+    assert layer_matches_selected_map(
+        'Fallujah S3O v1',
+        'S3O_Fallujah_Tournament_v1'
+    ) is True
+
+
+def test_should_finalize_s3o_tournament_from_scoreboard_display_layer():
+    assert should_finalize_live_lobby(
+        {
+            'server_details_provided_at': 1000,
+            'live_started_at': 1030
+        },
+        {
+            'observedAt': 1040,
+            'layer': 'Fallujah S3O v1',
+            'partial': False,
+            'winner': {
+                'team': '2',
+                'layer': 'Fallujah S3O v1',
+                'tickets': '65'
+            },
+            'loser': {
+                'team': '1',
+                'layer': 'Fallujah S3O v1',
+                'tickets': '64'
+            }
+        },
+        'S3O_Fallujah_Tournament_v1'
+    ) is True
+
+
 def test_hotdrop_selected_map_requires_exact_hotdrop_layer():
     assert layer_matches_selected_map(
         'HotDrop_Fallujah',
@@ -779,13 +1105,15 @@ def test_should_finalize_live_lobby_after_live_started():
         {'live_started_at': 1000},
         {
             'observedAt': 1010,
-            'winner': {'layer': 'Chora Skirmish v1'}
+            'partial': False,
+            'winner': {'layer': 'Chora Skirmish v1', 'tickets': 65},
+            'loser': {'layer': 'Chora Skirmish v1', 'tickets': 64}
         },
         'Chora Skirmish v1'
     ) is True
 
 
-def test_should_finalize_live_lobby_accepts_s3o_scoreboard_after_map_selected():
+def test_should_not_finalize_live_lobby_from_result_before_live_started():
     assert should_finalize_live_lobby(
         {
             'server_details_provided_at': 1000,
@@ -793,7 +1121,25 @@ def test_should_finalize_live_lobby_accepts_s3o_scoreboard_after_map_selected():
         },
         {
             'observedAt': 1015,
-            'winner': {'layer': 'S3O_36_Harju_AAS_v3'}
+            'partial': False,
+            'winner': {'layer': 'S3O_36_Harju_AAS_v3', 'tickets': 35},
+            'loser': {'layer': 'S3O_36_Harju_AAS_v3', 'tickets': 34}
+        },
+        'S3O_36_Harju_AAS_v3'
+    ) is False
+
+
+def test_should_finalize_live_lobby_accepts_s3o_scoreboard_after_live_started():
+    assert should_finalize_live_lobby(
+        {
+            'server_details_provided_at': 1000,
+            'live_started_at': 1030
+        },
+        {
+            'observedAt': 1035,
+            'partial': False,
+            'winner': {'layer': 'S3O_36_Harju_AAS_v3', 'tickets': 35},
+            'loser': {'layer': 'S3O_36_Harju_AAS_v3', 'tickets': 34}
         },
         'S3O_36_Harju_AAS_v3'
     ) is True
@@ -813,7 +1159,7 @@ def test_should_not_finalize_live_lobby_from_scoreboard_before_map_selected():
     ) is False
 
 
-def test_should_finalize_live_lobby_with_sparse_round_end_after_live_started():
+def test_should_not_finalize_live_lobby_with_sparse_round_end_after_live_started():
     assert should_finalize_live_lobby(
         {'live_started_at': 1000},
         {
@@ -823,10 +1169,10 @@ def test_should_finalize_live_lobby_with_sparse_round_end_after_live_started():
             'time': '2026.06.04-20.00.00'
         },
         'Tallil Outskirts Skirmish v2'
-    ) is True
+    ) is False
 
 
-def test_should_finalize_hotdrop_round_when_log_layer_uses_spaces():
+def test_should_not_finalize_partial_hotdrop_round_when_log_layer_uses_spaces():
     assert should_finalize_live_lobby(
         {'live_started_at': 1000},
         {
@@ -839,7 +1185,7 @@ def test_should_finalize_hotdrop_round_when_log_layer_uses_spaces():
             'partial': True
         },
         'HotDrop_SumariBala'
-    ) is True
+    ) is False
 
 
 def test_live_match_timer_never_ends_match_from_app_clock():
@@ -1001,6 +1347,7 @@ def test_finalized_lobby_releases_server_immediately_and_expires(monkeypatch):
             'selected_map': 'OutoftheBox_Tallil',
             'server_id': 1,
             'server_details_provided_at': 1000,
+            'match_required_rounds': 1,
         }
     }
     socketio = DummySocketIO()
@@ -1154,4 +1501,7 @@ def test_live_roll_retries_when_initial_rcon_roll_fails(monkeypatch):
     assert attempts == ['OCBT_Shchyhliivka_AAS_v3', 'OCBT_Shchyhliivka_AAS_v3']
     assert 'live_roll_attempted_failed' in event_types
     assert 'live_roll_attempted' in event_types
-    assert retry_lobby['announcement'] == 'Rolling to live on OCBT_Shchyhliivka_AAS_v3. Stand by.'
+    assert retry_lobby['announcement'] == (
+        'Applying compatibility roll 1/2 on OCBT_Shchyhliivka_AAS_v3. '
+        'The server will roll this layer twice before going live.'
+    )

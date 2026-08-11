@@ -2,7 +2,7 @@ import { iterateIDs, capitalID } from 'core/id-parser';
 
 export default {
   regex:
-    /^\[([0-9.:-]+)]\[([ 0-9]*)]LogSquadTrace: \[DedicatedServer](?:ASQSoldier::)?Die\(\): Player:(.+) KillingDamage=(?:-)*([0-9.]+) from ([A-z_0-9]+) \(Online IDs:([^)|]+)\| Contoller ID: ([\w\d]+)\) caused by ([A-z_0-9-]+)_C/,
+    /^\[([0-9.:-]+)]\[([ 0-9]*)]LogSquadTrace: \[DedicatedServer](?:ASQSoldier::)?Die\(\): Player:(.+?) KillingDamage=(-?[0-9.]+) from (.+?) \(Online IDs:\s*([^|)]+)\s*\|\s*(?:Cont(?:r)?oller|Player Controller) ID:\s*([^) ]+)\)\s*caused by ([A-Za-z_0-9-]+)_C/,
   onMatch: (args, logParser) => {
     if (args[6].includes('INVALID')) return; // bail in case of bad IDs.
     const data = {
@@ -13,7 +13,8 @@ export default {
       chainID: args[2],
       victimName: args[3],
       damage: parseFloat(args[4]),
-      attackerPlayerController: args[5],
+      attackerName: args[5],
+      attackerPlayerController: args[7],
       weapon: args[8]
     };
 

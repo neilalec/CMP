@@ -46,6 +46,10 @@
   --lobby-player-status-connected: #1b6f2f;
   --lobby-player-status-missing: #a5362f;
   --lobby-player-status-warning: #8b6818;
+  --lobby-player-current-bg: var(--accent-soft);
+  --lobby-player-current-border: var(--accent-border);
+  --lobby-player-current-text: var(--accent-strong);
+  --lobby-player-current-shadow: none;
   --control-bg: #dfd7c9;
   --control-bg-hover: #e9e1d3;
   --control-bg-active: #cbc2b2;
@@ -88,6 +92,97 @@
 }
 
 html.dark-mode {
+  color-scheme: dark;
+  --dark-readable-text: #d6d9dc;
+  --dark-readable-muted: #bfc3c7;
+  --dark-readable-soft: #a1a6aa;
+  --lobby-phase-title-text: #e4e7ea;
+  --lobby-card-value-text: #d3d7da;
+  --lobby-card-muted-text: #abb0b5;
+  --dark-embedded-text: #dce0e3;
+  --queue-counter-text: #e1e5e8;
+  --app-bg: #202326;
+  --app-bg-soft: #2b2f33;
+  --surface: #373c41;
+  --panel-bg: #4a5056;
+  --panel-bg-strong: #686f77;
+  --panel-bg-muted: #34393e;
+  --surface-border: #818a93;
+  --surface-border-strong: #b1bbc4;
+  --surface-highlight: rgba(255, 255, 255, 0.19);
+  --surface-shadow: 1px 1px 0 rgba(255, 255, 255, 0.1);
+  --control-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.13), inset -1px -1px 0 rgba(26, 29, 32, 0.26);
+  --window-shadow: 3px 3px 0 rgba(18, 20, 22, 0.18);
+  --inset-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.12), inset -1px -1px 0 rgba(26, 29, 32, 0.24);
+  --accent: #9fc2d0;
+  --accent-strong: #e6f5fb;
+  --accent-soft: #405963;
+  --accent-border: #9ec7d8;
+  --accent-ring: rgba(158, 199, 216, 0.34);
+  --chrome-blue: #53616d;
+  --chrome-aqua: #5d686d;
+  --chrome-green: #626b64;
+  --chrome-yellow: #707066;
+  --chrome-rose: #6c6264;
+  --success: #d7dcda;
+  --success-soft: #505855;
+  --danger: #edd1cf;
+  --danger-soft: #5d4b4a;
+  --warning: #ded9c7;
+  --warning-soft: #5b584c;
+  --gold: #d9dcde;
+  --gold-strong: #f0f2f3;
+  --gold-soft: #5b5e61;
+  --gold-border: #a0a5aa;
+  --text-main: var(--dark-readable-text);
+  --text-muted: var(--dark-readable-muted);
+  --text-soft: var(--dark-readable-soft);
+  --phase-check-text: var(--lobby-phase-title-text);
+  --lobby-player-name-text: #eeeeee;
+  --lobby-player-status-text: #c9c9c9;
+  --lobby-player-status-connected: #8fd59f;
+  --lobby-player-status-missing: #f0a29a;
+  --lobby-player-status-warning: #e6c876;
+  --lobby-player-current-bg: rgba(62, 95, 111, 0.68);
+  --lobby-player-current-border: #9ec7d8;
+  --lobby-player-current-text: #e6f5fb;
+  --lobby-player-current-shadow: 0 0 0 1px rgba(158, 199, 216, 0.2), 0 0 14px rgba(103, 171, 201, 0.28);
+  --control-bg: #5a6168;
+  --control-bg-hover: #6c747c;
+  --control-bg-active: #464c52;
+  --control-border: #98a2ac;
+  --input-bg: #394045;
+  --input-border: #8b949e;
+  --overlay: rgba(28, 31, 34, 0.58);
+  --titlebar-bg: linear-gradient(180deg, #626a72 0%, #4b5258 100%);
+  --titlebar-text: #e6e9ec;
+  --blue-banner-text: #e6e9ec;
+  --titlebar-divider: rgba(255, 255, 255, 0.12);
+  --window-inset: inset 1px 1px 0 rgba(255, 255, 255, 0.11);
+  --card-bg: linear-gradient(180deg, #5d656d 0%, #485057 100%);
+  --card-border: var(--surface-border);
+  --card-shadow: var(--window-shadow), var(--window-inset);
+  --card-inner-bg: #747c84;
+  --card-inner-border: var(--surface-border);
+  --card-inner-shadow: var(--surface-shadow);
+  --nav-card-bg: var(--card-bg);
+  --nav-card-border: var(--card-border);
+  --nav-card-shadow: var(--card-shadow);
+  --nav-card-hover-bg: linear-gradient(180deg, #707982 0%, #5f6770 100%);
+  --nav-card-active-bg: linear-gradient(180deg, #828b94 0%, #6b747d 100%);
+  --nav-card-active-border: #c0c9d1;
+  --nav-card-active-shadow: var(--inset-shadow);
+  --selected-control-bg: var(--nav-card-active-bg);
+  --selected-control-border: var(--nav-card-active-border);
+  --selected-control-shadow: var(--nav-card-active-shadow);
+  --selected-control-text: var(--text-main);
+  --app-atmosphere:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0 1px, transparent 1px 100%),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 0 1px, transparent 1px 100%),
+    linear-gradient(180deg, var(--app-bg-soft) 0%, var(--app-bg) 100%);
+}
+
+html.legacy-mode {
   color-scheme: dark;
   --dark-readable-text: #e7dcc8;
   --dark-readable-muted: #d2c7b4;
@@ -139,6 +234,10 @@ html.dark-mode {
   --lobby-player-status-connected: #b9e88f;
   --lobby-player-status-missing: #ff9a88;
   --lobby-player-status-warning: #f0cf73;
+  --lobby-player-current-bg: var(--accent-soft);
+  --lobby-player-current-border: var(--accent-border);
+  --lobby-player-current-text: var(--accent-strong);
+  --lobby-player-current-shadow: none;
   --control-bg: #948f81;
   --control-bg-hover: #a6a192;
   --control-bg-active: #7f7a6d;
@@ -187,16 +286,16 @@ body {
   overflow-x: hidden;
 }
 
-html.dark-mode ::-webkit-scrollbar {
+html:is(.dark-mode, .legacy-mode) ::-webkit-scrollbar {
   width: 12px;
   height: 12px;
 }
 
-html.dark-mode ::-webkit-scrollbar-track {
+html:is(.dark-mode, .legacy-mode) ::-webkit-scrollbar-track {
   background: var(--app-bg);
 }
 
-html.dark-mode ::-webkit-scrollbar-thumb {
+html:is(.dark-mode, .legacy-mode) ::-webkit-scrollbar-thumb {
   background: var(--surface-border);
   border: 2px solid var(--app-bg);
   border-radius: var(--radius-sm);
@@ -875,7 +974,7 @@ button.is-selected-control:focus-visible:not(:disabled) {
   gap: 12px;
 }
 
-html.dark-mode :where(
+html:is(.dark-mode, .legacy-mode) :where(
   body,
   #app,
   .app,
@@ -898,7 +997,7 @@ html.dark-mode :where(
   -webkit-text-fill-color: currentColor !important;
 }
 
-html.dark-mode :where(
+html:is(.dark-mode, .legacy-mode) :where(
   .muted-copy,
   .meta-label,
   .compact-label,
@@ -919,7 +1018,7 @@ html.dark-mode :where(
   -webkit-text-fill-color: currentColor !important;
 }
 
-html.dark-mode :where(
+html:is(.dark-mode, .legacy-mode) :where(
   .app-left .chrome-nav-item,
   .app-left .chrome-nav-item *,
   .app-right .chrome-nav-item,
@@ -934,7 +1033,7 @@ html.dark-mode :where(
   -webkit-text-fill-color: currentColor !important;
 }
 
-html.dark-mode :where(
+html:is(.dark-mode, .legacy-mode) :where(
   .app-brand-title,
   .app-brand-title *,
   .brand-name
@@ -944,13 +1043,33 @@ html.dark-mode :where(
   text-shadow: 0 1px 0 rgba(0, 0, 0, 0.32) !important;
 }
 
-html.dark-mode :where(.queue-card .queue-card-top strong) {
+html:is(.dark-mode, .legacy-mode) :where(.queue-card .queue-card-top strong) {
   color: var(--accent-strong) !important;
   -webkit-text-fill-color: currentColor !important;
 }
 
-/* Dark-mode ownership lives here, not in component-scoped styles. */
-html.dark-mode :where(
+html.dark-mode :where(.window-panel:where(:not(.app-left):not(.app-main):not(.app-right)), .data-card) {
+  background: linear-gradient(180deg, #5d656d 0%, #485057 100%);
+  border-color: #8d97a1;
+}
+
+html.dark-mode :where(.info-row, .data-row, .player-row) {
+  background: #747c84;
+  border-color: #98a2ac;
+}
+
+html.dark-mode :where(.team-group.grouped, .notice-tile) {
+  background: #6b737b;
+  border-color: #a1acb6;
+}
+
+html.dark-mode :where(.map-button, .phase-step, .match-info-action, .open-lobby) {
+  background: linear-gradient(180deg, #69727a 0%, #596168 100%);
+  border-color: #9aa5af;
+}
+
+/* Dark theme ownership lives here, not in component-scoped styles. */
+html:is(.dark-mode, .legacy-mode) :where(
   .window-titlebar,
   .window-titlebar *,
   .profile-name,
@@ -960,7 +1079,7 @@ html.dark-mode :where(
   -webkit-text-fill-color: currentColor !important;
 }
 
-html.dark-mode :where(
+html:is(.dark-mode, .legacy-mode) :where(
   .phase-title.is-map-selected,
   .phase-title.is-force-roll,
   .phase-title.is-live,
@@ -970,7 +1089,7 @@ html.dark-mode :where(
   -webkit-text-fill-color: currentColor !important;
 }
 
-html.dark-mode :where(
+html:is(.dark-mode, .legacy-mode) :where(
   .map-vote-team .player-name,
   .match-info .info-row-value
 ) {
@@ -978,7 +1097,7 @@ html.dark-mode :where(
   -webkit-text-fill-color: currentColor !important;
 }
 
-html.dark-mode :where(
+html:is(.dark-mode, .legacy-mode) :where(
   .match-info .info-row-label,
   .match-info .match-info-note,
   .map-vote-team .window-titlebar-meta,
@@ -988,7 +1107,7 @@ html.dark-mode :where(
   -webkit-text-fill-color: currentColor !important;
 }
 
-html.dark-mode :where(
+html:is(.dark-mode, .legacy-mode) :where(
   .static-page .static-section p,
   .static-page .notice-tile
 ) {
@@ -996,21 +1115,21 @@ html.dark-mode :where(
   -webkit-text-fill-color: currentColor !important;
 }
 
-html.dark-mode :where(.static-page .notice-tile strong) {
+html:is(.dark-mode, .legacy-mode) :where(.static-page .notice-tile strong) {
   color: var(--phase-check-text) !important;
   -webkit-text-fill-color: currentColor !important;
 }
 
-html.dark-mode :where(.window-titlebar-meta) {
+html:is(.dark-mode, .legacy-mode) :where(.window-titlebar-meta) {
   color: var(--blue-banner-text) !important;
   -webkit-text-fill-color: currentColor !important;
 }
 
-html.dark-mode :where(.lobby-titlebar .phase-step.is-current .phase-dot) {
+html:is(.dark-mode, .legacy-mode) :where(.lobby-titlebar .phase-step.is-current .phase-dot) {
   background: var(--blue-banner-text) !important;
 }
 
-html.dark-mode :where(
+html:is(.dark-mode, .legacy-mode) :where(
   .header-heading,
   .phase-title.is-map-selected,
   .phase-title.is-force-roll,
@@ -1022,7 +1141,7 @@ html.dark-mode :where(
     0 3px 10px rgba(0, 0, 0, 0.22);
 }
 
-html.dark-mode :where(
+html:is(.dark-mode, .legacy-mode) :where(
   .phase-title.is-map-selected,
   .phase-title.is-force-roll,
   .phase-title.is-live,
@@ -1031,14 +1150,14 @@ html.dark-mode :where(
   text-shadow: none !important;
 }
 
-html.dark-mode :where(
+html:is(.dark-mode, .legacy-mode) :where(
   .legal-footer
 ) {
   color: var(--text-muted) !important;
   -webkit-text-fill-color: currentColor !important;
 }
 
-html.dark-mode :where(
+html:is(.dark-mode, .legacy-mode) :where(
   .queue-meter,
   .sec-mini-meter
 ) {
@@ -1046,14 +1165,14 @@ html.dark-mode :where(
   border-color: color-mix(in srgb, var(--accent-border) 70%, black 30%);
 }
 
-html.dark-mode :where(
+html:is(.dark-mode, .legacy-mode) :where(
   .queue-meter-fill,
   .sec-mini-meter-fill
 ) {
   background: linear-gradient(90deg, #7aa0aa 0%, #bdd0c1 100%);
 }
 
-html.dark-mode :where(
+html:is(.dark-mode, .legacy-mode) :where(
   .queue-meter-label,
   .sec-mini-meter-label
 ) {
@@ -1065,7 +1184,7 @@ html.dark-mode :where(
   text-shadow: 0 1px 0 rgba(255, 255, 255, 0.26) !important;
 }
 
-html.dark-mode :where(
+html:is(.dark-mode, .legacy-mode) :where(
   .is-danger,
   .delete-button,
   .delete-lobby-button,
@@ -1075,7 +1194,7 @@ html.dark-mode :where(
   -webkit-text-fill-color: currentColor !important;
 }
 
-html.dark-mode :where(
+html:is(.dark-mode, .legacy-mode) :where(
   .queue-card .queue-card-body button:not(:disabled):not(.is-danger),
   .queue-card .queue-card-body button:not(:disabled):not(.is-danger) *
 ) {

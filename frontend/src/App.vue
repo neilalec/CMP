@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import { RouterLink, RouterView } from 'vue-router';
 import { useRouter, useRoute } from 'vue-router';
 import { useAuthStore } from './stores/authStore';
@@ -23,7 +23,8 @@ const lobbyStore = useLobbyStore();
 const queueStore = useQueueStore();
 const groupStore = useGroupStore();
 const route = useRoute();
-const { isDarkMode } = useThemeMode();
+const mainWindowBody = ref(null);
+const { themeLabel, themeIcon, nextThemeLabel, cycleTheme } = useThemeMode();
 const {
   isInLobby,
   currentLobbyId,
@@ -100,6 +101,32 @@ const lobbyTrackerPhases = [
   { id: 'complete', label: 'Score' }
 ];
 
+const resetLobbyScroll = async () => {
+  if (!route.path.startsWith('/lobby/')) return;
+  await nextTick();
+
+  const scrollToTop = () => {
+    mainWindowBody.value?.scrollTo?.({ top: 0, left: 0, behavior: 'auto' });
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  };
+
+  scrollToTop();
+  requestAnimationFrame(scrollToTop);
+  setTimeout(scrollToTop, 0);
+};
+
+watch(
+  [
+    () => route.fullPath,
+    () => lobbyStore.lobbyId,
+    () => lobbyStore.step
+  ],
+  resetLobbyScroll,
+  { flush: 'post' }
+);
+
 </script>
 
 <template>
@@ -167,7 +194,7 @@ const lobbyTrackerPhases = [
             />
             <span v-else class="window-titlebar-meta">{{ currentWindowTitle }}</span>
           </div>
-          <div class="main-window-body">
+          <div ref="mainWindowBody" class="main-window-body">
             <RouterView />
           </div>
         </main>
@@ -218,12 +245,12 @@ const lobbyTrackerPhases = [
             <button
               class="theme-button chrome-nav-item"
               type="button"
-              :aria-pressed="isDarkMode"
-              :title="isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'"
-              @click="isDarkMode = !isDarkMode"
+              :aria-label="`Current theme: ${themeLabel}. Switch to ${nextThemeLabel}`"
+              :title="`Switch to ${nextThemeLabel}`"
+              @click="cycleTheme"
             >
-              <span class="nav-icon theme-icon" aria-hidden="true">{{ isDarkMode ? 'L' : 'D' }}</span>
-              <span class="nav-label">{{ isDarkMode ? 'Light Mode' : 'Dark Mode' }}</span>
+              <span class="nav-icon theme-icon" aria-hidden="true">{{ themeIcon }}</span>
+              <span class="nav-label">{{ themeLabel }}</span>
             </button>
           </div>
         </aside>

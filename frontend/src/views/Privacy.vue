@@ -39,7 +39,7 @@
           <h2 class="static-section-title">Cookies and Local Storage</h2>
           <p>
             The app may store login/session state, theme preference, and lobby recovery state in
-            your browser. These are used to keep you signed in, remember dark mode, and reconnect
+            your browser. These are used to keep you signed in, remember your theme preference, and reconnect
             you to active lobbies. We do not currently use advertising cookies.
           </p>
         </section>

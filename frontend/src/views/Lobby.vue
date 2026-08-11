@@ -58,6 +58,7 @@ const {
         :ready-grace-remaining-seconds="lobbyStore.liveRollCountdown"
         :total-players="lobbyStore.players.length"
         :announcement="lobbyStore.announcement"
+        :server-details="lobbyStore.serverDetails"
         :step="lobbyStore.step"
         :show-pause-button="showPauseButton"
         :is-countdown-paused="isCountdownPaused"
@@ -143,8 +144,10 @@ const {
                 :auto-connect-enabled="canAutoConnect"
                 :direct-connect-available="lobbyStore.step === 3 || lobbyStore.step === 4"
                 :direct-connect-enabled="canDirectConnect"
+                :is-spectator="lobbyStore.isSpectator"
                 @auto-connect="connectToServer"
                 @direct-connect="directConnectToServer"
+                @leave-lobby="handleLeaveLobby"
               />
             </template>
             <template #right>
@@ -163,7 +166,7 @@ const {
           </LobbyPhaseGrid>
         </div>
 
-        <div v-if="!lobbyStore.loading" class="leave-lobby-card window-panel">
+        <div v-if="!lobbyStore.loading && lobbyStore.step < 3" class="leave-lobby-card window-panel">
           <div class="leave-lobby-card-body panel-body">
             <button class="leave-lobby-button" type="button" @click="handleLeaveLobby">
               {{ lobbyStore.isSpectator ? 'Stop Spectating' : 'Leave Lobby' }}

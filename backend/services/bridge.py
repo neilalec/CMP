@@ -128,6 +128,28 @@ def fetch_latest_round_result(bridge_request):
     return response.get('round') if response else None
 
 
+def register_match_context(bridge_request, context):
+    response = bridge_request('/match/context', method='POST', payload=context or {})
+    return response or {}
+
+
+def fetch_best_round_result(bridge_request, *, lobby_id='', selected_layer='', live_started_at=None, server_details_provided_at=None):
+    params = []
+    if lobby_id:
+        params.append(f'lobbyId={url_quote(str(lobby_id))}')
+    if selected_layer:
+        params.append(f'selectedLayer={url_quote(str(selected_layer))}')
+    if live_started_at is not None:
+        params.append(f'liveStartedAt={url_quote(str(live_started_at))}')
+    if server_details_provided_at is not None:
+        params.append(f'serverDetailsProvidedAt={url_quote(str(server_details_provided_at))}')
+    path = '/round/best'
+    if params:
+        path = f'{path}?{"&".join(params)}'
+    response = bridge_request(path)
+    return response.get('round') if response else None
+
+
 def build_server_connection_details(
     bridge_request,
     configured_name='',
@@ -450,6 +472,32 @@ def normalize_hotdrop_layer_name(name):
     return ' '.join(normalized)
 
 
+def normalize_layer_compact(name):
+    return ''.join(char for char in str(name or '').lower() if char.isalnum())
+
+
+def s3o_tournament_display_matches(layer_value, selected_map):
+    selected_text = str(selected_map or '')
+    if not selected_text.startswith('S3O_') or '_Tournament_' not in selected_text:
+        return False
+
+    layer_text = str(layer_value or '')
+    if 's3o' not in layer_text.lower():
+        return False
+
+    selected_parts = selected_text.split('_')
+    if len(selected_parts) < 4:
+        return False
+
+    map_name = selected_parts[1]
+    version = selected_parts[-1]
+    layer_compact = normalize_layer_compact(layer_text)
+    return (
+        normalize_layer_compact(map_name) in layer_compact
+        and normalize_layer_compact(version) in layer_compact
+    )
+
+
 def layer_matches_selected_map(layer_value, selected_map):
     if not layer_value or not selected_map:
         return False
@@ -463,6 +511,12 @@ def layer_matches_selected_map(layer_value, selected_map):
             normalize_hotdrop_layer_name(selected_map),
             normalize_hotdrop_layer_name(resolved_selected_map)
         }
+
+    if (
+        s3o_tournament_display_matches(layer_value, selected_map)
+        or s3o_tournament_display_matches(layer_value, resolved_selected_map)
+    ):
+        return True
 
     normalized_layer = normalize_layer_name(layer_value)
     selected_candidates = {
@@ -557,18 +611,32 @@ def resolve_selected_map_layer_info(selected_map, bridge_request):
     return layers[0]
 
 
-def change_server_to_selected_map(selected_map, bridge_request):
+def build_layer_command_payload(selected_map, bridge_request, faction1=None, faction2=None):
     layer_id = resolve_selected_map_layer_id(selected_map, bridge_request)
-    return bridge_request('/layer/change', method='POST', payload={
+    payload = {
         'layer': layer_id
-    })
+    }
+    if faction1:
+        payload['faction1'] = str(faction1).strip()
+    if faction2:
+        payload['faction2'] = str(faction2).strip()
+    return payload
 
 
-def set_next_server_map(selected_map, bridge_request):
-    layer_id = resolve_selected_map_layer_id(selected_map, bridge_request)
-    return bridge_request('/layer/next', method='POST', payload={
-        'layer': layer_id
-    })
+def change_server_to_selected_map(selected_map, bridge_request, faction1=None, faction2=None):
+    return bridge_request(
+        '/layer/change',
+        method='POST',
+        payload=build_layer_command_payload(selected_map, bridge_request, faction1, faction2)
+    )
+
+
+def set_next_server_map(selected_map, bridge_request, faction1=None, faction2=None):
+    return bridge_request(
+        '/layer/next',
+        method='POST',
+        payload=build_layer_command_payload(selected_map, bridge_request, faction1, faction2)
+    )
 
 
 def get_server_layer_status(selected_map, bridge_request):
@@ -609,6 +677,12 @@ def get_server_layer_status(selected_map, bridge_request):
 def broadcast_server_message(message, bridge_request):
     return bridge_request('/broadcast', method='POST', payload={
         'message': message
+    })
+
+
+def set_server_slomo(value, bridge_request):
+    return bridge_request('/rcon/slomo', method='POST', payload={
+        'value': value
     })
 
 
