@@ -232,7 +232,17 @@ export function useAppSession({
       const isAuthenticated = authStore.restoreAuth()
 
       if (isAuthenticated) {
-        await socketStore.initSocket(authStore.token, authStore.username)
+        try {
+          await socketStore.initSocket(authStore.token, authStore.username)
+        } catch (error) {
+          authStore.logout()
+          clearCurrentLobby()
+          currentLobbyId.value = null
+          await socketStore.cleanupSocket()
+          await socketStore.initSocket()
+          router.replace('/auth')
+          return
+        }
       } else {
         await socketStore.initSocket()
       }

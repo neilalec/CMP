@@ -6,7 +6,7 @@ sys.modules.setdefault('app', sys.modules[__name__])
 load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
 from datetime import timedelta
 from flask import Flask, request
-from flask_jwt_extended import JWTManager, create_access_token, get_jwt_identity, verify_jwt_in_request
+from flask_jwt_extended import JWTManager, create_access_token, decode_token, get_jwt_identity, verify_jwt_in_request
 from flask_socketio import SocketIO, emit, join_room
 from flask_cors import CORS
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -528,8 +528,7 @@ def handle_connect(auth):
                 auth = {}
 
     def decode_token_for_legacy_wrapper(_token):
-        verify_jwt_in_request()
-        return {'sub': get_jwt_identity()}
+        return decode_token(_token)
 
     return handle_connect_event(
         auth,

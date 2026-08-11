@@ -3,6 +3,28 @@ import { useRootStore } from './rootStore';
 import { SOCKET_EVENTS } from '../constants/socketEvents';
 import { runStoreSocketAction } from './helpers/storeSocketAction';
 
+const decodeJwtPayload = (token) => {
+  try {
+    const payload = token.split('.')[1];
+    if (!payload) return null;
+
+    const normalizedPayload = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const paddedPayload = normalizedPayload.padEnd(
+      normalizedPayload.length + ((4 - normalizedPayload.length % 4) % 4),
+      '='
+    );
+    return JSON.parse(atob(paddedPayload));
+  } catch (error) {
+    return null;
+  }
+};
+
+const isTokenExpired = (token, nowSeconds = Date.now() / 1000) => {
+  const payload = decodeJwtPayload(token);
+  if (!payload?.exp) return false;
+  return Number(payload.exp) <= nowSeconds;
+};
+
 export const useAuthStore = defineStore('auth', {
   state: () => ({
     token: localStorage.getItem('token') || null,
@@ -62,6 +84,12 @@ export const useAuthStore = defineStore('auth', {
       const adminTestModeDisabled = localStorage.getItem('adminTestModeDisabled') === 'true';
       
       if (token && username) {
+        if (isTokenExpired(token)) {
+          this.clearAuthState();
+          this.clearPersistedAuth();
+          return false;
+        }
+
         this.token = token;
         this.username = username;
         this.displayName = displayName;
@@ -215,7 +243,14 @@ export const useAuthStore = defineStore('auth', {
     },
 
     checkAuth() {
+      if (this.token && isTokenExpired(this.token)) {
+        this.logout();
+        return false;
+      }
+
       return this.isLoggedIn && !!this.token && !!this.username;
     }
   }
 });
+
+export { decodeJwtPayload, isTokenExpired };

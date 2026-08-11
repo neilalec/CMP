@@ -1,5 +1,5 @@
 import { setActivePinia, createPinia } from 'pinia';
-import { useAuthStore } from '@/stores/authStore';
+import { useAuthStore, isTokenExpired } from '@/stores/authStore';
 
 // Mock the socket service
 jest.mock('@/services/socketService', () => ({
@@ -12,6 +12,11 @@ jest.mock('@/services/socketService', () => ({
 }));
 
 describe('AuthStore', () => {
+    const createJwt = (payload) => {
+        const encode = (value) => Buffer.from(JSON.stringify(value)).toString('base64url');
+        return `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode(payload)}.signature`;
+    };
+
     beforeEach(() => {
         setActivePinia(createPinia());
         localStorage.clear();
@@ -76,6 +81,27 @@ describe('AuthStore', () => {
         expect(store.isLoggedIn).toBe(true);
         expect(store.token).toBe('saved-token');
         expect(store.username).toBe('saveduser');
+    });
+
+    test('restoreAuth clears expired stored token', () => {
+        const expiredToken = createJwt({ sub: 'saveduser', exp: Math.floor(Date.now() / 1000) - 60 });
+        localStorage.setItem('token', expiredToken);
+        localStorage.setItem('username', 'saveduser');
+
+        const store = useAuthStore();
+        const result = store.restoreAuth();
+
+        expect(result).toBe(false);
+        expect(store.isLoggedIn).toBe(false);
+        expect(store.token).toBeNull();
+        expect(localStorage.getItem('token')).toBeNull();
+        expect(localStorage.getItem('username')).toBeNull();
+    });
+
+    test('isTokenExpired reads jwt exp claim', () => {
+        expect(isTokenExpired(createJwt({ exp: 100 }), 101)).toBe(true);
+        expect(isTokenExpired(createJwt({ exp: 100 }), 99)).toBe(false);
+        expect(isTokenExpired('opaque-dev-token', 101)).toBe(false);
     });
 
     test('restoreAuth returns false with no stored credentials', () => {

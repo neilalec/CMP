@@ -17,9 +17,9 @@ class TestAuthentication(unittest.TestCase):
 
     @patch('app.emit')
     @patch('app.join_room')
-    @patch('app.verify_jwt_in_request')
-    def test_handle_connect_valid_token(self, mock_verify, mock_join_room, mock_emit):
-        mock_verify.return_value = True
+    @patch('app.decode_token')
+    def test_handle_connect_valid_token(self, mock_decode_token, mock_join_room, mock_emit):
+        mock_decode_token.return_value = {'sub': 'testuser'}
         
         # Use test request context and modify its attributes
         with self.app.test_request_context() as context:
@@ -27,16 +27,15 @@ class TestAuthentication(unittest.TestCase):
             context.request.sid = 'test_sid'
             context.request.args = {'auth': '{"token": "valid_token", "username": "testuser"}'}
             
-            # Mock get_jwt_identity
-            with patch('app.get_jwt_identity', return_value='testuser'):
-                result = handle_connect(None)
-                self.assertTrue(result)
+            result = handle_connect(None)
+            self.assertTrue(result)
+            mock_decode_token.assert_called_once_with('valid_token')
 
     @patch('app.emit')
     @patch('app.join_room')
-    @patch('app.verify_jwt_in_request')
-    def test_handle_connect_invalid_token(self, mock_verify, mock_join_room, mock_emit):
-        mock_verify.side_effect = Exception('Invalid token')
+    @patch('app.decode_token')
+    def test_handle_connect_invalid_token(self, mock_decode_token, mock_join_room, mock_emit):
+        mock_decode_token.side_effect = Exception('Invalid token')
         
         # Use the test request context and modify its attributes
         with self.app.test_request_context() as context:
