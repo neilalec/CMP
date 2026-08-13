@@ -163,10 +163,40 @@ export const createDefaultQueueModes = () => ({
     playersInQueue: 0,
     inQueue: false
   },
+  outofthebox10: {
+    id: 'outofthebox10',
+    label: '10v10 Out of The Box Layers',
+    shortLabel: 'OOTB 10v10',
+    teamSize: 10,
+    maxPlayers: 20,
+    queue: [],
+    playersInQueue: 0,
+    inQueue: false
+  },
+  outofthebox15: {
+    id: 'outofthebox15',
+    label: '15v15 Out of The Box Layers',
+    shortLabel: 'OOTB 15v15',
+    teamSize: 15,
+    maxPlayers: 30,
+    queue: [],
+    playersInQueue: 0,
+    inQueue: false
+  },
+  outofthebox20: {
+    id: 'outofthebox20',
+    label: '20v20 Out of The Box Layers',
+    shortLabel: 'OOTB 20v20',
+    teamSize: 20,
+    maxPlayers: 40,
+    queue: [],
+    playersInQueue: 0,
+    inQueue: false
+  },
   outofthebox40: {
     id: 'outofthebox40',
     label: '30v30 Out of The Box Layers',
-    shortLabel: 'OOTB',
+    shortLabel: 'OOTB 30v30',
     teamSize: 30,
     maxPlayers: 60,
     queue: [],

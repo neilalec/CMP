@@ -184,13 +184,13 @@ html.dark-mode {
 
 html.legacy-mode {
   color-scheme: dark;
-  --dark-readable-text: #e7dcc8;
-  --dark-readable-muted: #d2c7b4;
-  --dark-readable-soft: #b8ad9d;
-  --lobby-phase-title-text: #fff3d2;
-  --lobby-card-value-text: #f4e4bd;
-  --lobby-card-muted-text: #d9c799;
-  --dark-embedded-text: #343a38;
+  --dark-readable-text: #000000;
+  --dark-readable-muted: #000000;
+  --dark-readable-soft: #000000;
+  --lobby-phase-title-text: #000000;
+  --lobby-card-value-text: #000000;
+  --lobby-card-muted-text: #000000;
+  --dark-embedded-text: #000000;
   --queue-counter-text: var(--dark-embedded-text);
   --app-bg: #3d403f;
   --app-bg-soft: #565a58;
@@ -247,7 +247,7 @@ html.legacy-mode {
   --overlay: rgba(32, 29, 24, 0.56);
   --titlebar-bg: linear-gradient(180deg, #6a8792 0%, #4d6c77 100%);
   --titlebar-text: #fff9ee;
-  --blue-banner-text: var(--dark-readable-text);
+  --blue-banner-text: var(--titlebar-text);
   --titlebar-divider: rgba(0, 0, 0, 0.28);
   --window-inset: inset 1px 1px 0 rgba(255, 255, 255, 0.14);
   --card-bg: linear-gradient(180deg, color-mix(in srgb, var(--panel-bg) 90%, white 10%) 0%, var(--panel-bg) 100%);
@@ -1199,6 +1199,33 @@ html:is(.dark-mode, .legacy-mode) :where(
   .queue-card .queue-card-body button:not(:disabled):not(.is-danger) *
 ) {
   color: var(--phase-check-text) !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+
+html.legacy-mode :where(
+  button,
+  button *,
+  .button-link,
+  .button-link *
+) {
+  color: var(--dark-embedded-text) !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+
+html.legacy-mode :where(
+  .app-brand-title,
+  .app-brand-title *,
+  .brand-name
+) {
+  color: var(--dark-embedded-text) !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+
+html.legacy-mode :where(
+  .window-titlebar,
+  .window-titlebar *
+) {
+  color: var(--blue-banner-text) !important;
   -webkit-text-fill-color: currentColor !important;
 }
 

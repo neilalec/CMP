@@ -270,6 +270,21 @@ def test_queue_modes_expose_each_tournament_format():
     assert QUEUE_MODES['balt26']['max_players'] == 52
     assert QUEUE_MODES['balt26']['map_pool'] is ALL_BALT_26_MAPS
 
+    assert QUEUE_MODES['outofthebox10']['label'] == '10v10 Out of The Box Layers'
+    assert QUEUE_MODES['outofthebox10']['team_size'] == 10
+    assert QUEUE_MODES['outofthebox10']['max_players'] == 20
+    assert QUEUE_MODES['outofthebox10']['map_pool'] is ALL_OUT_OF_THE_BOX_40_MAPS
+
+    assert QUEUE_MODES['outofthebox15']['label'] == '15v15 Out of The Box Layers'
+    assert QUEUE_MODES['outofthebox15']['team_size'] == 15
+    assert QUEUE_MODES['outofthebox15']['max_players'] == 30
+    assert QUEUE_MODES['outofthebox15']['map_pool'] is ALL_OUT_OF_THE_BOX_40_MAPS
+
+    assert QUEUE_MODES['outofthebox20']['label'] == '20v20 Out of The Box Layers'
+    assert QUEUE_MODES['outofthebox20']['team_size'] == 20
+    assert QUEUE_MODES['outofthebox20']['max_players'] == 40
+    assert QUEUE_MODES['outofthebox20']['map_pool'] is ALL_OUT_OF_THE_BOX_40_MAPS
+
     assert QUEUE_MODES['outofthebox40']['label'] == '30v30 Out of The Box Layers'
     assert QUEUE_MODES['outofthebox40']['team_size'] == 30
     assert QUEUE_MODES['outofthebox40']['max_players'] == 60
