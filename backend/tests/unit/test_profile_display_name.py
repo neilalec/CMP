@@ -106,10 +106,16 @@ def test_build_elo_leaderboard_hides_seeded_players_unless_enabled():
             'elo_rating': 1200,
             'elo_matches': 2,
         },
+        'EchoRanger42': {
+            'display_name': 'EchoRanger42',
+            'steam_id': '76561199000000023',
+            'elo_rating': 1400,
+            'elo_matches': 5,
+        },
     }
 
     production_board = build_elo_leaderboard(records)
     dev_board = build_elo_leaderboard(records, include_seeded_players=True)
 
     assert [player['username'] for player in production_board] == ['neil']
-    assert [player['username'] for player in dev_board] == ['AlphaAce1', 'group_seed_001', 'neil']
+    assert [player['username'] for player in dev_board] == ['EchoRanger42', 'AlphaAce1', 'group_seed_001', 'neil']

@@ -3,6 +3,8 @@ import re
 
 DISPLAY_NAME_MAX_LENGTH = 32
 DISPLAY_NAME_SAFE_RE = re.compile(r'^[A-Za-z0-9 _.\-]+$')
+SEED_STEAM_ID_START = 76561199000000000
+SEED_STEAM_ID_END = 76561199099999999
 
 
 def _user_in_queue(matchmaking_queue, username):
@@ -50,6 +52,9 @@ def get_user_profile(username, get_user_record, matchmaking_queue, is_user_in_an
 
 def _is_seeded_player(username, record):
     if isinstance(record, dict) and record.get('seeded_player'):
+        return True
+    steam_id = str((record or {}).get('steam_id') or '').strip()
+    if steam_id.isdigit() and SEED_STEAM_ID_START <= int(steam_id) <= SEED_STEAM_ID_END:
         return True
     username = str(username or '').strip().lower()
     return username.startswith('group_seed_') or '_seed_' in username
