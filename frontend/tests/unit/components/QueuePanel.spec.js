@@ -44,10 +44,18 @@ const queueModes = [
   },
   {
     id: 'ocbt15',
-    label: '15v15 Open Clan Battle',
+    label: '10v10 Open Clan Battle',
     shortLabel: 'OCBT',
-    teamSize: 15,
-    maxPlayers: 30,
+    teamSize: 10,
+    maxPlayers: 20,
+    playersInQueue: 0
+  },
+  {
+    id: 's3osmall5',
+    label: '5v5 S3O Layers',
+    shortLabel: 'S3O 5v5',
+    teamSize: 5,
+    maxPlayers: 10,
     playersInQueue: 0
   },
   {
@@ -108,50 +116,72 @@ const mountQueuePanel = (props = {}) => mount(QueuePanel, {
 
 describe('QueuePanel.vue', () => {
   test('renders the current queue modes', () => {
-    const wrapper = mountQueuePanel();
+    const wrapper = mountQueuePanel({
+      queueModes: ['s3osmall5', 'ocbt15', 'skirmish']
+        .map((modeId) => queueModes.find((queueMode) => queueMode.id === modeId))
+    });
 
-    expect(wrapper.text()).not.toContain('Skirmish Layers');
+    expect(wrapper.text()).toContain('Comp Skirmish Layers');
     expect(wrapper.text()).not.toContain('Hotdrop');
-    expect(wrapper.text()).not.toContain('S3O Layers');
+    expect(wrapper.text()).toContain('S3O Layers');
     expect(wrapper.text()).not.toContain('Rivals Layers');
     expect(wrapper.text()).not.toContain('Offworld Squad Invitational Layers');
     expect(wrapper.text()).toContain('Open Clan Battle Layers');
-    expect(wrapper.text()).toContain('Squad Balt Layers');
-    expect(wrapper.text()).toContain('Squad Esports Cup Layers');
+    expect(wrapper.text()).not.toContain('Squad Balt Layers');
+    expect(wrapper.text()).not.toContain('Squad Esports Cup Layers');
     expect(wrapper.text()).not.toContain('30v30');
-    expect(wrapper.text()).toContain('15v15');
-    expect(wrapper.text()).toContain('26v26');
+    expect(wrapper.text()).toContain('5v5');
+    expect(wrapper.text()).toContain('10v10');
+    expect(wrapper.text()).toContain('20v20');
   });
 
   test('renders visible queue cards in display order', () => {
-    const wrapper = mountQueuePanel();
-    const titles = wrapper.findAll('.queue-title-link').map((link) => link.text());
+    const wrapper = mountQueuePanel({
+      queueModes: ['skirmish', 'ocbt15', 's3osmall5']
+        .map((modeId) => queueModes.find((queueMode) => queueMode.id === modeId))
+    });
+    const titles = wrapper.findAll('.queue-titlebar-link').map((link) => link.text());
 
     expect(titles).toEqual([
-      'Squad Balt Layers',
+      'S3O Layers',
       'Open Clan Battle Layers',
-      'Squad Esports Cup Layers'
+      'Comp Skirmish Layers'
     ]);
   });
 
+  test('uses queue sizes as the primary join button labels', () => {
+    const wrapper = mountQueuePanel({
+      queueModes: ['s3osmall5', 'ocbt15', 'skirmish']
+        .map((modeId) => queueModes.find((queueMode) => queueMode.id === modeId))
+    });
+    const labels = wrapper.findAll('.queue-action').map((button) => button.text());
+
+    expect(labels).toEqual(['5v5', '10v10', '20v20']);
+  });
+
   test('emits join-queue for the selected mode', async () => {
-    const wrapper = mountQueuePanel();
+    const wrapper = mountQueuePanel({
+      queueModes: ['s3osmall5', 'ocbt15', 'skirmish']
+        .map((modeId) => queueModes.find((queueMode) => queueMode.id === modeId))
+    });
 
     await wrapper.find('.queue-action').trigger('click');
 
-    expect(wrapper.emitted('join-queue')).toEqual([['balt26']]);
+    expect(wrapper.emitted('join-queue')).toEqual([['s3osmall5']]);
   });
 
   test('emits leave-queue when already queued for the mode', async () => {
     const wrapper = mountQueuePanel({
       inQueue: true,
-      currentQueueMode: 'balt26'
+      currentQueueMode: 's3osmall5',
+      queueModes: ['s3osmall5', 'ocbt15', 'skirmish']
+        .map((modeId) => queueModes.find((queueMode) => queueMode.id === modeId))
     });
 
     const leaveButton = wrapper.findAll('.queue-action').find((button) => button.text() === 'Leave Queue');
     await leaveButton.trigger('click');
 
-    expect(wrapper.emitted('leave-queue')).toEqual([['balt26']]);
+    expect(wrapper.emitted('leave-queue')).toEqual([['s3osmall5']]);
   });
 
   test('shows admin queue tools only when allowed', () => {
@@ -162,27 +192,33 @@ describe('QueuePanel.vue', () => {
     expect(adminWrapper.find('.queue-dev-actions').exists()).toBe(true);
   });
 
-  test('links the Squad Esports Cup title to the workshop page', () => {
-    const wrapper = mountQueuePanel();
-    const link = wrapper.findAll('a[href="https://steamcommunity.com/sharedfiles/filedetails/?id=3661196801"]')
-      .find((candidate) => candidate.text() === 'Squad Esports Cup Layers');
+  test('links the S3O title to the workshop page', () => {
+    const wrapper = mountQueuePanel({
+      queueModes: ['s3osmall5', 'ocbt15', 'skirmish']
+        .map((modeId) => queueModes.find((queueMode) => queueMode.id === modeId))
+    });
+    const link = wrapper.findAll('a[href="https://steamcommunity.com/sharedfiles/filedetails/?id=3664077364"]')
+      .find((candidate) => candidate.text() === 'S3O Layers');
 
     expect(link).toBeTruthy();
-    expect(link.text()).toBe('Squad Esports Cup Layers');
+    expect(link.text()).toBe('S3O Layers');
     expect(link.attributes('target')).toBe('_blank');
     expect(link.attributes('rel')).toBe('noopener noreferrer');
   });
 
   test('links card titles to their mod pages when configured', () => {
-    const wrapper = mountQueuePanel();
-    const links = wrapper.findAll('.queue-title-link').map((link) => link.attributes('href'));
-    const secLinks = links.filter((href) => href === 'https://steamcommunity.com/sharedfiles/filedetails/?id=3661196801');
+    const wrapper = mountQueuePanel({
+      queueModes: ['s3osmall5', 'ocbt15', 'skirmish']
+        .map((modeId) => queueModes.find((queueMode) => queueMode.id === modeId))
+    });
+    const links = wrapper.findAll('.queue-titlebar-link').map((link) => link.attributes('href'));
 
-    expect(links).not.toContain('https://steamcommunity.com/sharedfiles/filedetails/?id=3294562930');
-    expect(secLinks).toHaveLength(1);
+    expect(links).toContain('https://steamcommunity.com/sharedfiles/filedetails/?id=3294562930');
+    expect(links).not.toContain('https://steamcommunity.com/sharedfiles/filedetails/?id=3661196801');
     expect(links).not.toContain('https://steamcommunity.com/sharedfiles/filedetails/?id=3735813803');
     expect(links).toContain('https://steamcommunity.com/sharedfiles/filedetails/?id=3264205573');
-    expect(links).toContain('https://steamcommunity.com/sharedfiles/filedetails/?id=3686670558');
+    expect(links).toContain('https://steamcommunity.com/sharedfiles/filedetails/?id=3664077364');
+    expect(links).not.toContain('https://steamcommunity.com/sharedfiles/filedetails/?id=3686670558');
   });
 
   test('disables joining when the only server is busy', () => {

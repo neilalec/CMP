@@ -21,16 +21,9 @@ export function useHomeView() {
   let isDisposed = false;
   const isDev = import.meta.env.DEV;
   const queueDisplayOrder = [
+    's3osmall5',
     'ocbt15',
-    'ocbt5',
-    'outofthebox10',
-    'outofthebox15',
-    'outofthebox20',
-    'outofthebox40',
-    's3osmall1',
-    's3osmall2',
-    's3osmall3',
-    's3osmall4'
+    'skirmish'
   ];
   const canManageQueueTools = computed(() => !!authStore.isAdmin);
   const queueModes = computed(() => (

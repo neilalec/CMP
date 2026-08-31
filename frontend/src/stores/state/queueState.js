@@ -153,6 +153,16 @@ export const createDefaultQueueModes = () => ({
     playersInQueue: 0,
     inQueue: false
   },
+  s3osmall5: {
+    id: 's3osmall5',
+    label: '5v5 S3O Layers',
+    shortLabel: 'S3O 5v5',
+    teamSize: 5,
+    maxPlayers: 10,
+    queue: [],
+    playersInQueue: 0,
+    inQueue: false
+  },
   balt26: {
     id: 'balt26',
     label: '26v26 Balt Layers',

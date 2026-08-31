@@ -1153,8 +1153,60 @@ html:is(.dark-mode, .legacy-mode) :where(
 html:is(.dark-mode, .legacy-mode) :where(
   .legal-footer
 ) {
-  color: var(--text-muted) !important;
+  color: #d8dde2 !important;
   -webkit-text-fill-color: currentColor !important;
+}
+
+html:is(.dark-mode, .legacy-mode) :where(
+  .legal-footer a
+) {
+  color: #f1f5f8 !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+
+html:is(.dark-mode, .legacy-mode) :where(
+  .group-code-panel
+) {
+  background: linear-gradient(180deg, #5f7280 0%, #465762 100%) !important;
+  border-color: #b8c8d4 !important;
+  color: #f6fbff !important;
+}
+
+html:is(.dark-mode, .legacy-mode) :where(
+  .group-code-panel .eyebrow,
+  .group-code-panel strong
+) {
+  color: #f6fbff !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+
+html:is(.dark-mode, .legacy-mode) :where(
+  .group-join-control input
+) {
+  color: #f6fbff !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+
+html:is(.dark-mode, .legacy-mode) :where(
+  .group-join-control input::placeholder
+) {
+  color: #f6fbff !important;
+  -webkit-text-fill-color: currentColor !important;
+  opacity: 1;
+}
+
+html.dark-mode .group-join-control input,
+html.legacy-mode .group-join-control input {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  caret-color: #ffffff !important;
+}
+
+html.dark-mode .group-join-control input::placeholder,
+html.legacy-mode .group-join-control input::placeholder {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  opacity: 1 !important;
 }
 
 html:is(.dark-mode, .legacy-mode) :where(
@@ -1226,6 +1278,21 @@ html.legacy-mode :where(
   .window-titlebar *
 ) {
   color: var(--blue-banner-text) !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+
+html.legacy-mode :where(
+  .legal-footer,
+  .legal-footer *
+) {
+  color: #d8dde2 !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+
+html.legacy-mode :where(
+  .legal-footer a
+) {
+  color: #f1f5f8 !important;
   -webkit-text-fill-color: currentColor !important;
 }
 

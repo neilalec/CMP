@@ -5,6 +5,14 @@ $backend = Join-Path $root "backend"
 $frontend = Join-Path $root "frontend"
 $squadjs = Join-Path $root "squadjs"
 
+function Set-CmpUtf8Output {
+    $utf8 = [System.Text.UTF8Encoding]::new()
+    [Console]::OutputEncoding = $utf8
+    $script:OutputEncoding = $utf8
+}
+
+Set-CmpUtf8Output
+
 function Test-Command($name) {
     return [bool](Get-Command $name -ErrorAction SilentlyContinue)
 }
@@ -41,6 +49,12 @@ $jobs = @()
 try {
     $jobs += Start-CmpJob "backend" $backend {
         param($workingDirectory)
+        function Set-CmpUtf8Output {
+            $utf8 = [System.Text.UTF8Encoding]::new()
+            [Console]::OutputEncoding = $utf8
+            $script:OutputEncoding = $utf8
+        }
+        Set-CmpUtf8Output
         Set-Location $workingDirectory
         $env:CMP_DEV_MODE = "1"
         $env:FRONTEND_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174"
@@ -52,13 +66,26 @@ try {
 
     $jobs += Start-CmpJob "frontend" $frontend {
         param($workingDirectory)
+        function Set-CmpUtf8Output {
+            $utf8 = [System.Text.UTF8Encoding]::new()
+            [Console]::OutputEncoding = $utf8
+            $script:OutputEncoding = $utf8
+        }
+        Set-CmpUtf8Output
         Set-Location $workingDirectory
         npm run dev -- --host 127.0.0.1 --port 5173 --strictPort
     }
 
     $jobs += Start-CmpJob "squadjs" $squadjs {
         param($workingDirectory)
+        function Set-CmpUtf8Output {
+            $utf8 = [System.Text.UTF8Encoding]::new()
+            [Console]::OutputEncoding = $utf8
+            $script:OutputEncoding = $utf8
+        }
+        Set-CmpUtf8Output
         Set-Location $workingDirectory
+        $env:CMP_DEV_MODE = "1"
         node index.js
     }
 

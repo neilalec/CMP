@@ -16,6 +16,14 @@ import fetchAdminLists from './utils/admin-lists.js';
 import { isPlayerID, anyIDToPlayer, anyIDsToPlayers } from './utils/any-id.js';
 import { playerIdNames } from 'core/id-parser';
 
+function isLocalDevRconOffline(server) {
+  return process.env.CMP_DEV_MODE === '1' && (!server.rcon?.connected || !server.rcon?.loggedin);
+}
+
+function formatLocalDevConnectionError(err) {
+  return process.env.CMP_DEV_MODE === '1' && err?.code === 'ECONNREFUSED' ? err.message : err;
+}
+
 export default class SquadServer extends EventEmitter {
   constructor(options = {}) {
     super();
@@ -69,11 +77,40 @@ export default class SquadServer extends EventEmitter {
       `Beginning to watch ${this.options.host}:${this.options.queryPort}...`
     );
 
-    await Layers.pull();
+    try {
+      await Layers.pull();
+    } catch (err) {
+      if (process.env.CMP_DEV_MODE !== '1') {
+        throw err;
+      }
+
+      Logger.verbose(
+        'SquadServer',
+        1,
+        'Failed to pull layer metadata in local dev mode; continuing with an empty layer cache.',
+        formatLocalDevConnectionError(err)
+      );
+    }
 
     this.admins = await fetchAdminLists(this.options.adminLists);
 
-    await this.rcon.connect();
+    try {
+      await this.rcon.connect();
+    } catch (err) {
+      if (process.env.CMP_DEV_MODE !== '1') {
+        throw err;
+      }
+
+      this.rcon.autoReconnectDelay = Math.max(this.rcon.autoReconnectDelay, 30000);
+      this.rcon.autoReconnect = true;
+      Logger.verbose(
+        'SquadServer',
+        1,
+        'Initial RCON connection failed in local dev mode; continuing with bridge-only service.',
+        formatLocalDevConnectionError(err)
+      );
+    }
+
     await this.updateSquadList();
     await this.updatePlayerList(this);
     await this.updateLayerInformation();
@@ -447,6 +484,12 @@ export default class SquadServer extends EventEmitter {
   async updatePlayerList() {
     if (this.updatePlayerListTimeout) clearTimeout(this.updatePlayerListTimeout);
 
+    if (isLocalDevRconOffline(this)) {
+      Logger.verbose('SquadServer', 1, 'Skipping player list update; RCON is offline in local dev.');
+      this.updatePlayerListTimeout = setTimeout(this.updatePlayerList, this.updatePlayerListInterval);
+      return false;
+    }
+
     Logger.verbose('SquadServer', 1, `Updating player list...`);
 
     try {
@@ -507,6 +550,12 @@ export default class SquadServer extends EventEmitter {
   async updateSquadList() {
     if (this.updateSquadListTimeout) clearTimeout(this.updateSquadListTimeout);
 
+    if (isLocalDevRconOffline(this)) {
+      Logger.verbose('SquadServer', 1, 'Skipping squad list update; RCON is offline in local dev.');
+      this.updateSquadListTimeout = setTimeout(this.updateSquadList, this.updateSquadListInterval);
+      return false;
+    }
+
     Logger.verbose('SquadServer', 1, `Updating squad list...`);
 
     try {
@@ -522,6 +571,15 @@ export default class SquadServer extends EventEmitter {
 
   async updateLayerInformation() {
     if (this.updateLayerInformationTimeout) clearTimeout(this.updateLayerInformationTimeout);
+
+    if (isLocalDevRconOffline(this)) {
+      Logger.verbose('SquadServer', 1, 'Skipping layer information update; RCON is offline in local dev.');
+      this.updateLayerInformationTimeout = setTimeout(
+        this.updateLayerInformation,
+        this.updateLayerInformationInterval
+      );
+      return false;
+    }
 
     Logger.verbose('SquadServer', 1, `Updating layer information...`);
 
@@ -561,6 +619,15 @@ export default class SquadServer extends EventEmitter {
 
   async updateServerInformation() {
     if (this.updateA2SInformationTimeout) clearTimeout(this.updateA2SInformationTimeout);
+
+    if (isLocalDevRconOffline(this)) {
+      Logger.verbose('SquadServer', 1, 'Skipping server information update; RCON is offline in local dev.');
+      this.updateA2SInformationTimeout = setTimeout(
+        this.updateA2SInformation,
+        this.updateA2SInformationInterval
+      );
+      return false;
+    }
 
     Logger.verbose('SquadServer', 1, `Updating server information...`);
 

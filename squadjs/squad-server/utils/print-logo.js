@@ -20,10 +20,23 @@ function versionOutOfDate(current, latest) {
 }
 
 export default async function () {
-  const { data } = await axios.get(
-    `https://raw.githubusercontent.com/Team-Silver-Sphere/SquadJS/master/package.json`
-  );
-  const outdated = versionOutOfDate(SQUADJS_VERSION, data.version);
+  let latestVersion = null;
+  let latestVersionColor = '\x1b[33m';
+  let latestVersionStatus = 'Latest version unavailable.';
+
+  try {
+    const { data } = await axios.get(
+      `https://raw.githubusercontent.com/Team-Silver-Sphere/SquadJS/master/package.json`
+    );
+    latestVersion = data.version;
+    const outdated = versionOutOfDate(SQUADJS_VERSION, latestVersion);
+    latestVersionColor = outdated ? '\x1b[31m' : '\x1b[32m';
+    latestVersionStatus = outdated
+      ? '\x1b[31mYour SquadJS version is outdated, please consider updating.'
+      : '\x1b[32mYour SquadJS version is up to date.';
+  } catch (err) {
+    latestVersionStatus = `\x1b[33mUnable to check latest SquadJS version: ${err.message}`;
+  }
 
   console.log(
     `
@@ -38,14 +51,8 @@ export default async function () {
 ${COPYRIGHT_MESSAGE}
 GitHub: https://github.com/Team-Silver-Sphere/SquadJS
 
-Latest Version: ${outdated ? '\x1b[31m' : '\x1b[32m'}${
-      data.version
-    }\x1b[0m, Installed Version: \x1b[32m${SQUADJS_VERSION}\x1b[0m
-${
-  outdated
-    ? '\x1b[31mYour SquadJS version is outdated, please consider updating.'
-    : '\x1b[32mYour SquadJS version is up to date.'
-}\x1b[0m
+Latest Version: ${latestVersion ? `${latestVersionColor}${latestVersion}` : '\x1b[33munavailable'}\x1b[0m, Installed Version: \x1b[32m${SQUADJS_VERSION}\x1b[0m
+${latestVersionStatus}\x1b[0m
 
 \x1b[33mLooking for ways to help protect your server from harmful players?
 Checkout the Squad Community Ban List: https://communitybanlist.com/\x1b[0m

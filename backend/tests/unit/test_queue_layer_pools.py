@@ -170,7 +170,7 @@ def test_ocbt_and_s3o_small_map_pools(monkeypatch):
         'S3O_Mutaha_Tournament_v1',
         'S3O_Narva_Tournament_v1',
     ]
-    for mode_id in ('s3osmall1', 's3osmall2', 's3osmall3', 's3osmall4'):
+    for mode_id in ('s3osmall1', 's3osmall2', 's3osmall3', 's3osmall4', 's3osmall5'):
         assert build_lobby_map_pool(QUEUE_MODES[mode_id]) == ALL_S3O_SMALL_MAPS
 
     monkeypatch.setattr('matchmaking.random.choice', lambda options: list(options)[0])
@@ -264,6 +264,11 @@ def test_queue_modes_expose_each_tournament_format():
     assert QUEUE_MODES['s3osmall4']['team_size'] == 4
     assert QUEUE_MODES['s3osmall4']['max_players'] == 8
     assert QUEUE_MODES['s3osmall4']['map_pool'] is ALL_S3O_SMALL_MAPS
+
+    assert QUEUE_MODES['s3osmall5']['label'] == '5v5 S3O Layers'
+    assert QUEUE_MODES['s3osmall5']['team_size'] == 5
+    assert QUEUE_MODES['s3osmall5']['max_players'] == 10
+    assert QUEUE_MODES['s3osmall5']['map_pool'] is ALL_S3O_SMALL_MAPS
 
     assert QUEUE_MODES['balt26']['label'] == '26v26 Balt Layers'
     assert QUEUE_MODES['balt26']['team_size'] == 26

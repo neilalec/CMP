@@ -69,7 +69,8 @@ const emit = defineEmits(['join-queue', 'leave-queue', 'seed-queue', 'clear-queu
 const SEC_MODE_IDS = ['sec26', 'sec36', 'sec46']
 const OCBT_MODE_IDS = ['ocbt15', 'ocbt5']
 const OUT_OF_THE_BOX_MODE_IDS = ['outofthebox10', 'outofthebox15', 'outofthebox20', 'outofthebox40']
-const S3O_SMALL_MODE_IDS = ['s3osmall1', 's3osmall2', 's3osmall3', 's3osmall4']
+const FEATURED_QUEUE_MODE_IDS = ['s3osmall5', 'ocbt15', 'skirmish']
+const S3O_SMALL_MODE_IDS = ['s3osmall1', 's3osmall2', 's3osmall3', 's3osmall4', 's3osmall5']
 const QUEUE_MOD_LINKS = {
   skirmish: 'https://steamcommunity.com/sharedfiles/filedetails/?id=3294562930',
   sec26: 'https://steamcommunity.com/sharedfiles/filedetails/?id=3661196801',
@@ -82,6 +83,7 @@ const QUEUE_MOD_LINKS = {
   s3osmall2: 'https://steamcommunity.com/sharedfiles/filedetails/?id=3664077364',
   s3osmall3: 'https://steamcommunity.com/sharedfiles/filedetails/?id=3664077364',
   s3osmall4: 'https://steamcommunity.com/sharedfiles/filedetails/?id=3664077364',
+  s3osmall5: 'https://steamcommunity.com/sharedfiles/filedetails/?id=3664077364',
   ocbt15: 'https://steamcommunity.com/sharedfiles/filedetails/?id=3264205573',
   ocbt5: 'https://steamcommunity.com/sharedfiles/filedetails/?id=3264205573',
   balt26: 'https://steamcommunity.com/sharedfiles/filedetails/?id=3686670558',
@@ -120,6 +122,15 @@ const outOfTheBoxModes = computed(() => {
 })
 
 const queueCards = computed(() => {
+  const featuredCards = FEATURED_QUEUE_MODE_IDS
+    .map((modeId) => props.queueModes.find((queueMode) => queueMode.id === modeId))
+    .filter(Boolean)
+    .map((queueMode) => ({ id: queueMode.id, type: 'standard', queueMode }))
+
+  if (featuredCards.length === FEATURED_QUEUE_MODE_IDS.length) {
+    return featuredCards
+  }
+
   const cards = []
   let secCardAdded = false
   let ocbtCardAdded = false
@@ -229,8 +240,9 @@ const isS3oSmallQueueMode = (modeId) => S3O_SMALL_MODE_IDS.includes(modeId)
 
 const getQueueTitle = (queueMode) => {
   if (queueMode.id === 'hotdrop') return 'Hotdrop Tournament Layers'
+  if (queueMode.id === 'skirmish') return 'Comp Skirmish Layers'
   if (queueMode.id === 's30') return 'S3O Layers'
-  if (isS3oSmallQueueMode(queueMode.id)) return 'S3O Small Formats'
+  if (isS3oSmallQueueMode(queueMode.id)) return 'S3O Layers'
   if (queueMode.id === 'rivals36') return 'Rivals Layers'
   if (queueMode.id === 'osi40') return 'Offworld Squad Invitational Layers'
   if (isOcbtQueueMode(queueMode.id)) return 'Open Clan Battle Layers'
@@ -241,6 +253,8 @@ const getQueueTitle = (queueMode) => {
 }
 
 const getQueueModLink = (queueMode) => QUEUE_MOD_LINKS[queueMode?.id] || ''
+
+const getQueueFormatLabel = (queueMode) => `${queueMode.teamSize}v${queueMode.teamSize}`
 
 const getQueueStatusLabel = (queueMode) => {
   if (queueMode.disabled || queueMode.enabled === false) return 'Disabled'
@@ -385,30 +399,19 @@ const handleS3oSmallJoin = () => {
           ]"
         >
           <div class="window-titlebar">
-            <span class="window-titlebar-label">{{ queueCard.queueMode.teamSize }}v{{ queueCard.queueMode.teamSize }}</span>
+            <a
+              v-if="getQueueModLink(queueCard.queueMode)"
+              class="queue-titlebar-link"
+              :href="getQueueModLink(queueCard.queueMode)"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {{ getQueueTitle(queueCard.queueMode) }}
+            </a>
+            <span v-else class="window-titlebar-label">{{ getQueueTitle(queueCard.queueMode) }}</span>
             <span class="window-titlebar-meta">{{ getQueueStatusLabel(queueCard.queueMode) }}</span>
           </div>
           <div class="queue-card-body" :class="{ 'no-dev-tools': !canManageQueueTools }">
-            <div class="queue-card-top">
-              <a
-                v-if="getQueueModLink(queueCard.queueMode)"
-                class="queue-title-link"
-                :href="getQueueModLink(queueCard.queueMode)"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                {{ getQueueTitle(queueCard.queueMode) }}
-              </a>
-              <strong v-else>{{ getQueueTitle(queueCard.queueMode) }}</strong>
-            </div>
-
-            <div class="queue-progress-row">
-              <div class="queue-meter" aria-hidden="true">
-                <span class="queue-meter-fill" :style="{ width: `${getQueueProgressPercent(queueCard.queueMode.id)}%` }"></span>
-                <strong class="queue-meter-label">{{ queueCard.queueMode.playersInQueue }}/{{ queueCard.queueMode.maxPlayers }}</strong>
-              </div>
-            </div>
-
             <div class="queue-action-slot">
               <button
                 v-if="!(inQueue && currentQueueMode === queueCard.queueMode.id)"
@@ -416,7 +419,7 @@ const handleS3oSmallJoin = () => {
                 :disabled="isJoinDisabled(queueCard.queueMode)"
                 @click="emit('join-queue', queueCard.queueMode.id)"
               >
-                {{ getPrimaryLabel(queueCard.queueMode) }}
+                {{ isJoinDisabled(queueCard.queueMode) ? getPrimaryLabel(queueCard.queueMode) : getQueueFormatLabel(queueCard.queueMode) }}
               </button>
 
               <button
@@ -427,6 +430,13 @@ const handleS3oSmallJoin = () => {
               >
                 {{ getPrimaryLabel(queueCard.queueMode) }}
               </button>
+            </div>
+
+            <div class="queue-progress-row">
+              <div class="queue-meter" aria-hidden="true">
+                <span class="queue-meter-fill" :style="{ width: `${getQueueProgressPercent(queueCard.queueMode.id)}%` }"></span>
+                <strong class="queue-meter-label">{{ queueCard.queueMode.playersInQueue }}/{{ queueCard.queueMode.maxPlayers }}</strong>
+              </div>
             </div>
 
             <div v-if="canManageQueueTools" class="queue-dev-actions">
@@ -1017,6 +1027,12 @@ const handleS3oSmallJoin = () => {
   transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
+.queue-card:nth-child(3):last-child {
+  grid-column: 1 / -1;
+  justify-self: center;
+  width: min(100%, 320px);
+}
+
 .queue-card.no-dev-tools-card {
   height: 222px;
 }
@@ -1046,40 +1062,34 @@ const handleS3oSmallJoin = () => {
 }
 
 .queue-card-body.no-dev-tools {
-  grid-template-rows: auto auto 1fr;
+  grid-template-rows: minmax(0, 1fr) auto;
+  align-content: stretch;
 }
 
-.queue-card-top {
-  min-height: 52px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-}
-
-.queue-card-top strong,
-.queue-title-link {
+.queue-titlebar-link {
   display: block;
   margin: 0;
-  color: var(--accent-strong);
-  font-family: var(--font-display);
-  font-size: 1.2rem;
-  font-weight: 900;
+  min-width: 0;
+  color: #f8fbff;
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
   line-height: 1.1;
-}
-
-.queue-title-link {
+  overflow-wrap: anywhere;
   text-decoration: none;
+  text-transform: uppercase;
 }
 
-.queue-title-link:hover {
-  color: var(--accent);
+.queue-titlebar-link:hover {
+  color: #ffffff;
   text-decoration: underline;
   text-underline-offset: 3px;
 }
 
 .queue-progress-row {
   display: block;
+  align-self: end;
 }
 
 .queue-meter {
@@ -1144,12 +1154,23 @@ const handleS3oSmallJoin = () => {
 }
 
 .queue-action {
-  width: 100%;
+  align-self: center;
+  justify-self: center;
+  width: auto;
+  height: auto;
+  min-width: 112px;
+  min-height: 56px;
+  padding: 12px 28px;
+  font-family: var(--font-display);
+  font-size: 1.85rem;
+  font-weight: 900;
 }
 
 .queue-action-slot {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
 }
 
 .queue-card-body.no-dev-tools .queue-action-slot {
@@ -1305,6 +1326,11 @@ const handleS3oSmallJoin = () => {
     min-height: 0;
   }
 
+  .queue-card:nth-child(3):last-child {
+    grid-column: auto;
+    width: 100%;
+  }
+
   .queue-card.no-dev-tools-card {
     height: auto;
   }
@@ -1314,13 +1340,14 @@ const handleS3oSmallJoin = () => {
     padding: 10px;
   }
 
-  .queue-card-top {
-    min-height: 42px;
+  .queue-action {
+    min-width: 96px;
+    min-height: 48px;
+    padding: 10px 22px;
   }
 
-  .queue-card-top strong,
-  .queue-title-link {
-    font-size: 1.05rem;
+  .queue-titlebar-link {
+    font-size: 0.7rem;
   }
 
   .sec-mini-meter-grid,

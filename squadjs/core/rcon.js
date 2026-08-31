@@ -13,6 +13,14 @@ const SERVERDATA_CHAT_VALUE = 0x01;
 const MID_PACKET_ID = 0x01;
 const END_PACKET_ID = 0x02;
 
+function shouldSummarizeError(err) {
+  return process.env.CMP_DEV_MODE === '1' && err?.code === 'ECONNREFUSED';
+}
+
+function formatErrorForLog(err) {
+  return shouldSummarizeError(err) ? err.message : err;
+}
+
 export default class Rcon extends EventEmitter {
   constructor(options = {}) {
     super();
@@ -229,14 +237,14 @@ export default class Rcon extends EventEmitter {
       clearTimeout(this.autoReconnectTimeout);
       this.autoReconnectTimeout = setTimeout(() => {
         this.connect().catch((err) => {
-          Logger.verbose('RCON', 1, `Reconnect failed.`, err);
+          Logger.verbose('RCON', 1, `Reconnect failed.`, formatErrorForLog(err));
         });
       }, this.autoReconnectDelay);
     }
   }
 
   onError(err) {
-    Logger.verbose('RCON', 1, `Socket had error:`, err);
+    Logger.verbose('RCON', 1, `Socket had error:`, formatErrorForLog(err));
     this.emit('RCON_ERROR', err);
   }
 
@@ -284,7 +292,12 @@ export default class Rcon extends EventEmitter {
       const onError = (err) => {
         this.client.removeListener('connect', onConnect);
 
-        Logger.verbose('RCON', 1, `Failed to connect to: ${this.host}:${this.port}`, err);
+        Logger.verbose(
+          'RCON',
+          1,
+          `Failed to connect to: ${this.host}:${this.port}`,
+          formatErrorForLog(err)
+        );
 
         reject(err);
       };

@@ -317,6 +317,14 @@ QUEUE_MODES = {
         'team_size': 4,
         'map_pool': ALL_S3O_SMALL_MAPS,
     },
+    's3osmall5': {
+        'id': 's3osmall5',
+        'label': '5v5 S3O Layers',
+        'short_label': 'S3O 5v5',
+        'max_players': 10,
+        'team_size': 5,
+        'map_pool': ALL_S3O_SMALL_MAPS,
+    },
     'balt26': {
         'id': 'balt26',
         'label': '26v26 Balt Layers',

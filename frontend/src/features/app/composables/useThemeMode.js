@@ -1,7 +1,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 
 const THEME_STORAGE_KEY = 'cmp-theme'
-const WIP_THEME_ENABLED = import.meta.env.DEV
+const WIP_THEME_ENABLED = false
 const THEMES = WIP_THEME_ENABLED
   ? ['light', 'legacy', 'dark']
   : ['light', 'legacy']
