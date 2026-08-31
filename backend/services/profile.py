@@ -48,11 +48,20 @@ def get_user_profile(username, get_user_record, matchmaking_queue, is_user_in_an
     }
 
 
-def build_elo_leaderboard(users, *, limit=500):
+def _is_seeded_player(username, record):
+    if isinstance(record, dict) and record.get('seeded_player'):
+        return True
+    username = str(username or '').strip().lower()
+    return username.startswith('group_seed_') or '_seed_' in username
+
+
+def build_elo_leaderboard(users, *, limit=500, include_seeded_players=False):
     rows = []
     for username, record in (users or {}).items():
         if not isinstance(record, dict):
             record = {}
+        if not include_seeded_players and _is_seeded_player(username, record):
+            continue
         rows.append({
             'username': username,
             'display_name': _profile_display_name(username, record),

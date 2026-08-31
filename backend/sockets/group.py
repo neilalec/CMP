@@ -551,7 +551,8 @@ def handle_group_seed_event(
                 steam_suffix = len(users) + len(seeded) + 1
                 users[seed_username] = {
                     'password': seed_password_hash,
-                    'steam_id': str(76561199050000000 + steam_suffix)
+                    'steam_id': str(76561199050000000 + steam_suffix),
+                    'seeded_player': True
                 }
                 group['members'].append(seed_username)
                 user_to_group[seed_username] = code

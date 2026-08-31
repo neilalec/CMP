@@ -340,7 +340,8 @@ def handle_seed_queue_event(
                 if seed_username not in users:
                     users[seed_username] = {
                         'password': seed_password_hash,
-                        'steam_id': str(76561199000000000 + steam_suffix)[-17:]
+                        'steam_id': str(76561199000000000 + steam_suffix)[-17:],
+                        'seeded_player': True
                     }
                     created.append(seed_username)
 

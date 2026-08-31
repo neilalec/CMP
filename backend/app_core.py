@@ -145,6 +145,7 @@ def init_database():
                 display_name_source TEXT NOT NULL DEFAULT 'legacy',
                 elo_rating INTEGER NOT NULL DEFAULT 1000,
                 elo_matches INTEGER NOT NULL DEFAULT 0,
+                seeded_player INTEGER NOT NULL DEFAULT 0,
                 admin_test_mode_disabled INTEGER NOT NULL DEFAULT 0
             )
         """)
@@ -178,6 +179,8 @@ def init_database():
             conn.execute("ALTER TABLE users ADD COLUMN elo_rating INTEGER NOT NULL DEFAULT 1000")
         if 'elo_matches' not in user_columns:
             conn.execute("ALTER TABLE users ADD COLUMN elo_matches INTEGER NOT NULL DEFAULT 0")
+        if 'seeded_player' not in user_columns:
+            conn.execute("ALTER TABLE users ADD COLUMN seeded_player INTEGER NOT NULL DEFAULT 0")
         if 'admin_test_mode_disabled' not in user_columns:
             conn.execute("ALTER TABLE users ADD COLUMN admin_test_mode_disabled INTEGER NOT NULL DEFAULT 0")
         conn.commit()
@@ -204,6 +207,7 @@ def normalize_user_record(record):
             'display_name_source': str(record.get('display_name_source') or ('steam' if display_name else 'legacy')).strip(),
             'elo_rating': get_elo_rating(record),
             'elo_matches': get_elo_matches(record),
+            'seeded_player': bool(record.get('seeded_player')),
             'is_admin': bool(record.get('is_admin')),
             'admin_test_mode_disabled': bool(record.get('admin_test_mode_disabled'))
         }
@@ -215,6 +219,7 @@ def normalize_user_record(record):
         'display_name_source': 'legacy',
         'elo_rating': DEFAULT_ELO_RATING,
         'elo_matches': 0,
+        'seeded_player': False,
         'is_admin': False,
         'admin_test_mode_disabled': False
     }
@@ -242,13 +247,14 @@ def migrate_legacy_json_files():
                         normalized.get('display_name_source', 'legacy'),
                         normalized.get('elo_rating', DEFAULT_ELO_RATING),
                         normalized.get('elo_matches', 0),
+                        1 if normalized.get('seeded_player') else 0,
                         1 if normalized.get('admin_test_mode_disabled') else 0
                     ))
                 conn.executemany(
                     '''
                     INSERT OR REPLACE INTO users
-                    (username, password, steam_id, display_name, steam_persona_name, display_name_source, elo_rating, elo_matches, admin_test_mode_disabled)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (username, password, steam_id, display_name, steam_persona_name, display_name_source, elo_rating, elo_matches, seeded_player, admin_test_mode_disabled)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ''',
                     rows
                 )
@@ -277,7 +283,7 @@ def load_users():
         with get_db_connection() as conn:
             rows = conn.execute(
                 '''
-                SELECT username, password, steam_id, display_name, steam_persona_name, display_name_source, elo_rating, elo_matches, admin_test_mode_disabled
+                SELECT username, password, steam_id, display_name, steam_persona_name, display_name_source, elo_rating, elo_matches, seeded_player, admin_test_mode_disabled
                 FROM users
                 ORDER BY username
                 '''
@@ -291,6 +297,7 @@ def load_users():
                     'display_name_source': row['display_name_source'] or 'legacy',
                     'elo_rating': row['elo_rating'] if row['elo_rating'] is not None else DEFAULT_ELO_RATING,
                     'elo_matches': row['elo_matches'] if row['elo_matches'] is not None else 0,
+                    'seeded_player': bool(row['seeded_player']),
                     'admin_test_mode_disabled': bool(row['admin_test_mode_disabled'])
                 }
                 for row in rows
@@ -314,6 +321,7 @@ def save_users():
                 normalized.get('display_name_source', 'legacy'),
                 normalized.get('elo_rating', DEFAULT_ELO_RATING),
                 normalized.get('elo_matches', 0),
+                1 if normalized.get('seeded_player') else 0,
                 1 if normalized.get('admin_test_mode_disabled') else 0
             ))
 
@@ -322,8 +330,8 @@ def save_users():
             conn.executemany(
                 '''
                 INSERT INTO users
-                (username, password, steam_id, display_name, steam_persona_name, display_name_source, elo_rating, elo_matches, admin_test_mode_disabled)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (username, password, steam_id, display_name, steam_persona_name, display_name_source, elo_rating, elo_matches, seeded_player, admin_test_mode_disabled)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''',
                 rows
             )
@@ -431,7 +439,7 @@ def get_user_profile(username):
 
 
 def get_elo_leaderboard(limit=500):
-    return build_elo_leaderboard_service(users, limit=limit)
+    return build_elo_leaderboard_service(users, limit=limit, include_seeded_players=DEV_MODE)
 
 
 def is_admin_user(username):

@@ -86,3 +86,30 @@ def test_build_elo_leaderboard_sorts_players_by_rating_and_matches():
     assert [player['username'] for player in leaderboard] == ['cara', 'bob', 'alice']
     assert [player['rank'] for player in leaderboard] == [1, 2, 3]
     assert leaderboard[0]['elo_rating'] == 1200
+
+
+def test_build_elo_leaderboard_hides_seeded_players_unless_enabled():
+    records = {
+        'neil': {
+            'display_name': 'Neil',
+            'elo_rating': 1000,
+            'elo_matches': 0,
+        },
+        'AlphaAce1': {
+            'display_name': 'AlphaAce1',
+            'elo_rating': 1300,
+            'elo_matches': 4,
+            'seeded_player': True,
+        },
+        'group_seed_001': {
+            'display_name': 'group_seed_001',
+            'elo_rating': 1200,
+            'elo_matches': 2,
+        },
+    }
+
+    production_board = build_elo_leaderboard(records)
+    dev_board = build_elo_leaderboard(records, include_seeded_players=True)
+
+    assert [player['username'] for player in production_board] == ['neil']
+    assert [player['username'] for player in dev_board] == ['AlphaAce1', 'group_seed_001', 'neil']
