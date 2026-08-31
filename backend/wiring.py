@@ -39,6 +39,7 @@ def _http_backend_api():
         can_toggle_admin_mode=backend_app.can_toggle_admin_mode,
         get_bridge_health=backend_app.get_bridge_health,
         get_database_health=backend_app.get_database_health,
+        get_elo_leaderboard=backend_app.get_elo_leaderboard,
         get_server_connection_details=backend_app.get_server_connection_details,
         get_user_profile=backend_app.get_user_profile,
         get_server_by_id=backend_app.get_server_by_id,
@@ -389,6 +390,17 @@ def register_http_routes(app):
                 username=player or None,
                 scored_only=scored_only
             )
+        })
+
+    @app.route('/api/leaderboard', methods=['GET'])
+    @jwt_required()
+    def api_leaderboard():
+        backend = _http_backend_api()
+        limit = request.args.get('limit', default=500, type=int) or 500
+        limit = max(1, min(limit, 1000))
+        return jsonify({
+            'success': True,
+            'players': backend.get_elo_leaderboard(limit=limit)
         })
 
     @app.route('/api/servers/test', methods=['POST'])

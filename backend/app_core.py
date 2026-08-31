@@ -75,7 +75,15 @@ from services.history import (
     record_lobby_event as record_lobby_event_service,
     save_completed_match as save_completed_match_service
 )
+from services.elo import (
+    DEFAULT_ELO_RATING,
+    apply_elo_for_completed_match as apply_elo_for_completed_match_service,
+    get_elo_matches,
+    get_elo_rating,
+    init_elo_tables as init_elo_tables_service
+)
 from services.profile import (
+    build_elo_leaderboard as build_elo_leaderboard_service,
     build_profile_status as build_profile_status_service,
     get_user_profile as get_user_profile_service,
     is_valid_steam_id as is_valid_steam_id_service,
@@ -135,6 +143,8 @@ def init_database():
                 display_name TEXT NOT NULL DEFAULT '',
                 steam_persona_name TEXT NOT NULL DEFAULT '',
                 display_name_source TEXT NOT NULL DEFAULT 'legacy',
+                elo_rating INTEGER NOT NULL DEFAULT 1000,
+                elo_matches INTEGER NOT NULL DEFAULT 0,
                 admin_test_mode_disabled INTEGER NOT NULL DEFAULT 0
             )
         """)
@@ -164,10 +174,15 @@ def init_database():
             conn.execute("ALTER TABLE users ADD COLUMN steam_persona_name TEXT NOT NULL DEFAULT ''")
         if 'display_name_source' not in user_columns:
             conn.execute("ALTER TABLE users ADD COLUMN display_name_source TEXT NOT NULL DEFAULT 'legacy'")
+        if 'elo_rating' not in user_columns:
+            conn.execute("ALTER TABLE users ADD COLUMN elo_rating INTEGER NOT NULL DEFAULT 1000")
+        if 'elo_matches' not in user_columns:
+            conn.execute("ALTER TABLE users ADD COLUMN elo_matches INTEGER NOT NULL DEFAULT 0")
         if 'admin_test_mode_disabled' not in user_columns:
             conn.execute("ALTER TABLE users ADD COLUMN admin_test_mode_disabled INTEGER NOT NULL DEFAULT 0")
         conn.commit()
     init_history_tables_service(get_db_connection)
+    init_elo_tables_service(get_db_connection)
     init_server_registry_tables_service(get_db_connection)
     init_runtime_state_tables_service(get_db_connection)
 
@@ -187,6 +202,8 @@ def normalize_user_record(record):
             'display_name': display_name,
             'steam_persona_name': steam_persona_name,
             'display_name_source': str(record.get('display_name_source') or ('steam' if display_name else 'legacy')).strip(),
+            'elo_rating': get_elo_rating(record),
+            'elo_matches': get_elo_matches(record),
             'is_admin': bool(record.get('is_admin')),
             'admin_test_mode_disabled': bool(record.get('admin_test_mode_disabled'))
         }
@@ -196,6 +213,8 @@ def normalize_user_record(record):
         'display_name': '',
         'steam_persona_name': '',
         'display_name_source': 'legacy',
+        'elo_rating': DEFAULT_ELO_RATING,
+        'elo_matches': 0,
         'is_admin': False,
         'admin_test_mode_disabled': False
     }
@@ -221,13 +240,15 @@ def migrate_legacy_json_files():
                         normalized.get('display_name', ''),
                         normalized.get('steam_persona_name', ''),
                         normalized.get('display_name_source', 'legacy'),
+                        normalized.get('elo_rating', DEFAULT_ELO_RATING),
+                        normalized.get('elo_matches', 0),
                         1 if normalized.get('admin_test_mode_disabled') else 0
                     ))
                 conn.executemany(
                     '''
                     INSERT OR REPLACE INTO users
-                    (username, password, steam_id, display_name, steam_persona_name, display_name_source, admin_test_mode_disabled)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    (username, password, steam_id, display_name, steam_persona_name, display_name_source, elo_rating, elo_matches, admin_test_mode_disabled)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ''',
                     rows
                 )
@@ -256,7 +277,7 @@ def load_users():
         with get_db_connection() as conn:
             rows = conn.execute(
                 '''
-                SELECT username, password, steam_id, display_name, steam_persona_name, display_name_source, admin_test_mode_disabled
+                SELECT username, password, steam_id, display_name, steam_persona_name, display_name_source, elo_rating, elo_matches, admin_test_mode_disabled
                 FROM users
                 ORDER BY username
                 '''
@@ -268,6 +289,8 @@ def load_users():
                     'display_name': row['display_name'] or '',
                     'steam_persona_name': row['steam_persona_name'] or '',
                     'display_name_source': row['display_name_source'] or 'legacy',
+                    'elo_rating': row['elo_rating'] if row['elo_rating'] is not None else DEFAULT_ELO_RATING,
+                    'elo_matches': row['elo_matches'] if row['elo_matches'] is not None else 0,
                     'admin_test_mode_disabled': bool(row['admin_test_mode_disabled'])
                 }
                 for row in rows
@@ -289,6 +312,8 @@ def save_users():
                 normalized.get('display_name', ''),
                 normalized.get('steam_persona_name', ''),
                 normalized.get('display_name_source', 'legacy'),
+                normalized.get('elo_rating', DEFAULT_ELO_RATING),
+                normalized.get('elo_matches', 0),
                 1 if normalized.get('admin_test_mode_disabled') else 0
             ))
 
@@ -297,8 +322,8 @@ def save_users():
             conn.executemany(
                 '''
                 INSERT INTO users
-                (username, password, steam_id, display_name, steam_persona_name, display_name_source, admin_test_mode_disabled)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                (username, password, steam_id, display_name, steam_persona_name, display_name_source, elo_rating, elo_matches, admin_test_mode_disabled)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''',
                 rows
             )
@@ -403,6 +428,10 @@ def get_user_profile(username):
         is_user_in_any_lobby,
         ADMIN_STEAM_IDS
     )
+
+
+def get_elo_leaderboard(limit=500):
+    return build_elo_leaderboard_service(users, limit=limit)
 
 
 def is_admin_user(username):
@@ -671,12 +700,21 @@ def record_lobby_event(lobby_id, event_type, payload=None, *, created_at):
 
 
 def save_completed_match(lobby_id, lobby, *, completed_at):
-    return save_completed_match_service(
+    result = save_completed_match_service(
         get_db_connection,
         lobby_id,
         lobby,
         completed_at=completed_at
     )
+    apply_elo_for_completed_match_service(
+        get_db_connection,
+        lobby_id,
+        lobby,
+        users,
+        save_users,
+        applied_at=completed_at
+    )
+    return result
 
 
 def fetch_completed_matches(limit=20, username=None, scored_only=False):

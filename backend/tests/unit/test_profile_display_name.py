@@ -1,4 +1,4 @@
-from services.profile import get_user_profile, normalize_display_name, update_display_name
+from services.profile import build_elo_leaderboard, get_user_profile, normalize_display_name, update_display_name
 
 
 def test_get_user_profile_prefers_display_name_then_steam_persona_then_username():
@@ -22,6 +22,8 @@ def test_get_user_profile_prefers_display_name_then_steam_persona_then_username(
     assert profile['username'] == 'steam_24553635'
     assert profile['display_name'] == 'neil'
     assert profile['steam_persona_name'] == 'neil'
+    assert profile['elo_rating'] == 1000
+    assert profile['elo_matches'] == 0
 
 
 def test_update_display_name_saves_manual_display_name():
@@ -58,3 +60,29 @@ def test_normalize_display_name_rejects_invalid_characters():
         assert 'letters, numbers' in str(e)
     else:
         raise AssertionError('Expected display name validation to fail')
+
+
+def test_build_elo_leaderboard_sorts_players_by_rating_and_matches():
+    records = {
+        'alice': {
+            'display_name': 'Alice',
+            'elo_rating': 1100,
+            'elo_matches': 4,
+        },
+        'bob': {
+            'display_name': 'Bob',
+            'elo_rating': 1200,
+            'elo_matches': 2,
+        },
+        'cara': {
+            'display_name': 'Cara',
+            'elo_rating': 1200,
+            'elo_matches': 7,
+        },
+    }
+
+    leaderboard = build_elo_leaderboard(records)
+
+    assert [player['username'] for player in leaderboard] == ['cara', 'bob', 'alice']
+    assert [player['rank'] for player in leaderboard] == [1, 2, 3]
+    assert leaderboard[0]['elo_rating'] == 1200

@@ -34,6 +34,8 @@ export const useAuthStore = defineStore('auth', {
     steamPersonaName: localStorage.getItem('steamPersonaName') || '',
     displayNameSource: localStorage.getItem('displayNameSource') || 'legacy',
     steamIdLocked: false,
+    eloRating: Number(localStorage.getItem('eloRating') || 1000),
+    eloMatches: Number(localStorage.getItem('eloMatches') || 0),
     isAdmin: localStorage.getItem('isAdmin') === 'true',
     canToggleAdmin: localStorage.getItem('canToggleAdmin') === 'true',
     adminTestModeDisabled: localStorage.getItem('adminTestModeDisabled') === 'true',
@@ -55,6 +57,8 @@ export const useAuthStore = defineStore('auth', {
       this.steamPersonaName = '';
       this.displayNameSource = 'legacy';
       this.steamIdLocked = false;
+      this.eloRating = 1000;
+      this.eloMatches = 0;
       this.isAdmin = false;
       this.canToggleAdmin = false;
       this.adminTestModeDisabled = false;
@@ -67,6 +71,8 @@ export const useAuthStore = defineStore('auth', {
       localStorage.removeItem('steamId');
       localStorage.removeItem('steamPersonaName');
       localStorage.removeItem('displayNameSource');
+      localStorage.removeItem('eloRating');
+      localStorage.removeItem('eloMatches');
       localStorage.removeItem('isAdmin');
       localStorage.removeItem('canToggleAdmin');
       localStorage.removeItem('adminTestModeDisabled');
@@ -79,6 +85,8 @@ export const useAuthStore = defineStore('auth', {
       const steamId = localStorage.getItem('steamId') || '';
       const steamPersonaName = localStorage.getItem('steamPersonaName') || '';
       const displayNameSource = localStorage.getItem('displayNameSource') || 'legacy';
+      const eloRating = Number(localStorage.getItem('eloRating') || 1000);
+      const eloMatches = Number(localStorage.getItem('eloMatches') || 0);
       const isAdmin = localStorage.getItem('isAdmin') === 'true';
       const canToggleAdmin = localStorage.getItem('canToggleAdmin') === 'true';
       const adminTestModeDisabled = localStorage.getItem('adminTestModeDisabled') === 'true';
@@ -96,6 +104,8 @@ export const useAuthStore = defineStore('auth', {
         this.steamId = steamId;
         this.steamPersonaName = steamPersonaName;
         this.displayNameSource = displayNameSource;
+        this.eloRating = eloRating;
+        this.eloMatches = eloMatches;
         this.isAdmin = isAdmin;
         this.canToggleAdmin = canToggleAdmin;
         this.adminTestModeDisabled = adminTestModeDisabled;
@@ -112,6 +122,8 @@ export const useAuthStore = defineStore('auth', {
       this.displayNameSource = profile.display_name_source || 'legacy';
       this.steamId = profile.steam_id || '';
       this.steamIdLocked = !!profile.steam_id_locked;
+      this.eloRating = Number(profile.elo_rating ?? 1000);
+      this.eloMatches = Number(profile.elo_matches ?? 0);
       this.isAdmin = !!profile.is_admin;
       this.canToggleAdmin = !!profile.can_toggle_admin;
       this.adminTestModeDisabled = !!profile.admin_test_mode_disabled;
@@ -119,6 +131,8 @@ export const useAuthStore = defineStore('auth', {
       localStorage.setItem('steamPersonaName', this.steamPersonaName);
       localStorage.setItem('displayNameSource', this.displayNameSource);
       localStorage.setItem('steamId', this.steamId);
+      localStorage.setItem('eloRating', String(this.eloRating));
+      localStorage.setItem('eloMatches', String(this.eloMatches));
       localStorage.setItem('isAdmin', String(this.isAdmin));
       localStorage.setItem('canToggleAdmin', String(this.canToggleAdmin));
       localStorage.setItem('adminTestModeDisabled', String(this.adminTestModeDisabled));

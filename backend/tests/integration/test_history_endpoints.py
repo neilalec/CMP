@@ -85,6 +85,43 @@ def test_match_history_can_filter_by_player_and_scored_results(flask_app):
     assert 'lobby_other_player' not in lobby_ids
 
 
+def test_leaderboard_endpoint_returns_players_by_elo(flask_app):
+    client = flask_app.test_client()
+    with flask_app.app_context():
+        token = create_access_token(identity='neil')
+
+    original_users = dict(backend_app.users)
+    try:
+        backend_app.users.clear()
+        backend_app.users.update({
+            'neil': {
+                'password': 'hash',
+                'display_name': 'Neil',
+                'elo_rating': 1050,
+                'elo_matches': 3,
+            },
+            'sam': {
+                'password': 'hash',
+                'display_name': 'Sam',
+                'elo_rating': 1110,
+                'elo_matches': 6,
+            },
+        })
+
+        response = client.get('/api/leaderboard', headers={
+            'Authorization': f'Bearer {token}'
+        })
+    finally:
+        backend_app.users.clear()
+        backend_app.users.update(original_users)
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload['success'] is True
+    assert [player['username'] for player in payload['players']] == ['sam', 'neil']
+    assert payload['players'][0]['elo_rating'] == 1110
+
+
 def test_admin_diagnostics_requires_admin(flask_app, monkeypatch):
     client = flask_app.test_client()
     with flask_app.app_context():

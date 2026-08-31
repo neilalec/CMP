@@ -64,6 +64,7 @@ const currentWindowTitle = computed(() => {
   if (route.path.startsWith('/play') || route.path === '/' || route.path.startsWith('/queue')) return 'Queue';
   if (route.path.startsWith('/lobbies')) return 'Lobbies';
   if (route.path.startsWith('/results')) return 'Results';
+  if (route.path.startsWith('/leaderboard')) return 'Leaderboard';
   if (route.path.startsWith('/discord')) return 'Discord';
   if (route.path.startsWith('/about')) return 'About';
   if (route.path.startsWith('/terms')) return 'Terms';
@@ -78,6 +79,7 @@ const currentWindowTitle = computed(() => {
 const isQueueRoute = computed(() => route.path === '/' || route.path.startsWith('/play') || route.path.startsWith('/queue'));
 const isLobbiesRoute = computed(() => route.path.startsWith('/lobbies'));
 const isResultsRoute = computed(() => route.path.startsWith('/results'));
+const isLeaderboardRoute = computed(() => route.path.startsWith('/leaderboard'));
 const isDiscordRoute = computed(() => route.path.startsWith('/discord'));
 const isAboutRoute = computed(() => route.path.startsWith('/about'));
 const isProfileRoute = computed(() => route.path.startsWith('/profile'));
@@ -171,6 +173,10 @@ watch(
             <RouterLink class="side-link chrome-nav-item" :class="{ active: isResultsRoute }" to="/results">
               <span class="nav-icon">R</span>
               <span class="nav-label">Results</span>
+            </RouterLink>
+            <RouterLink class="side-link chrome-nav-item" :class="{ active: isLeaderboardRoute }" to="/leaderboard">
+              <span class="nav-icon">#</span>
+              <span class="nav-label">Leaderboard</span>
             </RouterLink>
             <RouterLink class="side-link chrome-nav-item" :class="{ active: isDiscordRoute }" to="/discord">
               <span class="nav-icon">D</span>

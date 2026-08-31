@@ -17,6 +17,13 @@ def _profile_display_name(username, record):
     return display_name or steam_persona_name or username
 
 
+def _int_profile_value(record, key, default):
+    try:
+        return int(record.get(key, default))
+    except (TypeError, ValueError):
+        return default
+
+
 def get_user_profile(username, get_user_record, matchmaking_queue, is_user_in_any_lobby, admin_steam_ids=None):
     record = get_user_record(username)
     if not record:
@@ -32,11 +39,38 @@ def get_user_profile(username, get_user_record, matchmaking_queue, is_user_in_an
         'display_name_source': str(record.get('display_name_source') or 'legacy').strip(),
         'steam_id': steam_id,
         'has_steam_id': bool(steam_id),
+        'elo_rating': _int_profile_value(record, 'elo_rating', 1000),
+        'elo_matches': _int_profile_value(record, 'elo_matches', 0),
         'steam_id_locked': _user_in_queue(matchmaking_queue, username) or is_user_in_any_lobby(username),
         'is_admin': bool(is_base_admin and not admin_test_mode_disabled),
         'can_toggle_admin': bool(is_base_admin),
         'admin_test_mode_disabled': admin_test_mode_disabled
     }
+
+
+def build_elo_leaderboard(users, *, limit=500):
+    rows = []
+    for username, record in (users or {}).items():
+        if not isinstance(record, dict):
+            record = {}
+        rows.append({
+            'username': username,
+            'display_name': _profile_display_name(username, record),
+            'elo_rating': _int_profile_value(record, 'elo_rating', 1000),
+            'elo_matches': _int_profile_value(record, 'elo_matches', 0),
+        })
+
+    rows.sort(key=lambda row: (
+        -row['elo_rating'],
+        -row['elo_matches'],
+        row['display_name'].lower(),
+        row['username'].lower()
+    ))
+
+    limited_rows = rows[:max(1, int(limit or 500))]
+    for index, row in enumerate(limited_rows, start=1):
+        row['rank'] = index
+    return limited_rows
 
 
 def is_valid_steam_id(steam_id):

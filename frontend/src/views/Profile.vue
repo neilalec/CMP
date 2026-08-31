@@ -23,6 +23,19 @@ const {
 
       <div class="profile-card window-panel">
         <div class="window-titlebar">
+          <span class="window-titlebar-label">Elo Rating</span>
+          <span class="window-titlebar-meta">{{ authStore.eloMatches }} rated</span>
+        </div>
+        <div class="profile-card-body panel-body">
+          <div class="profile-value-row rating-row">
+            <span class="field-label">Current Rating</span>
+            <strong class="elo-value">{{ authStore.eloRating }}</strong>
+          </div>
+        </div>
+      </div>
+
+      <div class="profile-card window-panel">
+        <div class="window-titlebar">
           <span class="window-titlebar-label">Steam Account</span>
           <span class="window-titlebar-meta" v-if="hasSteamId">Ready</span>
         </div>
@@ -176,6 +189,18 @@ const {
   font-size: 1rem;
   overflow-wrap: anywhere;
   text-align: right;
+}
+
+.rating-row {
+  align-items: baseline;
+}
+
+.elo-value {
+  color: var(--accent-strong);
+  font-family: var(--font-display);
+  font-size: 1.65rem !important;
+  font-weight: 900;
+  line-height: 1;
 }
 
 .profile-actions {

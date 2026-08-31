@@ -5,6 +5,7 @@ import Lobby from '../views/Lobby.vue';
 import Profile from '../views/Profile.vue';
 import Group from '../views/Group.vue';
 import Results from '../views/Results.vue';
+import Leaderboard from '../views/Leaderboard.vue';
 import Admin from '../views/Admin.vue';
 import About from '../views/About.vue';
 import Discord from '../views/Discord.vue';
@@ -40,6 +41,12 @@ const routes = [
     path: '/results',
     name: 'results',
     component: Results,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/leaderboard',
+    name: 'leaderboard',
+    component: Leaderboard,
     meta: { requiresAuth: true }
   },
   {

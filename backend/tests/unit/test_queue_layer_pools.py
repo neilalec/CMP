@@ -20,38 +20,12 @@ from matchmaking import build_lobby_map_pool, select_map_from_votes
 
 def test_skirmish_layer_pool_matches_comp_skirmish_listing():
     assert ALL_SKIRMISH_MAPS == [
-        'CSL_AlBasrahSkirmishv1',
-        'CSL_AlBasrahSkirmishv2',
-        'CSL_AlBasrahSkirmishv3',
-        'CSL_AnvilSkirmishv1',
-        'CSL_BlackCoastSkirmishv1',
-        'CSL_ChoraSkirmishv1',
-        'CSL_FallujahSkirmishv1',
-        'CSL_FallujahSkirmishv2',
-        'CSL_FoolsRoadSkirmishv1',
-        'CSL_FoolsRoadSkirmishv2',
-        'CSL_GooseBaySkirmishv1',
-        'CSL_GorodokSkirmishv1',
-        'CSL_HarjuSkirmishv1',
-        'CSL_HarjuSkirmishv2',
-        'CSL_KamdeshSkirmishv1',
-        'CSL_KohatSkirmishv1',
-        'CSL_KokanSkirmishv1',
-        'CSL_LashkarSkirmishv1',
         'CSL_LogarSkirmishv1',
-        'CSL_ManicouaganSkirmishv1',
+        'CSL_HarjuSkirmishv2',
         'CSL_ManicouaganSkirmishv2',
-        'CSL_ManicouaganSkirmishv3',
-        'CSL_MestiaSkirmishv1',
-        'CSL_MutahaSkirmishv1',
-        'CSL_NarvaSkirmishv1',
-        'CSL_SkorpoSkirmishv1',
-        'CSL_SumariSkirmishv1',
-        'CSL_TallilSkirmishv1',
-        'CSL_TallilSkirmishv2',
-        'CSL_TallilSkirmishv3',
         'CSL_YehorivkaSkirmishv1',
-        'CSL_YehorivkaSkirmishv2',
+        'CSL_ChoraSkirmishGLSS2',
+        'CSL_KamdeshSkirmishv1',
     ]
 
 
@@ -308,4 +282,4 @@ def test_queue_modes_expose_each_tournament_format():
         + len(ALL_BALT_26_MAPS)
         + len(ALL_OUT_OF_THE_BOX_40_MAPS)
     )
-    assert tournament_layer_count == 110
+    assert tournament_layer_count == 84
