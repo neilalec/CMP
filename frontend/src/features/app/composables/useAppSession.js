@@ -38,6 +38,7 @@ export function useAppSession({
   })
   const isMatchAcceptCancelled = computed(() => queueStore.matchAccept.cancelled)
   const lobbySyncPending = ref(false)
+  const finalizingLobbySyncTimer = ref(null)
 
   const handleQueueUpdate = (data) => {
     queueStore.updateQueueState(data)
@@ -67,6 +68,7 @@ export function useAppSession({
     const isParticipant = data?.players?.includes(authStore.username)
     if (!isParticipant) return
     if (data?.lobby_id) {
+      clearFinalizingLobbySyncTimer()
       lobbyStore.reset()
       lobbyStore.updateLobbyState(data)
       setCurrentLobbyId(data.lobby_id)
@@ -83,6 +85,28 @@ export function useAppSession({
       router.push(`/lobby/${lobbyId}`)
     }
     return true
+  }
+
+  const clearFinalizingLobbySyncTimer = () => {
+    if (!finalizingLobbySyncTimer.value) return
+    clearTimeout(finalizingLobbySyncTimer.value)
+    finalizingLobbySyncTimer.value = null
+  }
+
+  const waitForFinalizedLobby = (attempt = 1) => {
+    clearFinalizingLobbySyncTimer()
+    finalizingLobbySyncTimer.value = setTimeout(async () => {
+      if (isInLobby.value || !authStore.username) return
+      try {
+        const profile = await syncActiveLobbyFromProfile()
+        if (profile?.active_lobby || isInLobby.value) return
+      } catch (error) {
+        // Lobby-created is the primary path; this retry is just a fallback.
+      }
+      if (attempt < 8) {
+        waitForFinalizedLobby(attempt + 1)
+      }
+    }, Math.min(5000, 350 * attempt))
   }
 
   const handleActiveLobbySync = (data) => {
@@ -185,8 +209,10 @@ export function useAppSession({
         routeToLobby(response.lobbyId)
         return
       }
-      if (response?.allAccepted) {
+      if (response?.allAccepted && !response?.finalizingLobby) {
         await syncActiveLobbyFromProfile()
+      } else if (response?.finalizingLobby) {
+        waitForFinalizedLobby()
       }
     } catch (error) {
       rootStore.setError(error.message || 'Failed to accept match')
@@ -195,6 +221,7 @@ export function useAppSession({
 
   const syncAcceptedMatchLobby = async () => {
     if (lobbySyncPending.value || isInLobby.value) return
+    if (queueStore.matchAccept.finalizingLobby) return
     const matchAccept = queueStore.matchAccept
     const acceptedCount = matchAccept.acceptedCount || 0
     const requiredCount = matchAccept.requiredCount || 0
@@ -314,6 +341,7 @@ export function useAppSession({
 
   onBeforeUnmount(() => {
     unregisterSocketListeners()
+    clearFinalizingLobbySyncTimer()
     socketStore.cleanupSocket()
   })
 

@@ -1,6 +1,7 @@
 from flask import jsonify, redirect, request
 from flask_jwt_extended import decode_token, get_jwt_identity, jwt_required
 from flask_socketio import emit, join_room, leave_room
+import eventlet
 import random
 import secrets
 import time
@@ -929,7 +930,8 @@ def register_socket_routes(socketio):
             get_username_by_sid=backend.get_username_by_sid,
             get_match_accept_payload=backend.get_match_accept_payload,
             broadcast_queue_update=backend.broadcast_queue_update,
-            finalize_pending_match=backend.finalize_pending_match
+            finalize_pending_match=backend.finalize_pending_match,
+            spawn_finalize_pending_match=lambda match_id: eventlet.spawn(backend.finalize_pending_match, match_id)
         )
 
     @socketio.on(_socket_backend_api().SOCKET_EVENTS['GROUP']['CREATE'])

@@ -548,7 +548,8 @@ def handle_accept_match_event(
     get_username_by_sid,
     get_match_accept_payload,
     broadcast_queue_update,
-    finalize_pending_match
+    finalize_pending_match,
+    spawn_finalize_pending_match=None
 ):
     try:
         username = data.get('username') if data else None
@@ -589,12 +590,16 @@ def handle_accept_match_event(
 
         lobby_id = None
         if all_accepted:
-            lobby_id = finalize_pending_match(match_id)
+            if spawn_finalize_pending_match:
+                spawn_finalize_pending_match(match_id)
+            else:
+                lobby_id = finalize_pending_match(match_id)
 
         return {
             'success': True,
             'matchAccept': match_accept,
             'allAccepted': all_accepted,
+            'finalizingLobby': bool(all_accepted and spawn_finalize_pending_match),
             'lobbyId': lobby_id if isinstance(lobby_id, str) else None
         }
     except Exception as e:

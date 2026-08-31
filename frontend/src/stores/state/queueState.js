@@ -9,7 +9,8 @@ export const createDefaultMatchAcceptState = () => ({
   acceptedCount: 0,
   requiredCount: 0,
   countdown: null,
-  hasAccepted: false
+  hasAccepted: false,
+  finalizingLobby: false
 })
 
 export const createDefaultQueueModes = () => ({

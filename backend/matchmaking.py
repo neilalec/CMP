@@ -520,7 +520,23 @@ def create_lobby(players_override=None, queue_mode=None):
         captains = select_captains(teams)
         map_pool = build_lobby_map_pool(queue_config)
         lobby_id = f"lobby_{int(time.time())}"
+        allocation_started_at = time.time()
         allocated_server = app.allocate_server_for_lobby(lobby_id)
+        app.logger.info(
+            "Lobby server allocation completed: lobby_id=%s server_id=%s elapsed=%.3fs",
+            lobby_id,
+            (allocated_server or {}).get('id'),
+            time.time() - allocation_started_at
+        )
+        connection_details_started_at = time.time()
+        server_details = app.get_server_connection_details(server_id=(allocated_server or {}).get('id'))
+        app.logger.info(
+            "Lobby server details completed: lobby_id=%s server_id=%s bridge_available=%s elapsed=%.3fs",
+            lobby_id,
+            (allocated_server or {}).get('id'),
+            bool((server_details or {}).get('bridgeAvailable')),
+            time.time() - connection_details_started_at
+        )
         lobby_data = {
             'lobby_id': lobby_id,
             'server_id': (allocated_server or {}).get('id'),
@@ -534,7 +550,7 @@ def create_lobby(players_override=None, queue_mode=None):
             'captains': captains,
             'step': 2,
             'selected_map': None,
-            'server_details': app.get_server_connection_details(server_id=(allocated_server or {}).get('id')),
+            'server_details': server_details,
             'team_labels': {},
             'countdown_active': False,
             'map_votes': {},

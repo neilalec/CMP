@@ -1,3 +1,6 @@
+from threading import RLock
+from types import SimpleNamespace
+
 from services.queue import (
     add_to_queue,
     build_queue_payload,
@@ -7,6 +10,7 @@ from services.queue import (
     has_available_server_capacity,
 )
 from matchmaking import team_assignment_matches_queue_format
+from sockets.queue import handle_accept_match_event
 
 
 QUEUE_MODES = {
@@ -85,6 +89,54 @@ def test_build_queue_payload_marks_disabled_modes():
     assert payload['queueModes']['skirmish']['disabled'] is False
     assert payload['queueModes']['hotdrop']['enabled'] is False
     assert payload['queueModes']['hotdrop']['disabled'] is True
+
+
+def test_accept_match_schedules_background_finalize_after_all_accept():
+    pending_match = {
+        'skirmish': {
+            'id': 'match_1',
+            'queue_mode': 'skirmish',
+            'players': ['alice', 'bob'],
+            'accepted': {'alice': True, 'bob': False},
+            'countdown': 30,
+        }
+    }
+    broadcasts = []
+    spawned = []
+    finalized = []
+
+    response = handle_accept_match_event(
+        {'username': 'bob'},
+        request=SimpleNamespace(sid='sid_bob'),
+        logger=SimpleNamespace(
+            info=lambda *_args, **_kwargs: None,
+            warning=lambda *_args, **_kwargs: None,
+            error=lambda *_args, **_kwargs: None,
+        ),
+        queue_lock=RLock(),
+        pending_match=pending_match,
+        get_username_by_sid=lambda sid: 'bob',
+        get_match_accept_payload=lambda username: {
+            'active': True,
+            'queueMode': 'skirmish',
+            'players': ['alice', 'bob'],
+            'acceptedPlayers': ['alice', 'bob'],
+            'acceptedCount': 2,
+            'requiredCount': 2,
+            'countdown': 30,
+        },
+        broadcast_queue_update=lambda: broadcasts.append(True),
+        finalize_pending_match=lambda match_id: finalized.append(match_id),
+        spawn_finalize_pending_match=lambda match_id: spawned.append(match_id),
+    )
+
+    assert response['success'] is True
+    assert response['allAccepted'] is True
+    assert response['finalizingLobby'] is True
+    assert response['lobbyId'] is None
+    assert spawned == ['match_1']
+    assert finalized == []
+    assert broadcasts == [True]
 
 
 def test_team_assignment_must_fill_both_format_sides():

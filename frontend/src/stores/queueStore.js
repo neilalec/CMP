@@ -64,6 +64,7 @@ export const useQueueStore = defineStore('queue', {
           acceptedCount: data.matchAccept.acceptedCount || 0,
           requiredCount: data.matchAccept.requiredCount || 0,
           countdown: data.matchAccept.countdown ?? null,
+          finalizingLobby: !!data.matchAccept.finalizingLobby,
           hasAccepted: Array.isArray(data.matchAccept.acceptedPlayers)
             ? data.matchAccept.acceptedPlayers.includes(authStore.username)
             : !!data.matchAccept.hasAccepted
@@ -161,12 +162,14 @@ export const useQueueStore = defineStore('queue', {
             acceptedCount: response.matchAccept.acceptedCount ?? this.matchAccept.acceptedCount,
             requiredCount: response.matchAccept.requiredCount ?? this.matchAccept.requiredCount,
             countdown: response.matchAccept.countdown ?? this.matchAccept.countdown,
+            finalizingLobby: !!response.finalizingLobby,
             hasAccepted: Array.isArray(response.matchAccept.acceptedPlayers)
               ? response.matchAccept.acceptedPlayers.includes(authStore.username)
               : true
           }
         } else {
           this.matchAccept.hasAccepted = true
+          this.matchAccept.finalizingLobby = !!response.finalizingLobby
         }
         return response
       } catch (error) {
