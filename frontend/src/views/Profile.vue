@@ -15,8 +15,6 @@ const {
   <div class="profile-page content-panel">
     <div class="page-shell narrow">
       <p class="profile-name current-user">
-        <span class="profile-name-mark">User</span>
-        <span class="profile-name-divider" aria-hidden="true"></span>
         <span class="profile-name-text">{{ authStore.playerName }}</span>
       </p>
       <p v-if="authStore.isAdmin" class="admin-badge">Admin</p>
@@ -100,45 +98,13 @@ const {
   gap: 10px;
   max-width: 100%;
   padding: 5px 10px;
-  border: 1px solid color-mix(in srgb, var(--surface-border-strong) 70%, transparent);
+  border: 1px solid var(--title-plate-border);
   border-radius: var(--radius-md);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.24), transparent 46%),
-    linear-gradient(90deg, color-mix(in srgb, var(--chrome-blue) 55%, transparent), color-mix(in srgb, var(--chrome-green) 42%, transparent));
-  box-shadow:
-    inset 1px 1px 0 rgba(255, 255, 255, 0.42),
-    inset -1px -1px 0 rgba(34, 32, 24, 0.14),
-    2px 2px 0 rgba(76, 69, 58, 0.16);
+  background: var(--title-plate-bg);
+  box-shadow: var(--title-plate-shadow);
   font-weight: 700;
   color: inherit;
   margin: 0 0 0.75rem;
-}
-
-.profile-name-mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 30px;
-  padding: 0 9px;
-  border: 1px solid var(--accent-border);
-  border-radius: var(--radius-sm);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--gold-soft) 82%, white 18%), var(--gold));
-  box-shadow: var(--control-shadow);
-  color: var(--accent-strong);
-  font-family: var(--font-mono);
-  font-size: 0.82rem;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  line-height: 1;
-  text-transform: uppercase;
-}
-
-.profile-name-divider {
-  width: 1px;
-  height: 28px;
-  background: linear-gradient(180deg, transparent, var(--surface-border-strong), transparent);
-  opacity: 0.7;
 }
 
 .profile-name-text {
@@ -219,10 +185,6 @@ const {
     flex-direction: column;
     gap: 6px;
     width: min(100%, 320px);
-  }
-
-  .profile-name-divider {
-    display: none;
   }
 
   .profile-value-row {

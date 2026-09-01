@@ -302,9 +302,16 @@ const roundOutcome = computed(() => {
 .match-leave-button {
   width: 100%;
   min-height: 34px;
-  background: var(--control-bg);
-  border-color: var(--control-border);
-  color: inherit;
+  background: var(--button-flat-bg);
+  border-color: var(--button-border);
+  box-shadow: var(--button-shadow);
+  color: var(--button-flat-text);
+}
+
+.match-leave-button:hover {
+  background: var(--button-flat-bg-hover);
+  border-color: var(--button-border-hover);
+  box-shadow: var(--button-hover-shadow);
 }
 
 @media (max-width: 900px) {

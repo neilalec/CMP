@@ -208,7 +208,16 @@ const {
 
 .group-join-control input {
   min-width: 0;
+  background: var(--group-code-input-bg);
+  border-color: var(--group-code-input-border);
+  color: var(--group-code-input-text);
+  caret-color: var(--group-code-input-text);
   text-align: center;
+}
+
+.group-join-control input::placeholder {
+  color: var(--group-code-input-text);
+  opacity: 1;
 }
 
 .group-summary {
@@ -220,30 +229,27 @@ const {
 .group-code-panel,
 .group-leader-panel {
   min-width: 0;
-  background: var(--titlebar-bg);
-  border-color: var(--titlebar-divider);
-  box-shadow:
-    inset 1px 1px 0 rgba(255, 255, 255, 0.32),
-    inset -1px -1px 0 rgba(34, 32, 24, 0.16),
-    var(--card-inner-shadow);
-  color: var(--blue-banner-text);
+  background: var(--group-code-panel-bg);
+  border-color: var(--group-code-panel-border);
+  box-shadow: var(--group-code-panel-shadow);
+  color: var(--group-code-panel-text);
 }
 
 .group-code-panel .eyebrow,
 .group-leader-panel .eyebrow {
-  color: var(--blue-banner-text);
+  color: var(--group-code-panel-text);
 }
 
 .group-code-panel strong {
   font-family: var(--font-mono);
   font-size: 1.62rem;
   letter-spacing: 0.08em;
-  color: var(--blue-banner-text);
+  color: var(--group-code-panel-text);
   line-height: 1;
 }
 
 .group-leader-panel strong {
-  color: var(--blue-banner-text);
+  color: var(--group-code-panel-text);
   font-size: 1.12rem;
   font-weight: 700;
   line-height: 1.15;

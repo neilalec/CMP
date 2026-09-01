@@ -72,17 +72,17 @@ defineEmits(['vote'])
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
-  background: var(--control-bg);
-  color: inherit;
-  border: 1px solid var(--control-border);
+  background: var(--button-flat-bg);
+  color: var(--button-flat-text);
+  border: 1px solid var(--button-border);
   border-radius: var(--radius-md);
   cursor: pointer;
-  transition: background-color 0.12s ease, border-color 0.12s ease, transform 0.08s ease;
+  transition: background-color 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease, transform 0.08s ease;
   min-width: 120px;
   width: 100%;
   text-align: left;
   font-weight: 800;
-  box-shadow: var(--surface-shadow);
+  box-shadow: var(--button-shadow);
 }
 
 .map-button span {
@@ -90,14 +90,16 @@ defineEmits(['vote'])
 }
 
 .map-button:hover {
-  background: var(--control-bg-hover);
+  background: var(--button-flat-bg-hover);
+  border-color: var(--button-border-hover);
+  box-shadow: var(--button-hover-shadow);
   transform: translateY(-1px);
 }
 
 .map-button:disabled {
-  background: var(--control-bg-active);
-  color: var(--text-muted);
-  border-color: var(--control-border);
+  background: var(--button-disabled-bg);
+  color: var(--button-disabled-text);
+  border-color: var(--button-border);
   cursor: not-allowed;
 }
 

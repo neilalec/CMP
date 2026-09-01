@@ -236,22 +236,15 @@ const statusSentence = computed(() => {
 .phase-title.is-scoreboard {
   max-width: 620px;
   padding: 0.72rem 1.2rem;
-  border: 1px solid color-mix(in srgb, var(--accent-border) 72%, var(--surface-border) 28%);
+  border: 1px solid var(--phase-title-border);
   border-radius: var(--radius-md);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.3), transparent 48%),
-    linear-gradient(90deg, color-mix(in srgb, var(--chrome-blue) 48%, transparent), color-mix(in srgb, var(--chrome-green) 45%, transparent));
-  box-shadow:
-    inset 1px 1px 0 rgba(255, 255, 255, 0.42),
-    inset -1px -1px 0 rgba(34, 32, 24, 0.14),
-    2px 2px 0 rgba(76, 69, 58, 0.16);
+  background: var(--phase-title-bg);
+  box-shadow: var(--phase-title-shadow);
   color: var(--text-main);
   font-family: var(--font-display);
   font-size: clamp(1.25rem, 2vw, 1.72rem);
   letter-spacing: 0.018em;
-  text-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.24),
-    0 3px 10px rgba(93, 86, 73, 0.14);
+  text-shadow: var(--phase-title-text-shadow);
 }
 
 .countdown-slot {
@@ -309,15 +302,15 @@ const statusSentence = computed(() => {
 .delete-lobby-button {
   min-height: 32px;
   padding: 0.45rem 0.62rem;
-  background: var(--control-bg);
-  color: inherit;
-  border: 1px solid var(--control-border);
+  background: var(--button-flat-bg);
+  color: var(--button-flat-text);
+  border: 1px solid var(--button-border);
   border-radius: var(--radius-sm);
   cursor: pointer;
   font-weight: 700;
   font-size: 0.78rem;
-  transition: background-color 0.12s ease, border-color 0.12s ease, transform 0.08s ease;
-  box-shadow: var(--surface-shadow);
+  transition: background-color 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease, transform 0.08s ease;
+  box-shadow: var(--button-shadow);
 }
 
 .delete-lobby-button {
@@ -327,13 +320,15 @@ const statusSentence = computed(() => {
 
 .phase-admin-button:hover,
 .delete-lobby-button:hover {
-  background: var(--control-bg-hover);
+  background: var(--button-flat-bg-hover);
+  border-color: var(--button-border-hover);
+  box-shadow: var(--button-hover-shadow);
   transform: translateY(-1px);
 }
 
 .phase-admin-button:disabled {
-  background: var(--control-bg-active);
-  color: var(--text-muted);
+  background: var(--button-disabled-bg);
+  color: var(--button-disabled-text);
   cursor: not-allowed;
   transform: none;
 }

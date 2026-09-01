@@ -156,17 +156,19 @@ const displayName = (player) => props.playerProfiles?.[player]?.display_name || 
   align-items: center;
   justify-content: center;
   padding: 0;
-  border: 1px solid var(--control-border);
-  background: var(--control-bg);
-  color: var(--text-main);
-  box-shadow: var(--surface-shadow);
+  border: 1px solid var(--button-border);
+  background: var(--button-flat-bg);
+  color: var(--button-flat-text);
+  box-shadow: var(--button-shadow);
   font-size: 0.8rem;
   font-weight: 700;
   line-height: 1;
 }
 
 .match-accept-close:hover {
-  background: var(--control-bg-hover);
+  background: var(--button-flat-bg-hover);
+  border-color: var(--button-border-hover);
+  box-shadow: var(--button-hover-shadow);
 }
 
 .match-accept-body {

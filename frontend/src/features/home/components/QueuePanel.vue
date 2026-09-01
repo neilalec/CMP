@@ -1070,7 +1070,7 @@ const handleS3oSmallJoin = () => {
   display: block;
   margin: 0;
   min-width: 0;
-  color: #f8fbff;
+  color: var(--titlebar-text);
   font-family: var(--font-mono);
   font-size: 0.76rem;
   font-weight: 800;
@@ -1082,7 +1082,7 @@ const handleS3oSmallJoin = () => {
 }
 
 .queue-titlebar-link:hover {
-  color: #ffffff;
+  color: var(--titlebar-text);
   text-decoration: underline;
   text-underline-offset: 3px;
 }
@@ -1098,8 +1098,8 @@ const handleS3oSmallJoin = () => {
   width: 100%;
   overflow: hidden;
   border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--accent-soft) 28%, white 72%);
-  border: 1px solid color-mix(in srgb, var(--accent-border) 48%, var(--surface-border-strong));
+  background: var(--queue-meter-bg);
+  border: 1px solid var(--queue-meter-border);
   box-shadow: var(--inset-shadow);
 }
 
@@ -1107,11 +1107,7 @@ const handleS3oSmallJoin = () => {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--accent-soft) 86%, white 14%) 0%,
-    color-mix(in srgb, var(--accent) 64%, white 36%) 100%
-  );
+  background: var(--queue-meter-fill-bg);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
   position: relative;
   overflow: hidden;
@@ -1143,12 +1139,12 @@ const handleS3oSmallJoin = () => {
   justify-content: center;
   min-height: 16px;
   padding: 0 6px;
-  color: color-mix(in srgb, var(--text-main) 88%, #1c3552 12%);
+  color: var(--queue-meter-label-text);
   font-family: var(--font-mono);
   font-size: 0.82rem;
   font-weight: 800;
   letter-spacing: 0.04em;
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.28);
+  text-shadow: var(--queue-meter-label-shadow);
   transform: translate(-50%, -50%);
   z-index: 1;
 }
@@ -1190,7 +1186,7 @@ const handleS3oSmallJoin = () => {
   border: 1px solid color-mix(in srgb, var(--accent-strong) 32%, rgba(255, 255, 255, 0.38));
   border-radius: var(--radius-sm);
   background: color-mix(in srgb, rgba(255, 255, 255, 0.18) 100%, transparent 0%);
-  color: #f8fbff;
+  color: var(--titlebar-text);
   font-family: var(--font-mono);
   font-size: 0.66rem;
   font-weight: 700;
@@ -1229,8 +1225,8 @@ const handleS3oSmallJoin = () => {
   width: 100%;
   overflow: hidden;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--accent-soft) 28%, white 72%);
-  border: 1px solid color-mix(in srgb, var(--accent-border) 48%, var(--surface-border-strong));
+  background: var(--queue-meter-bg);
+  border: 1px solid var(--queue-meter-border);
   box-shadow: var(--inset-shadow);
 }
 
@@ -1238,11 +1234,7 @@ const handleS3oSmallJoin = () => {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--accent-soft) 86%, white 14%) 0%,
-    color-mix(in srgb, var(--accent) 64%, white 36%) 100%
-  );
+  background: var(--queue-meter-fill-bg);
 }
 
 .sec-mini-meter-label {
@@ -1254,7 +1246,7 @@ const handleS3oSmallJoin = () => {
   justify-content: center;
   min-height: 10px;
   padding: 0 4px;
-  color: color-mix(in srgb, var(--text-main) 88%, #1c3552 12%);
+  color: var(--queue-meter-label-text);
   font-family: var(--font-mono);
   font-size: 0.6rem;
   font-weight: 800;

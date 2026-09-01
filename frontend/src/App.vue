@@ -340,7 +340,7 @@ watch(
   flex-wrap: wrap;
   min-height: 24px;
   padding: 3px 8px 0;
-  color: var(--text-soft);
+  color: var(--footer-text);
   font-family: var(--font-mono);
   font-size: 0.62rem;
   line-height: 1.25;
@@ -348,7 +348,7 @@ watch(
 }
 
 .legal-footer a {
-  color: var(--accent-strong);
+  color: var(--footer-link-text);
   font-weight: 800;
   text-decoration: none;
 }

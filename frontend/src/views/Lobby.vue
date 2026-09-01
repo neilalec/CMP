@@ -255,9 +255,16 @@ const {
 .leave-lobby-button {
   width: 200px;
   min-height: 34px;
-  background: var(--control-bg);
-  border-color: var(--control-border);
-  color: inherit;
+  background: var(--button-flat-bg);
+  border-color: var(--button-border);
+  box-shadow: var(--button-shadow);
+  color: var(--button-flat-text);
+}
+
+.leave-lobby-button:hover {
+  background: var(--button-flat-bg-hover);
+  border-color: var(--button-border-hover);
+  box-shadow: var(--button-hover-shadow);
 }
 
 @media (max-width: 1200px) {

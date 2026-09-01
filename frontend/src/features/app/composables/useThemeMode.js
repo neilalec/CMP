@@ -1,20 +1,13 @@
 import { computed, onMounted, ref, watch } from 'vue'
 
 const THEME_STORAGE_KEY = 'cmp-theme'
-const WIP_THEME_ENABLED = false
-const THEMES = WIP_THEME_ENABLED
-  ? ['light', 'legacy', 'dark']
-  : ['light', 'legacy']
-const THEME_LABELS = WIP_THEME_ENABLED
-  ? { light: 'Light Theme', legacy: 'Dark Theme', dark: 'Dark WIP' }
-  : { light: 'Light Theme', legacy: 'Dark Theme' }
-const THEME_ICONS = WIP_THEME_ENABLED
-  ? { light: 'L', legacy: 'D', dark: 'W' }
-  : { light: 'L', legacy: 'D' }
+const THEMES = ['light', 'dark']
+const THEME_LABELS = { light: 'Light Theme', dark: 'Dark Theme' }
+const THEME_ICONS = { light: 'L', dark: 'D' }
 
 const normalizeTheme = (theme) => {
-  if (!WIP_THEME_ENABLED && theme === 'dark') {
-    return 'legacy'
+  if (theme === 'legacy') {
+    return 'dark'
   }
 
   return THEMES.includes(theme) ? theme : 'light'
@@ -26,7 +19,6 @@ export function useThemeMode() {
   const applyTheme = (nextTheme) => {
     const normalizedTheme = normalizeTheme(nextTheme)
     document.documentElement.classList.toggle('dark-mode', normalizedTheme === 'dark')
-    document.documentElement.classList.toggle('legacy-mode', normalizedTheme === 'legacy')
   }
 
   onMounted(() => {
