@@ -57,6 +57,8 @@ try {
         Set-CmpUtf8Output
         Set-Location $workingDirectory
         $env:CMP_DEV_MODE = "1"
+        $env:DEV_SOLO_ELO_SMOKE_ENABLED = "1"
+        $env:DEV_SOLO_ELO_SMOKE_USERNAME = "neil"
         $env:FRONTEND_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174"
         $env:BACKEND_PUBLIC_URL = "http://localhost:5000"
         $env:DATABASE_PATH = Join-Path $workingDirectory "app.db"

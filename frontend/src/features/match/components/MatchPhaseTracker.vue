@@ -111,8 +111,8 @@ const getPhaseState = (index) => {
   width: 15px;
   height: 15px;
   border-radius: 50%;
-  border: 1px solid var(--tracker-muted);
-  background: var(--panel-bg);
+  border: 1px solid var(--phase-tracker-dot-border, var(--tracker-muted));
+  background: var(--phase-tracker-dot-bg, var(--panel-bg));
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -182,9 +182,9 @@ const getPhaseState = (index) => {
 
 .phase-step.is-complete .phase-dot {
   position: relative;
-  background: var(--tracker-accent);
-  border-color: var(--tracker-accent);
-  color: var(--phase-check-text, #fff3d2);
+  background: var(--phase-tracker-complete-dot-bg, var(--tracker-accent));
+  border-color: var(--phase-tracker-complete-dot-border, var(--tracker-accent));
+  color: var(--phase-tracker-complete-check-text, var(--phase-check-text, #fff3d2));
   box-shadow: 0 0 0 1px var(--accent-border);
 }
 
@@ -198,7 +198,7 @@ const getPhaseState = (index) => {
 }
 
 .phase-step.is-current .phase-dot {
-  background: var(--panel-bg-strong);
+  background: var(--phase-tracker-current-dot-bg, var(--panel-bg-strong));
   border-color: var(--tracker-accent);
   box-shadow:
     0 0 0 2px var(--tracker-arrow),

@@ -16,6 +16,8 @@ from app_state import (
     DEV_MODE,
     DEV_LIVE_ROLL_OVERRIDE_USERNAME,
     DEV_LIVE_ROLL_OVERRIDE_STEAM_ID,
+    DEV_SOLO_ELO_SMOKE_ENABLED,
+    DEV_SOLO_ELO_SMOKE_USERNAME,
     FINALIZED_LOBBY_CLEANUP_SECONDS,
     LEGACY_QUEUE_FILE,
     LIVE_MATCH_MAX_SECONDS,
@@ -720,7 +722,9 @@ def save_completed_match(lobby_id, lobby, *, completed_at):
         lobby,
         users,
         save_users,
-        applied_at=completed_at
+        applied_at=completed_at,
+        dev_solo_smoke_enabled=DEV_MODE and DEV_SOLO_ELO_SMOKE_ENABLED,
+        dev_solo_smoke_username=DEV_SOLO_ELO_SMOKE_USERNAME
     )
     return result
 

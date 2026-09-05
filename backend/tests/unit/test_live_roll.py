@@ -628,6 +628,7 @@ def test_live_roll_requires_second_same_layer_roll_before_live(monkeypatch):
     }
     socketio = DummySocketIO()
     attempts = []
+    broadcasts = []
     slomo_values = []
     actions = []
     events = []
@@ -656,7 +657,7 @@ def test_live_roll_requires_second_same_layer_roll_before_live(monkeypatch):
             'unauthorizedPlayers': [],
         },
         pause_aware_sleep=pause_then_stop,
-        broadcast_server_message=lambda _message: {'ok': True},
+        broadcast_server_message=lambda message: broadcasts.append(message) or {'ok': True},
         set_server_slomo=lambda value: actions.append(('slomo', value)) or slomo_values.append(value) or {'ok': True, 'value': value},
         change_server_to_selected_map=lambda selected_map: actions.append(('roll', selected_map)) or attempts.append(selected_map) or {'ok': True},
         set_next_server_map=lambda _selected_map: {'ok': True},
@@ -670,6 +671,9 @@ def test_live_roll_requires_second_same_layer_roll_before_live(monkeypatch):
     )
 
     assert attempts == ['OCBT_Shchyhliivka_AAS_v3', 'OCBT_Shchyhliivka_AAS_v3']
+    assert broadcasts[-1] == 'Live'
+    assert any('compatibility roll 1/2' in message for message in broadcasts)
+    assert any('final compatibility roll 2/2' in message for message in broadcasts)
     assert slomo_values == [20, 10, 1]
     assert actions == [
         ('slomo', 20),

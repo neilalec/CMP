@@ -7,6 +7,7 @@ DEFAULT_ELO_RATING = 1000
 PROVISIONAL_ELO_MATCHES = 10
 PROVISIONAL_ELO_K = 40
 STANDARD_ELO_K = 32
+DEV_SOLO_ELO_SYNTHETIC_OPPONENT = '__dev_solo_elo_opponent__'
 
 
 def init_elo_tables(get_db_connection):
@@ -90,6 +91,77 @@ def _resolve_scores(round_result):
     return None
 
 
+def _team_for_player(teams, username):
+    normalized_username = str(username or '').strip().lower()
+    if not normalized_username:
+        return None
+    for team_key in ('team1', 'team2'):
+        players = [
+            str(player or '').strip().lower()
+            for player in (teams.get(team_key) or [])
+        ]
+        if normalized_username in players:
+            return team_key
+    return None
+
+
+def build_dev_solo_elo_smoke_lobby(
+    lobby,
+    *,
+    enabled=False,
+    username='',
+    synthetic_opponent=DEV_SOLO_ELO_SYNTHETIC_OPPONENT
+):
+    if not enabled or not isinstance(lobby, dict):
+        return lobby
+
+    normalized_username = str(username or '').strip().lower()
+    teams = lobby.get('teams') if isinstance(lobby.get('teams'), dict) else {}
+    team1_players = [player for player in (teams.get('team1') or []) if player]
+    team2_players = [player for player in (teams.get('team2') or []) if player]
+    players = [player for player in (lobby.get('players') or []) if player]
+    if len(players) != 1 or str(players[0]).strip().lower() != normalized_username:
+        return lobby
+    if team1_players and team2_players:
+        return lobby
+
+    solo_team = _team_for_player(teams, normalized_username)
+    if solo_team not in {'team1', 'team2'}:
+        return lobby
+
+    round_result = lobby.get('round_result') if isinstance(lobby.get('round_result'), dict) else {}
+    scores = _resolve_scores(round_result)
+    if not scores or scores.get('result') == 'draw':
+        return lobby
+
+    winning_team = scores['result'].replace('_win', '')
+    if winning_team == solo_team:
+        return lobby
+
+    opponent_team = 'team2' if solo_team == 'team1' else 'team1'
+    adjusted_teams = {
+        **teams,
+        solo_team: list(teams.get(solo_team) or []),
+        opponent_team: list(teams.get(opponent_team) or [])
+    }
+    if adjusted_teams[opponent_team]:
+        return lobby
+
+    adjusted_teams[opponent_team].append(synthetic_opponent)
+    return {
+        **lobby,
+        'teams': adjusted_teams,
+        'dev_solo_elo_smoke': {
+            'enabled': True,
+            'username': normalized_username,
+            'syntheticOpponent': synthetic_opponent,
+            'soloTeam': solo_team,
+            'opponentTeam': opponent_team,
+            'result': scores['result'],
+        }
+    }
+
+
 def build_elo_update_payload(lobby, users):
     teams = lobby.get('teams') if isinstance(lobby, dict) else {}
     if not isinstance(teams, dict):
@@ -137,7 +209,7 @@ def build_elo_update_payload(lobby, users):
     if not updates:
         return None
 
-    return {
+    payload = {
         'result': scores['result'],
         'teamRatings': {
             'team1': round(team_ratings['team1'], 2),
@@ -149,9 +221,22 @@ def build_elo_update_payload(lobby, users):
         },
         'updates': updates,
     }
+    if lobby.get('dev_solo_elo_smoke'):
+        payload['devSoloEloSmoke'] = lobby.get('dev_solo_elo_smoke')
+    return payload
 
 
-def apply_elo_for_completed_match(get_db_connection, lobby_id, lobby, users, save_users, *, applied_at=None):
+def apply_elo_for_completed_match(
+    get_db_connection,
+    lobby_id,
+    lobby,
+    users,
+    save_users,
+    *,
+    applied_at=None,
+    dev_solo_smoke_enabled=False,
+    dev_solo_smoke_username=''
+):
     lobby_id = str(lobby_id or '').strip()
     if not lobby_id:
         return None
@@ -164,7 +249,12 @@ def apply_elo_for_completed_match(get_db_connection, lobby_id, lobby, users, sav
     if existing:
         return None
 
-    payload = build_elo_update_payload(lobby, users)
+    elo_lobby = build_dev_solo_elo_smoke_lobby(
+        lobby,
+        enabled=dev_solo_smoke_enabled,
+        username=dev_solo_smoke_username
+    )
+    payload = build_elo_update_payload(elo_lobby, users)
     if not payload:
         return None
 

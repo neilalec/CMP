@@ -2,6 +2,13 @@ import os
 from pathlib import Path
 
 import pytest
+
+TEST_DATABASE_PATH = Path(__file__).resolve().parent / 'test_app.db'
+os.environ.setdefault('CMP_DEV_MODE', '1')
+os.environ.setdefault('DATABASE_PATH', str(TEST_DATABASE_PATH))
+os.environ.setdefault('SECRET_KEY', 'test-secret-key-with-32-bytes-minimum')
+os.environ.setdefault('JWT_SECRET_KEY', 'test-secret-key-with-32-bytes-minimum')
+
 import app as backend_app
 import app_core
 from app import app, socketio, users

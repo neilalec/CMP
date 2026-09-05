@@ -12,8 +12,8 @@ Copy-Item .env.example .env
 ```
 
 ```env
-CMP_PUBLIC_HOST=squadcm.duckdns.org
-CMP_BACKEND_PUBLIC_URL=https://squadcm.duckdns.org/api
+CMP_PUBLIC_HOST=example.com
+CMP_BACKEND_PUBLIC_URL=https://example.com/api
 VITE_PASSWORD_AUTH_ENABLED=0
 ```
 
@@ -29,8 +29,8 @@ CMP_BACKEND_PUBLIC_URL=https://temporary.example.com/api
 ```env
 CMP_DEV_MODE=0
 CMP_PASSWORD_AUTH_ENABLED=0
-FRONTEND_ORIGINS=https://squadcm.duckdns.org
-BACKEND_PUBLIC_URL=https://squadcm.duckdns.org/api
+FRONTEND_ORIGINS=https://example.com
+BACKEND_PUBLIC_URL=https://example.com/api
 DATABASE_PATH=/app/data/app.db
 SQUADJS_BRIDGE_URL=http://squadjs:3001
 SQUADJS_BRIDGE_TOKEN=<same-token-as-squadjs-config>
@@ -76,7 +76,7 @@ VITE_PASSWORD_AUTH_ENABLED: ${VITE_PASSWORD_AUTH_ENABLED:-0}
 ```
 
 Queue seed/clear tools and lobby delete/recovery controls are permanently
-available to admin profiles only. Keep `ADMIN_STEAM_IDS` set to Neil/admin
+available to admin profiles only. Keep `ADMIN_STEAM_IDS` set to trusted admin
 SteamID64 values in `backend/.env`; non-admin users cannot see or call those
 actions.
 
@@ -148,7 +148,7 @@ Use the automation mode buttons before taking manual control of a match:
 - `Monitor Only`: keep reading server state, but block RCON writes.
 - `Off`: pause live automation so admins can run the match manually.
 
-Neil/admin Steam IDs bypass lobby/team enforcement so admins can police early
+Configured admin Steam IDs bypass lobby/team enforcement so admins can police early
 matches from inside the Squad server.
 
 ## Player Disconnects
@@ -235,8 +235,8 @@ docker compose up -d --build
 ## Post-Deploy Checklist
 
 - `.\scripts\smoke-production.ps1` passes or only warns about an expected server/bridge outage.
-- `https://squadcm.duckdns.org` loads.
-- Steam redirects back to `https://squadcm.duckdns.org`.
+- `https://example.com` loads.
+- Steam redirects back to `https://example.com`.
 - Steam login succeeds.
 - `/api/health` returns `ok` or explains degradation.
 - Admin page diagnostics load.

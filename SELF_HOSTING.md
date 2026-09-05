@@ -18,7 +18,7 @@ http://<desktop-ip>:8080
 Examples:
 
 ```text
-http://192.168.1.117:8080
+http://192.168.1.50:8080
 http://localhost:8080
 ```
 
@@ -149,7 +149,7 @@ Important config:
 ```env
 CMP_DEV_MODE=0
 CMP_PASSWORD_AUTH_ENABLED=0
-FRONTEND_ORIGINS=http://localhost:5173,http://localhost,http://localhost:8080,https://localhost,http://192.168.1.117:8080,https://cmp.zapto.org
+FRONTEND_ORIGINS=http://localhost:5173,http://localhost,http://localhost:8080,https://localhost,http://192.168.1.50:8080,https://example.com
 SECRET_KEY=<strong-random-secret>
 JWT_SECRET_KEY=<strong-random-secret>
 JWT_ACCESS_TOKEN_EXPIRES_HOURS=12
@@ -196,7 +196,7 @@ http://<desktop-ip>:8080
 Example:
 
 ```env
-FRONTEND_ORIGINS=http://localhost:8080,http://192.168.1.117:8080
+FRONTEND_ORIGINS=http://localhost:8080,http://192.168.1.50:8080
 ```
 
 If you change `backend/.env`, recreate the backend container:

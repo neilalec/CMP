@@ -1655,15 +1655,10 @@ def start_live_roll_monitor(
                             }, room=lobby_id)
                     else:
                         live_started_at = get_live_started_at_from_layer_status(layer_status)
-                        schedule_live_broadcast(
-                            current_lobby,
-                            delay_seconds=live_broadcast_delay_seconds,
-                            now=live_started_at
-                        )
-                        live_broadcast_error = current_lobby.get('live_broadcast_error')
                         server_details = get_server_connection_details()
                         current_lobby['live_roll_done'] = True
                         current_lobby['live_started_at'] = live_started_at
+                        current_lobby['live_broadcast_ready_at'] = None
                         if not current_lobby.get('match_started_at'):
                             current_lobby['match_started_at'] = live_started_at
                         current_lobby['match_current_round'] = max(
@@ -1678,6 +1673,19 @@ def start_live_roll_monitor(
                             layer_status,
                             round_number=current_lobby.get('match_current_round')
                         )
+                        was_live_broadcast_sent = bool(current_lobby.get('live_broadcast_sent'))
+                        if automation_writes_enabled:
+                            try_broadcast_live_message(
+                                current_lobby,
+                                broadcast_server_message,
+                                logger=current_logger,
+                                lobby_id=lobby_id
+                            )
+                        if current_lobby.get('live_broadcast_sent') and not was_live_broadcast_sent:
+                            record_event('live_broadcast_sent', {
+                                'response': current_lobby.get('live_broadcast_response')
+                            })
+                        live_broadcast_error = current_lobby.get('live_broadcast_error')
                         current_lobby['server_details'] = {
                             **server_details,
                             'map': selected_map,

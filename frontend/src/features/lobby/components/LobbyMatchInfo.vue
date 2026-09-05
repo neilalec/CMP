@@ -277,6 +277,12 @@ const roundOutcome = computed(() => {
   padding: 14px;
 }
 
+.match-info :deep(.info-row-label),
+.match-info :deep(.info-row-value),
+.match-info :deep(.info-row-meta) {
+  color: var(--match-summary-info-text, var(--accent-strong));
+}
+
 .match-connect-button {
   margin-top: 10px;
   width: 100%;
@@ -288,7 +294,7 @@ const roundOutcome = computed(() => {
 
 .match-info-note {
   margin: 12px 0 0;
-  color: var(--text-soft);
+  color: var(--match-summary-info-text, var(--accent-strong));
   font-size: 0.82rem;
   line-height: 1.4;
 }

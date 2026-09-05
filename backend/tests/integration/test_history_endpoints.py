@@ -1,6 +1,7 @@
 from flask_jwt_extended import create_access_token
 
 import app as backend_app
+import app_core
 
 
 def test_match_history_endpoint(flask_app):
@@ -83,6 +84,87 @@ def test_match_history_can_filter_by_player_and_scored_results(flask_app):
     assert 'lobby_scored' in lobby_ids
     assert 'lobby_unscored' not in lobby_ids
     assert 'lobby_other_player' not in lobby_ids
+
+
+def test_save_completed_match_applies_elo_once(flask_app):
+    original_users = dict(backend_app.users)
+    try:
+        backend_app.users.clear()
+        backend_app.users.update({
+            'neil': {
+                'password': 'hash',
+                'display_name': 'Neil',
+                'elo_rating': 1000,
+                'elo_matches': 0,
+            },
+            'sam': {
+                'password': 'hash',
+                'display_name': 'Sam',
+                'elo_rating': 1000,
+                'elo_matches': 0,
+            },
+        })
+
+        lobby = {
+            'created_at': 1000,
+            'live_started_at': 1100,
+            'selected_map': 'Narva Skirmish v1',
+            'players': ['neil', 'sam'],
+            'teams': {'team1': ['neil'], 'team2': ['sam']},
+            'server_details': {'serverName': 'Scored Server'},
+            'round_result': {
+                'winner': {'team': '1', 'faction': 'USA', 'tickets': 102},
+                'loser': {'team': '2', 'faction': 'RGF', 'tickets': 0}
+            }
+        }
+
+        backend_app.save_completed_match('lobby_elo_scored', lobby, completed_at=1300)
+        backend_app.save_completed_match('lobby_elo_scored', lobby, completed_at=1301)
+
+        assert backend_app.users['neil']['elo_rating'] == 1020
+        assert backend_app.users['neil']['elo_matches'] == 1
+        assert backend_app.users['sam']['elo_rating'] == 980
+        assert backend_app.users['sam']['elo_matches'] == 1
+    finally:
+        backend_app.users.clear()
+        backend_app.users.update(original_users)
+
+
+def test_save_completed_match_dev_solo_smoke_applies_negative_elo(flask_app, monkeypatch):
+    monkeypatch.setattr(app_core, 'DEV_MODE', True)
+    monkeypatch.setattr(app_core, 'DEV_SOLO_ELO_SMOKE_ENABLED', True)
+    monkeypatch.setattr(app_core, 'DEV_SOLO_ELO_SMOKE_USERNAME', 'neil')
+
+    original_users = dict(backend_app.users)
+    try:
+        backend_app.users.clear()
+        backend_app.users.update({
+            'neil': {
+                'password': 'hash',
+                'display_name': 'Neil',
+                'elo_rating': 1000,
+                'elo_matches': 0,
+            },
+        })
+
+        backend_app.save_completed_match('lobby_dev_solo_elo', {
+            'created_at': 1000,
+            'live_started_at': 1100,
+            'selected_map': 'Narva Skirmish v1',
+            'players': ['neil'],
+            'teams': {'team1': ['neil'], 'team2': []},
+            'server_details': {'serverName': 'Dev Solo Server'},
+            'round_result': {
+                'winner': {'team': '2', 'faction': 'RGF', 'tickets': 1},
+                'loser': {'team': '1', 'faction': 'USA', 'tickets': 0}
+            }
+        }, completed_at=1300)
+
+        assert backend_app.users['neil']['elo_rating'] == 980
+        assert backend_app.users['neil']['elo_matches'] == 1
+    finally:
+        backend_app.users.clear()
+        backend_app.users.update(original_users)
 
 
 def test_leaderboard_endpoint_returns_players_by_elo(flask_app):

@@ -208,7 +208,7 @@ const statusSentence = computed(() => {
 .phase-title {
   display: block;
   font-size: 0.95rem;
-  color: var(--accent-strong);
+  color: var(--lobby-emphasis-text, var(--accent-strong));
   font-weight: 800;
   margin: 1rem auto 0;
   text-align: center;
@@ -245,6 +245,7 @@ const statusSentence = computed(() => {
   font-size: clamp(1.25rem, 2vw, 1.72rem);
   letter-spacing: 0.018em;
   text-shadow: var(--phase-title-text-shadow);
+  color: var(--lobby-emphasis-text, var(--text-main));
 }
 
 .countdown-slot {
@@ -258,7 +259,7 @@ const statusSentence = computed(() => {
 .lobby-announcement {
   min-height: 1.4rem;
   margin: 2rem 0 0;
-  color: var(--accent-strong);
+  color: var(--lobby-emphasis-text, var(--accent-strong));
   font-weight: 600;
   text-align: center;
   line-height: 1.35;

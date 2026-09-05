@@ -5,11 +5,11 @@ Use this as the practical checklist before letting players use CMP.
 ## 1. VPS And DNS
 
 - Buy/start the VPS.
-- Point `squadcm.duckdns.org` to the VPS public IPv4 address in DuckDNS.
+- Point `example.com` to the VPS public IPv4 address in your DNS provider.
 - Wait for DNS to resolve to the VPS:
 
 ```bash
-dig +short squadcm.duckdns.org
+dig +short example.com
 ```
 
 ## 2. VPS Security Baseline
@@ -71,8 +71,8 @@ cp squadjs/config.oasis-template.json squadjs/config.json
 Set `.env`:
 
 ```env
-CMP_PUBLIC_HOST=squadcm.duckdns.org
-CMP_BACKEND_PUBLIC_URL=https://squadcm.duckdns.org/api
+CMP_PUBLIC_HOST=example.com
+CMP_BACKEND_PUBLIC_URL=https://example.com/api
 VITE_PASSWORD_AUTH_ENABLED=0
 ```
 
@@ -81,15 +81,15 @@ Set `backend/.env`:
 ```env
 CMP_DEV_MODE=0
 CMP_PASSWORD_AUTH_ENABLED=0
-FRONTEND_ORIGINS=https://squadcm.duckdns.org
-BACKEND_PUBLIC_URL=https://squadcm.duckdns.org/api
+FRONTEND_ORIGINS=https://example.com
+BACKEND_PUBLIC_URL=https://example.com/api
 DATABASE_PATH=/app/data/app.db
 SQUADJS_BRIDGE_URL=http://squadjs:3001
 SQUADJS_BRIDGE_TOKEN=<strong-random-token>
 STEAM_WEB_API_KEY=<steam-web-api-key>
 SECRET_KEY=<strong-random-secret-32-plus-chars>
 JWT_SECRET_KEY=<strong-random-secret-32-plus-chars>
-ADMIN_STEAM_IDS=<neil-steamid64>
+ADMIN_STEAM_IDS=<admin-steamid64>
 AUTOMATION_MODE=monitor
 ADMIN_TEAM_ENFORCEMENT_BYPASS_ENABLED=1
 ```
@@ -100,7 +100,7 @@ Start with `AUTOMATION_MODE=monitor` for first deployment. That lets the app rea
 
 ## 5. Steam / Domain Checks
 
-- Make sure Steam sign-in redirects back to `https://squadcm.duckdns.org`.
+- Make sure Steam sign-in redirects back to `https://example.com`.
 - Make sure `FRONTEND_ORIGINS` contains only the production HTTPS origin unless you are also testing another known origin.
 - Make sure DuckDNS points to the VPS, not your desktop.
 
@@ -128,21 +128,21 @@ docker compose logs -f backend caddy squadjs
 
 ```bash
 chmod +x scripts/*.sh
-./scripts/smoke-production.sh https://squadcm.duckdns.org
+./scripts/smoke-production.sh https://example.com
 ```
 
 For strict readiness:
 
 ```bash
-REQUIRE_READY=1 ./scripts/smoke-production.sh https://squadcm.duckdns.org
+REQUIRE_READY=1 ./scripts/smoke-production.sh https://example.com
 ```
 
 ## 8. Manual App Checks
 
-- Open `https://squadcm.duckdns.org`.
+- Open `https://example.com`.
 - Hard refresh.
 - Steam login succeeds.
-- Admin page opens for Neil.
+- Admin page opens for an admin account.
 - Admin diagnostics load.
 - Automation mode starts as `Monitor Only`.
 - Bridge/server health is visible.
@@ -207,5 +207,5 @@ Only open access when:
 - Steam login works.
 - Admin diagnostics work.
 - Automation pause/monitor/on controls work.
-- Neil/admin can delete a stuck lobby.
+- An admin can delete a stuck lobby.
 - At least one full test match has reached Results.

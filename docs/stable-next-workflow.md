@@ -1,6 +1,6 @@
 # Stable + Next Workflow
 
-The public stack remains the stable test target at `https://squadcm.duckdns.org`.
+The public stack remains the stable test target at `https://example.com`.
 
 The next/candidate stack runs beside it at `http://localhost:8081`:
 
