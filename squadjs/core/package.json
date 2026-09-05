@@ -10,10 +10,10 @@
     "./rcon": "./rcon.js"
   },
   "dependencies": {
-    "async": "^3.2.0",
+    "async": "^3.2.6",
     "chalk": "^4.1.0",
     "ftp-tail": "^2.1.1",
-    "moment": "^2.29.1",
+    "moment": "^2.30.1",
     "tail": "^2.0.4"
   }
 }
