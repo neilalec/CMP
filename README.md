@@ -145,7 +145,6 @@ npm run build
 - Real `.env` files, databases, logs, backups and generated dependency folders are intentionally ignored.
 - Production startup rejects weak secrets, insecure public origins and unsafe password-auth settings.
 - Admin-only queue and lobby mutation paths are guarded server-side and covered by tests.
-- This remains a portfolio project, so a real public launch would need deeper security review, operational monitoring and privacy policy/legal review.
 
 ## Portfolio Notes
 
