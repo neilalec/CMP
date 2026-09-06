@@ -58,11 +58,12 @@ docs/                       Deployment and integration notes
 For local development:
 
 - Python 3.12 or newer
-- Node.js 20 or newer
+- Node.js 20.17 or newer for frontend development
 - npm
 
 For full stack / server integration:
 
+- Node.js 22 or newer for the bundled SquadJS workspace
 - Docker Desktop
 - A Squad server and SquadJS setup
 - Steam Web API credentials for production display-name lookup

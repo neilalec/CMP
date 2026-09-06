@@ -4,7 +4,6 @@
   "type": "module",
   "dependencies": {
     "axios": "^1.20.0",
-    "basic-ftp": "^5.0.5",
     "core": "1.0.0",
     "didyoumean": "^1.2.1",
     "discord.js": "^14.14.1",
@@ -17,7 +16,7 @@
     "pg-hstore": "^2.3.3",
     "sequelize": "^6.37.7",
     "socket.io": "^4.8.2",
-    "sqlite3": "^5.1.7",
+    "sqlite3": "^6.0.1",
     "tedious": "^20.0.0",
     "tinygradient": "^1.1.2"
   },
