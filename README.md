@@ -2,7 +2,7 @@
 
 Competitive Matchmaking Platform is a full-stack web app for organising competitive Squad matches. Players authenticate with Steam, join queue modes, accept a match when enough players are ready, vote through lobby phases and receive server details once the match is ready.
 
-I built this as a larger portfolio project to practise real-time application design, backend state management, deployment hardening and testable service code. It began as a university honours project and has continued as a community tool used for organised competitive matches, with around 50 active users in a typical week. It could potentially develop into a commercial matchmaking service based on demand, it showcases the shape of a production-style web app with persistent state, admin controls and external game-server integration.
+I built this as a larger portfolio project to practise real-time application design, backend state management, deployment hardening and testable service code. It began as a university honours project and has continued as a community tool used for organised competitive matches, with around 50 active users in a typical week. Overall it showcases the shape of a production-style web app with persistent state, admin controls and external game-server integration.
 
 ## Features
 
