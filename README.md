@@ -4,6 +4,11 @@ Competitive Matchmaking Platform is a full-stack web app for organising competit
 
 I built this as a larger portfolio project to practise real-time application design, backend state management, deployment hardening and testable service code. It began as a university honours project and has continued as a community tool used for organised competitive matches, with around 50 active users in a typical week. Overall it showcases the shape of a production-style web app with persistent state, admin controls and external game-server integration.
 
+## Live Project
+
+- Live app: [squadcm.duckdns.org](https://squadcm.duckdns.org/)
+- Demo video: [matchmaking lobby flow](https://www.youtube.com/watch?v=KlR_l0pL4qo)
+
 ## Features
 
 - Steam OpenID authentication with local password auth kept as a development/test fallback.
