@@ -12,6 +12,7 @@ import Discord from '../views/Discord.vue';
 import Terms from '../views/Terms.vue';
 import Privacy from '../views/Privacy.vue';
 import SteamAuthCallback from '../views/SteamAuthCallback.vue';
+import WardogsPrototype from '../features/wardogs/WardogsPrototype.vue';
 import { useAuthStore } from '@/stores/authStore';
 import { useRootStore } from '@/stores/rootStore';
 import { getCurrentLobbyId } from '../utils/lobbyPersistence';
@@ -112,6 +113,12 @@ const routes = [
     name: 'group', 
     component: Group, 
     meta: { requiresAuth: true } 
+  },
+  {
+    path: '/prototype/wardogs',
+    name: 'wardogs-prototype',
+    component: WardogsPrototype,
+    meta: { prototype: true }
   },
 ];
 
