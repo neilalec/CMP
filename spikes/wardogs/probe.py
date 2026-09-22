@@ -100,6 +100,11 @@ def changes(previous: dict, current: dict) -> dict:
         bf = {x.get("name"): x.get("score") for x in b.get("factionScores", [])}
         if af != bf:
             result["factionScoresChanged"] = {"from": af, "to": bf}
+            # A reset can also happen for reasons this API does not expose.  It is evidence,
+            # never proof, of a restart or a new match.
+            if any(score not in (None, 0) for score in af.values()) and bf and all(score == 0 for score in bf.values()):
+                result["scoresResetCandidate"] = True
+                result["possibleRestartCandidate"] = True
         if "matchSeconds" in a and "matchSeconds" in b and b["matchSeconds"] < a["matchSeconds"]:
             result["matchClockResetCandidate"] = True
     if "players" in old and "players" in new:
@@ -154,6 +159,7 @@ def main() -> int:
     act.add_argument("--steam-id")
     act.add_argument("--faction")
     act.add_argument("--confirm-mutation", action="store_true")
+    act.add_argument("--evidence-dir", help="append a sanitized action and post-action readback to this recording")
     args = parser.parse_args()
     try:
         url = os.getenv("WDRCON_URL") or f"http://{os.getenv('WDRCON_HOST', '127.0.0.1')}:{os.getenv('WDRCON_PORT', '7776')}"
@@ -177,7 +183,15 @@ def main() -> int:
         else:
             if args.action == "map" and not args.map or args.action == "assign" and not (args.steam_id and args.faction):
                 raise ValueError("map requires --map; assign requires --steam-id and --faction")
-            output = action(client, client.capabilities(), args)
+            caps = client.capabilities()
+            output = action(client, caps, args)
+            if args.evidence_dir:
+                # Kept here rather than making a mutation implicit in recorder.py: confirmation remains mandatory.
+                from evidence import EvidenceSession
+                evidence = EvidenceSession(args.evidence_dir)
+                observed = snapshot(client, caps)
+                evidence.action(args.action, output["request"], output["acceptedResponse"],
+                                {"observations": observed["observations"], "errors": observed["errors"]})
         print(json.dumps(output, indent=2, sort_keys=True))
         return 0
     except (ValueError, WDRCONError) as exc:

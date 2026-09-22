@@ -40,6 +40,46 @@ Direct exercise of the **official in-browser mock** returned a 13-player synthet
 
 An optional push capture endpoint is `feed_receiver.py`. Set `WD_FEED_TOKEN` and run it behind a reachable HTTPS reverse proxy (or on a private test network); by default it listens on `127.0.0.1:18080`. It accepts authenticated `POST /api/ingest/events` and prints raw batches as JSON lines. Kill batches include player names and Steam IDs, so store its output accordingly. This receiver has **not** received a real WARDOGS post.
 
+## Evidence recorder for a genuine-server trial
+
+The recorder is a standalone, read-only tool. It writes a new UTC-named directory under `spikes/wardogs/evidence/` by default; the RCON password is read only from the environment and is redacted if a response or option unexpectedly contains a credential.
+
+```powershell
+$env:WDRCON_URL = 'https://wardogs-rcon.example.test:7776'
+$env:WDRCON_PASSWORD = '<real-server-password>'
+python spikes/wardogs/recorder.py --interval 5
+```
+
+Use `Ctrl+C` to stop safely; it finishes `summary.md`. For a bounded dry run use `--samples 12`. The conservative default is one poll every five seconds. It discovers routes first, then records only advertised read routes: status and players when available, plus rotation. It stores raw successes in `status.jsonl`, `players.jsonl`, and `rotation.jsonl`; errors are also retained in `errors.jsonl`. `metadata.json` contains the UTC start, credential-free origin, API/build/routes/limits, server ID where advertised, polling interval, and recorder options. `capabilities.json` preserves the negotiation response.
+
+An example bundle is:
+
+```text
+spikes/wardogs/evidence/20260922T120000000000Z/
+  metadata.json  capabilities.json  status.jsonl  players.jsonl
+  rotation.jsonl events.jsonl       errors.jsonl  summary.md
+```
+
+`events.jsonl` contains raw feed batches where configured and recorder comparisons marked `DERIVED CANDIDATE`. A map, score, roster, faction, rotation, or clock change is an observed fact in the raw streams; the comparison is never a claim that a match started, ended, or produced a winner. In particular, same-map score resets are deliberately only candidate evidence.
+
+To capture a configured WARDOGS feed in that same bundle, use its existing session directory (shown by `recorder.py` at startup):
+
+```powershell
+$env:WD_FEED_TOKEN = '<separate-feed-secret>'
+python spikes/wardogs/feed_receiver.py --evidence-dir 'spikes/wardogs/evidence/<session-id>'
+```
+
+The receiver appends each delivered batch without inventing individual events. If the receiver must run elsewhere, retain its JSONL output and copy it into the bundle as `events.jsonl` with its capture time/source documented; do not merge it with inferred lifecycle events.
+
+Explicit mutations keep their existing confirmation requirement. To append a sanitized acknowledgement and immediate read-back to an active bundle:
+
+```powershell
+python spikes/wardogs/probe.py action restart --confirm-mutation --evidence-dir 'spikes/wardogs/evidence/<session-id>'
+python spikes/wardogs/probe.py action assign --steam-id '<platform-id>' --faction Lonestar --confirm-mutation --evidence-dir 'spikes/wardogs/evidence/<session-id>'
+```
+
+Recommended real-server sequence: (1) passively record joins, leaves, scores and feed activity; (2) let a match end naturally while recording; (3) issue a deliberately confirmed same-map restart and compare raw before/after state; (4) observe an ordinary rotated-map transition; (5) perform a controlled faction assignment and retain the action acknowledgement and read-back. Capture client-side timing/visual observations separately as operator notes. No synthetic result establishes real-server behaviour.
+
 ## Authentication, network and version negotiation
 
 WDRCON is an HTTP/1.1 JSON API under `/v1`. Every request, including reads and `GET /v1/capabilities`, uses `Authorization: Bearer <RCON password>`. The official reference ini defines `[/Script/WDRCON.WDRCONSettings]`: `bEnabled`, `BindAddress`, `Port`, `Password`, `PasswordHash`. The listener is off by default. Its documented default port is 7776, although the published sample ini explicitly sets `Port=1031`; use the **actual configured/host-provided port**. A blank plaintext password generates a boot-time secret at `Saved/RCON/ADMIN-PASSWORD.txt`; `PasswordHash` takes precedence over `Password`. The hash can be made with `WardogsServer -GenerateRCONHash=<pw>`. RCON has one powerful password, not separate read/write roles. Do not put it in a URL or logs.

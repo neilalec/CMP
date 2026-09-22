@@ -7,8 +7,11 @@ import os
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+from evidence import EvidenceSession
 
-def handler_for(token: str):
+
+def handler_for(token: str, evidence_dir: str | None = None):
+    evidence = EvidenceSession(evidence_dir) if evidence_dir else None
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_args):
             pass
@@ -28,6 +31,10 @@ def handler_for(token: str):
             except (ValueError, json.JSONDecodeError):
                 return self.reply(400)
             print(json.dumps(payload, separators=(",", ":")), flush=True)
+            if evidence:
+                # Preserve the complete delivered batch, not an invented event interpretation.
+                evidence.observation("events.jsonl", "/api/ingest/events", response=payload,
+                                     source="wardogs-feed")
             self.reply(200)
 
         def reply(self, status):
@@ -44,7 +51,11 @@ def main():
         raise SystemExit("Set WD_FEED_TOKEN")
     host = os.getenv("WD_FEED_BIND", "127.0.0.1")
     port = int(os.getenv("WD_FEED_PORT", "18080"))
-    server = ThreadingHTTPServer((host, port), handler_for(token))
+    import argparse
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--evidence-dir", help="existing recorder session directory")
+    args = parser.parse_args()
+    server = ThreadingHTTPServer((host, port), handler_for(token, args.evidence_dir))
     print(f"Feed receiver listening at http://{host}:{server.server_port}/api/ingest/events", file=sys.stderr)
     try:
         server.serve_forever()
