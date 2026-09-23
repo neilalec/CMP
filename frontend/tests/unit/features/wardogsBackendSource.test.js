@@ -37,6 +37,7 @@ describe('WARDOGS backend data source', () => {
 
   test('normalizes backend payload into the existing grouped domain without result inference', () => {
     const match = normalizeBackendMatch(backendPayload());
+    expect(match.serverId).toBeNull();
     expect(match.factions).toHaveLength(3);
     expect(match.factions[0].commanderId).toBe('alice');
     expect(match.factions[0].groups[0]).toMatchObject({ type: 'squad', leaderId: 'alice' });

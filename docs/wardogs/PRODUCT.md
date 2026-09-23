@@ -2,7 +2,7 @@
 
 ## Confirmed decisions (2026-09-23)
 
-- WARDOGS v1 matchmaking is **Hybrid**: solos, squads, and larger clan/team detachments enter the queue. CMP eventually assembles those entries into Valkyra, Lonestar, and Manticore.
+- WARDOGS v1 matchmaking is **Hybrid**: the beta queue accepts solos and CMP parties of up to three, then assigns them to Valkyra, Lonestar, and Manticore. Larger clan/team detachments need a later queue capacity policy.
 - Preserve premade groups intact. The isolated v1 matcher places larger premades before solos, balances active headcounts, and uses solos to fill gaps. It never splits a premade; entries that fit no active or reserve slot remain explicit overflow. Capacities are supplied to the matcher, not assumed from a production server. Skill balancing is deferred.
 - The competitive hierarchy is Match → Factions → Groups → Players. A solo can be a one-player group. Groups may be `solo`, unclassified `premade`, `squad`, or `clan`.
 - CMP solo/premade source kind does not infer WARDOGS `squad` or `clan` display type; the assignment algorithm gives no group type a balancing weight.
@@ -30,4 +30,4 @@ The mock data source supplies complete frontend domain objects. An optional back
 - Rating unit and algorithm: individual, group/clan, faction result, or a combination.
 - Repeated premade pairing avoidance and later skill balancing.
 
-The backend can finalize an internally supplied, fully accepted WARDOGS pending match into a persisted planned lobby when an explicit assignment configuration is supplied. The public WARDOGS queue and server allocation remain disabled. The frontend feature has no matchmaking algorithm, lifecycle detection, substitution action, or rating policy.
+The first enabled queue, `wardogs_beta9`, uses three active players per faction, no reserves, and nine accepted players total. CMP parties of at most three queue together and remain intact. These are initial beta values supplied by the queue mode, not protocol or server limits. Shared CMP acceptance creates a planned lobby only after all nine accept. The lobby has no allocated server or join instructions; its frontend shows a waiting state. The frontend feature has no lifecycle detection, substitution action, or rating policy.

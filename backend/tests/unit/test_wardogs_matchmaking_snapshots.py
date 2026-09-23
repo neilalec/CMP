@@ -132,9 +132,11 @@ def test_entry_ids_are_stable_for_the_same_match_snapshot():
     assert first.queue_mode == 'wardogs-test'
 
 
-def test_snapshot_contract_does_not_register_or_enable_a_wardogs_queue():
+def test_snapshot_contract_uses_configured_wardogs_queue():
     assert QUEUE_MODES
-    assert all(config.get('game_type') == 'squad' for config in QUEUE_MODES.values())
+    assert QUEUE_MODES['wardogs_beta9']['game_type'] == 'wardogs'
+    assert all(config.get('game_type') == 'squad' for mode_id, config in QUEUE_MODES.items()
+               if mode_id != 'wardogs_beta9')
 
 
 @pytest.mark.parametrize('groups,user_map', [

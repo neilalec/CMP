@@ -6,6 +6,10 @@ const props = defineProps({
     type: Array,
     required: true
   },
+  wardogsLobbyId: {
+    type: String,
+    default: null
+  },
   currentQueueMode: {
     type: String,
     default: null
@@ -70,6 +74,9 @@ const SEC_MODE_IDS = ['sec26', 'sec36', 'sec46']
 const OCBT_MODE_IDS = ['ocbt15', 'ocbt5']
 const OUT_OF_THE_BOX_MODE_IDS = ['outofthebox10', 'outofthebox15', 'outofthebox20', 'outofthebox40']
 const FEATURED_QUEUE_MODE_IDS = ['s3osmall5', 'ocbt15', 'skirmish']
+const isQueueAvailable = (queueMode) => queueMode.gameType === 'wardogs'
+  ? queueMode.matchmakingAvailable !== false
+  : props.serverAvailable
 const S3O_SMALL_MODE_IDS = ['s3osmall1', 's3osmall2', 's3osmall3', 's3osmall4', 's3osmall5']
 const QUEUE_MOD_LINKS = {
   skirmish: 'https://steamcommunity.com/sharedfiles/filedetails/?id=3294562930',
@@ -126,8 +133,10 @@ const queueCards = computed(() => {
     .map((modeId) => props.queueModes.find((queueMode) => queueMode.id === modeId))
     .filter(Boolean)
     .map((queueMode) => ({ id: queueMode.id, type: 'standard', queueMode }))
+  const wardogsMode = props.queueModes.find((queueMode) => queueMode.gameType === 'wardogs')
+  if (wardogsMode) featuredCards.push({ id: wardogsMode.id, type: 'standard', queueMode: wardogsMode })
 
-  if (featuredCards.length === FEATURED_QUEUE_MODE_IDS.length) {
+  if (FEATURED_QUEUE_MODE_IDS.every((id) => featuredCards.some((card) => card.id === id))) {
     return featuredCards
   }
 
@@ -239,6 +248,7 @@ const isOutOfTheBoxQueueMode = (modeId) => OUT_OF_THE_BOX_MODE_IDS.includes(mode
 const isS3oSmallQueueMode = (modeId) => S3O_SMALL_MODE_IDS.includes(modeId)
 
 const getQueueTitle = (queueMode) => {
+  if (queueMode.gameType === 'wardogs') return 'WARDOGS Beta Queue'
   if (queueMode.id === 'hotdrop') return 'Hotdrop Tournament Layers'
   if (queueMode.id === 'skirmish') return 'Comp Skirmish Layers'
   if (queueMode.id === 's30') return 'S3O Layers'
@@ -254,14 +264,16 @@ const getQueueTitle = (queueMode) => {
 
 const getQueueModLink = (queueMode) => QUEUE_MOD_LINKS[queueMode?.id] || ''
 
-const getQueueFormatLabel = (queueMode) => `${queueMode.teamSize}v${queueMode.teamSize}`
+const getQueueFormatLabel = (queueMode) => queueMode.gameType === 'wardogs'
+  ? `3 factions · ${queueMode.maxPlayers} players`
+  : `${queueMode.teamSize}v${queueMode.teamSize}`
 
 const getQueueStatusLabel = (queueMode) => {
   if (queueMode.disabled || queueMode.enabled === false) return 'Disabled'
   if (props.inQueue && props.currentQueueMode === queueMode.id) return 'Queued'
   if (props.inQueue && props.currentQueueMode !== queueMode.id) return 'Other queue'
   if (props.isInLobby) return 'In lobby'
-  if (!props.serverAvailable) return getServerUnavailableLabel()
+  if (!isQueueAvailable(queueMode)) return queueMode.gameType === 'wardogs' ? 'Match forming' : getServerUnavailableLabel()
   if (!props.hasSteamId) return 'Steam ID needed'
   if (props.isInGroup && !props.isGroupLeader) return 'Leader only'
   if (props.isModeQueueFull(queueMode.id)) return 'Full'
@@ -277,7 +289,7 @@ const getPrimaryLabel = (queueMode) => {
   }
   if (props.isInLobby) return "You're in a lobby"
   if (queueMode.disabled || queueMode.enabled === false) return 'Queue disabled'
-  if (!props.serverAvailable) return getServerUnavailableLabel()
+  if (!isQueueAvailable(queueMode)) return queueMode.gameType === 'wardogs' ? 'Match forming' : getServerUnavailableLabel()
   if (!props.hasSteamId) return 'Set Steam ID in Profile'
   if (props.isInGroup && !props.isGroupLeader) return 'Group leader only'
   if (props.inQueue && props.currentQueueMode !== queueMode.id) return 'Queued elsewhere'
@@ -296,6 +308,9 @@ const getServerUnavailableLabel = () => {
 
 const serverPausedMessage = computed(() => {
   if (props.serverAvailable) return ''
+  if (props.queueModes.some((mode) => mode.gameType === 'wardogs')) {
+    return 'Squad queue fulfilment is paused while its match server is unavailable.'
+  }
   if (props.serverAvailabilityReason === 'server_in_use') {
     return 'Queue fulfilment is paused while the match server is in use.'
   }
@@ -314,7 +329,7 @@ const isJoinDisabled = (queueMode) => (
   || queueMode.disabled
   || queueMode.enabled === false
   || props.inQueue
-  || !props.serverAvailable
+  || !isQueueAvailable(queueMode)
   || props.isModeQueueFull(queueMode.id)
   || (props.isInGroup && !props.isGroupLeader)
   || !props.hasSteamId
@@ -398,6 +413,8 @@ const handleS3oSmallJoin = () => {
             }
           ]"
         >
+          <router-link v-if="queueCard.queueMode.gameType === 'wardogs' && wardogsLobbyId"
+            :to="`/wardogs/lobby/${wardogsLobbyId}`">Open your WARDOGS lobby</router-link>
           <div class="window-titlebar">
             <a
               v-if="getQueueModLink(queueCard.queueMode)"

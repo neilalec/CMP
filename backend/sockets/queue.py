@@ -606,6 +606,7 @@ def handle_accept_match_event(
             'success': True,
             'matchAccept': match_accept,
             'allAccepted': all_accepted,
+            'gameType': current_pending_match.get('game_type', 'squad'),
             'finalizingLobby': bool(all_accepted and spawn_finalize_pending_match),
             'lobbyId': lobby_id if isinstance(lobby_id, str) else None
         }

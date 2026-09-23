@@ -8,7 +8,7 @@ import secrets
 import time
 from types import SimpleNamespace
 
-from services.queue import has_available_server_capacity
+from services.queue import has_available_queue_capacity
 from services.game_server_adapter import AdapterError
 from services.server_registry import _redact_wardogs, get_game_server_adapter_for_server
 from services.wardogs_lobby import can_read_lobby, get_wardogs_lobby, observe_wardogs_lobby
@@ -857,7 +857,7 @@ def register_socket_routes(socketio):
             lobbies=backend.lobbies,
             upsert_player_activity=backend.upsert_player_activity,
             check_queue_and_start_countdown=backend.check_queue_and_start_countdown,
-            has_available_server_capacity=has_available_server_capacity,
+            has_available_server_capacity=has_available_queue_capacity,
             **dependencies
         )
 
@@ -1115,7 +1115,7 @@ def register_socket_routes(socketio):
             broadcast_queue_update=backend.broadcast_queue_update,
             check_queue_and_start_countdown=backend.check_queue_and_start_countdown,
             build_queue_payload=backend.build_queue_payload,
-            has_available_server_capacity=has_available_server_capacity
+            has_available_server_capacity=has_available_queue_capacity
         )
 
     @socketio.on(_socket_backend_api().SOCKET_EVENTS['GROUP']['UNQUEUE'])

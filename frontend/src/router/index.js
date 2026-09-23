@@ -120,6 +120,12 @@ const routes = [
     component: WardogsPrototype,
     meta: { prototype: true }
   },
+  {
+    path: '/wardogs/lobby/:lobbyId',
+    name: 'wardogs-lobby',
+    component: WardogsPrototype,
+    meta: { requiresAuth: true }
+  },
 ];
 
 const router = createRouter({

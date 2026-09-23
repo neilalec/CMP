@@ -14,9 +14,10 @@ const store = useWardogsMatchStore();
 const authStore = useAuthStore();
 const route = useRoute();
 const { match, mode, scenarioKey, scenarioOptions, totals, factionSummaries, rankedResults, loading, error } = storeToRefs(store);
-watch(() => [route.query.source, route.query.lobby], () => {
-  if (route.query.source === 'backend') {
-    const lobbyId = typeof route.query.lobby === 'string' ? route.query.lobby : '';
+watch(() => [route.params.lobbyId, route.query.source, route.query.lobby], () => {
+  if (route.name === 'wardogs-lobby' || route.query.source === 'backend') {
+    const lobbyId = typeof route.params.lobbyId === 'string' ? route.params.lobbyId
+      : (typeof route.query.lobby === 'string' ? route.query.lobby : '');
     store.loadBackendLobby(lobbyId, createBackendWardogsDataSource({ getToken: () => authStore.token }));
   } else {
     store.selectScenario(scenarioKey.value);
@@ -45,6 +46,7 @@ const onScenarioChange = (event) => store.selectScenario(event.target.value);
     <p v-if="loading" role="status">Loading WARDOGS lobby…</p>
     <p v-if="error" role="alert">{{ error }}</p>
     <template v-if="match">
+      <p v-if="mode === 'backend' && !match.serverId" role="status">Awaiting server setup. Join instructions are not available yet.</p>
       <MatchOverview :match="match" :totals="totals" />
       <section v-if="match.phase === 'assembling'" aria-label="Faction rosters">
         <div class="wardogs-section-heading">

@@ -39,6 +39,7 @@ const {
       :in-queue="queueStore.inQueue"
       :current-queue-mode="currentQueueMode"
       :queue-modes="queueModes"
+      :wardogs-lobby-id="queueStore.wardogsLobbyId"
       :match-accept-active="queueStore.matchAccept.active"
       :loading="loading"
       :is-in-lobby="isInLobby"

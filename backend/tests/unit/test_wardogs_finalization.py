@@ -5,9 +5,10 @@ import app_core
 import matchmaking
 
 from app_state import QUEUE_MODES
+from threading import RLock
 from services.wardogs_assignment import WardogsAssignmentConfig, WardogsAssignmentResult
 from services.wardogs_finalization import finalize_wardogs_accepted_match
-from services.wardogs_lobby import get_wardogs_lobby
+from services.wardogs_lobby import get_wardogs_lobby, latest_wardogs_lobby_for_user
 
 
 MODES = {'wardogs-internal': {'id': 'wardogs-internal', 'game_type': 'wardogs'}}
@@ -52,10 +53,28 @@ def test_accepted_solos_create_three_faction_lobby_with_planned_state():
     assert all('connected' not in player and 'alignmentState' not in player for player in _roster(lobby))
     assert lobby['serverId'] is None
     assert result.read_model['observation']['state'] == 'none'
+    assert latest_wardogs_lobby_for_user(app_core.get_db_connection, 'alice') == result.lobby_id
+    assert latest_wardogs_lobby_for_user(app_core.get_db_connection, 'outsider') is None
     assert all(player['connected'] is None and player['alignmentState'] == 'unknown'
                for faction in result.read_model['factions'] for group in faction['groups']
                for player in group['players'])
     assert next(player for player in _roster(lobby) if player['id'] == 'alice')['displayName'] == 'Alice A'
+
+
+def test_beta_nine_accepted_players_form_complete_serverless_lobby():
+    players = [f'player-{number}' for number in range(9)]
+    result = finalize_wardogs_accepted_match(
+        {**_pending(players), 'queue_mode': 'wardogs_beta9'},
+        queue_modes=QUEUE_MODES, groups={}, user_to_group={}, profiles={},
+        config=WardogsAssignmentConfig(3, 0),
+        get_db_connection=app_core.get_db_connection, created_at=AT,
+    )
+    assert result.success
+    lobby = get_wardogs_lobby(app_core.get_db_connection, result.lobby_id)
+    assert sorted(player['id'] for player in _roster(lobby)) == players
+    assert [sum(len(group['players']) for group in faction['groups']) for faction in lobby['factions']] == [3, 3, 3]
+    assert lobby['serverId'] is None
+    assert latest_wardogs_lobby_for_user(app_core.get_db_connection, players[0]) == result.lobby_id
 
 
 def test_accepted_premade_and_solo_preserve_group_leader_and_exclude_unaccepted_member():
@@ -200,12 +219,17 @@ def test_shared_dispatch_uses_wardogs_finalizer_with_internal_config(monkeypatch
     pending = _pending(['alice', 'bob', 'carol'])
     fake_app = SimpleNamespace(
         pending_match={'wardogs-internal': pending}, groups={}, user_to_group={}, users={},
+        queue_lock=RLock(), matchmaking_queue={'wardogs-internal': ['alice', 'bob', 'carol']},
+        player_activity={}, socketio=SimpleNamespace(emit=lambda *_a, **_k: None),
+        SOCKET_EVENTS={'LOBBY': {'CREATED': 'lobby_created'}, 'QUEUE': {'MATCH_ACCEPT_CANCELLED': 'cancelled'}},
+        get_user_room=lambda user: user,
         get_db_connection=app_core.get_db_connection,
         logger=SimpleNamespace(info=lambda *_args: None, warning=lambda *_args: None),
         allocate_server_for_lobby=lambda *_args: (_ for _ in ()).throw(AssertionError('allocation called')),
     )
     monkeypatch.setattr(matchmaking, '_app', lambda: fake_app)
     monkeypatch.setattr(matchmaking, 'broadcast_queue_update', lambda: None)
+    monkeypatch.setattr(matchmaking, 'save_queue', lambda: None)
     monkeypatch.setattr(matchmaking, 'create_lobby', lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError('Squad builder called')))
     lobby_id = matchmaking.finalize_pending_match(
         'match-final', queue_modes=MODES, wardogs_config=WardogsAssignmentConfig(1, 0))
@@ -218,6 +242,10 @@ def test_shared_dispatch_keeps_pending_match_after_partial_failure(monkeypatch):
     pending = _pending(['a', 'b', 'c', 'd'])
     fake_app = SimpleNamespace(
         pending_match={'wardogs-internal': pending},
+        queue_lock=RLock(), matchmaking_queue={'wardogs-internal': ['a', 'b', 'c', 'd']},
+        player_activity={}, socketio=SimpleNamespace(emit=lambda *_a, **_k: None),
+        SOCKET_EVENTS={'LOBBY': {'CREATED': 'lobby_created'}, 'QUEUE': {'MATCH_ACCEPT_CANCELLED': 'cancelled'}},
+        get_user_room=lambda user: user,
         groups={'ABC': {'code': 'ABC', 'leader': 'a', 'members': ['a', 'b', 'c', 'd']}},
         user_to_group={player: 'ABC' for player in ('a', 'b', 'c', 'd')},
         users={}, get_db_connection=app_core.get_db_connection,
@@ -225,17 +253,19 @@ def test_shared_dispatch_keeps_pending_match_after_partial_failure(monkeypatch):
     )
     monkeypatch.setattr(matchmaking, '_app', lambda: fake_app)
     monkeypatch.setattr(matchmaking, 'broadcast_queue_update', lambda: None)
+    monkeypatch.setattr(matchmaking, 'save_queue', lambda: None)
     monkeypatch.setattr(matchmaking, 'create_lobby', lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError('Squad builder called')))
     assert matchmaking.finalize_pending_match(
         'match-final', queue_modes=MODES, wardogs_config=WardogsAssignmentConfig(2, 1)) is False
-    assert fake_app.pending_match['wardogs-internal'] is pending
+    assert fake_app.pending_match['wardogs-internal'] is None
+    assert fake_app.matchmaking_queue['wardogs-internal'] == ['a', 'b', 'c', 'd']
     assert pending['accepted'] == {player: True for player in ('a', 'b', 'c', 'd')}
     with app_core.get_db_connection() as conn:
         assert conn.execute('SELECT COUNT(*) FROM wardogs_lobbies').fetchone()[0] == 0
 
 
-def test_shared_dispatch_rejects_unknown_game_and_production_catalog_has_no_wardogs(monkeypatch):
-    assert QUEUE_MODES and all(mode.get('game_type', 'squad') == 'squad' for mode in QUEUE_MODES.values())
+def test_shared_dispatch_rejects_unknown_game_and_production_catalog_has_wardogs(monkeypatch):
+    assert QUEUE_MODES['wardogs_beta9']['game_type'] == 'wardogs'
     fake_app = SimpleNamespace(
         pending_match={'unknown': _pending(['alice'])},
         logger=SimpleNamespace(info=lambda *_args: None, warning=lambda *_args: None),

@@ -22,6 +22,8 @@ from services.queue import (
     update_queue_state as update_queue_state_service
 )
 from services.wardogs_finalization import finalize_wardogs_accepted_match
+from services.wardogs_assignment import WardogsAssignmentConfig
+from services.wardogs_lobby import latest_wardogs_lobby_for_user
 from state.group import get_player_groups, get_user_group
 from state.lobby import emit_active_lobby_sync, get_player_sids, is_user_in_any_lobby, upsert_player_activity
 from state.runtime import is_countdown_paused, pause_aware_sleep, with_retry
@@ -143,7 +145,7 @@ def broadcast_queue_update(countdown=None):
 
 def build_queue_payload(username=None, countdown=None, queue_mode=None):
     app = _app()
-    return build_queue_payload_service(
+    payload = build_queue_payload_service(
         app.matchmaking_queue,
         app.user_has_steam_id,
         app.get_match_accept_payload,
@@ -156,6 +158,9 @@ def build_queue_payload(username=None, countdown=None, queue_mode=None):
         countdown=countdown,
         queue_mode=queue_mode
     )
+    if username:
+        payload['wardogsLobbyId'] = latest_wardogs_lobby_for_user(app.get_db_connection, username)
+    return payload
 
 
 def cancel_pending_match(reason='Match acceptance cancelled.', remove_players=None, queue_mode=None):
@@ -188,6 +193,8 @@ def cancel_pending_match(reason='Match acceptance cancelled.', remove_players=No
         match_mode = current_pending_match.get('queue_mode')
         app.pending_match[match_mode] = None
         app.countdown_active = False
+        if current_pending_match.get('game_type') == 'wardogs':
+            broadcast_queue_update()
     return success
 
 
@@ -211,8 +218,17 @@ def finalize_pending_match(match_id, *, wardogs_config=None, queue_modes=None):
         return False
     if game_type == 'wardogs':
         if wardogs_config is None:
-            app.logger.warning('WARDOGS assignment configuration is required for mode=%s', queue_mode)
-            return False
+            mode_config = active_modes[queue_mode]
+            if not all(key in mode_config for key in (
+                'active_per_faction', 'reserve_per_faction', 'allow_premade_split'
+            )):
+                app.logger.warning('WARDOGS assignment configuration is incomplete for mode=%s', queue_mode)
+                return False
+            wardogs_config = WardogsAssignmentConfig(
+                active_per_faction=mode_config['active_per_faction'],
+                reserve_per_faction=mode_config['reserve_per_faction'],
+                allow_premade_split=mode_config['allow_premade_split'],
+            )
 
         def create_wardogs_lobby(_players, queue_mode):
             result = finalize_wardogs_accepted_match(
@@ -233,7 +249,31 @@ def finalize_pending_match(match_id, *, wardogs_config=None, queue_modes=None):
                 return False
             return result.lobby_id
 
-        lobby_builder = create_wardogs_lobby
+        lobby_id = finalize_pending_match_service(
+            current_pending_match, match_id, broadcast_queue_update, create_wardogs_lobby
+        )
+        if not lobby_id:
+            cancel_pending_match(
+                reason='WARDOGS lobby could not be formed. You remain in the queue; please try again later.',
+                queue_mode=queue_mode,
+            )
+            return False
+        players = list(current_pending_match['players'])
+        with app.queue_lock:
+            queue = get_queue_for_mode(app.matchmaking_queue, queue_mode)
+            for player in players:
+                if player in queue:
+                    queue.remove(player)
+                upsert_player_activity(player, status='in_lobby', lobby_id=lobby_id)
+            app.pending_match[queue_mode] = None
+            save_queue()
+        broadcast_queue_update()
+        lobby_event = {'lobby_id': lobby_id, 'game_type': 'wardogs',
+                       'queue_mode': queue_mode, 'players': players}
+        for player in players:
+            app.socketio.emit(app.SOCKET_EVENTS['LOBBY']['CREATED'], lobby_event,
+                              room=app.get_user_room(player))
+        return lobby_id
     else:
         lobby_builder = create_lobby
     lobby_id = finalize_pending_match_service(
@@ -251,7 +291,7 @@ def finalize_pending_match(match_id, *, wardogs_config=None, queue_modes=None):
 def start_match_acceptance(players, queue_mode):
     app = _app()
     game_type = resolve_queue_game_type(QUEUE_MODES, queue_mode)
-    if game_type is None or game_type != 'squad':
+    if game_type is None:
         return False
     queue_config = get_queue_config(queue_mode)
     current_pending_match = get_pending_for_mode(app.pending_match, queue_mode)

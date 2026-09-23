@@ -46,6 +46,22 @@ def _player_ids(lobby):
     }
 
 
+def latest_wardogs_lobby_for_user(get_db_connection, username):
+    if not username:
+        return None
+    with get_db_connection() as conn:
+        rows = conn.execute(
+            'SELECT lobby_id, roster_json FROM wardogs_lobbies ORDER BY updated_at DESC'
+        ).fetchall()
+    for lobby_id, roster_json in rows:
+        try:
+            if username in _player_ids(json.loads(roster_json)):
+                return lobby_id
+        except (TypeError, ValueError, KeyError):
+            continue
+    return None
+
+
 def validate_lobby(lobby):
     if not isinstance(lobby, dict) or not isinstance(lobby.get("id"), str) or not lobby["id"]:
         raise ValueError("WARDOGS lobby ID is required")

@@ -23,7 +23,8 @@ export function useHomeView() {
   const queueDisplayOrder = [
     's3osmall5',
     'ocbt15',
-    'skirmish'
+    'skirmish',
+    'wardogs_beta9'
   ];
   const canManageQueueTools = computed(() => !!authStore.isAdmin);
   const queueModes = computed(() => (

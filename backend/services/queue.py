@@ -74,6 +74,17 @@ def has_available_server_capacity(lobbies, pending_match, server_capacity=1, *, 
     return (active_lobbies + active_pending_matches) < capacity
 
 
+def has_available_queue_capacity(lobbies, pending_match, server_capacity=1, *, game_type='squad', queue_modes=None):
+    if game_type == 'wardogs':
+        return not any(
+            match and (match.get('game_type') or resolve_queue_game_type(queue_modes, mode_id)) == 'wardogs'
+            for mode_id, match in (pending_match or {}).items()
+        )
+    return has_available_server_capacity(
+        lobbies, pending_match, server_capacity, game_type=game_type, queue_modes=queue_modes
+    )
+
+
 def get_server_availability(
     lobbies,
     pending_match,
@@ -135,7 +146,12 @@ def build_queue_payload(
             'gameType': game_type,
             'label': config['label'],
             'shortLabel': config['short_label'],
-            'teamSize': config['team_size'],
+            'teamSize': config.get('team_size'),
+            'activePerFaction': config.get('active_per_faction'),
+            'reservePerFaction': config.get('reserve_per_faction'),
+            'matchmakingAvailable': has_available_queue_capacity(
+                lobbies, pending_match, server_capacity, game_type=game_type, queue_modes=queue_modes
+            ),
             'maxPlayers': config['max_players'],
             'playersInQueue': len(queue),
             'queue': queue,
@@ -369,7 +385,7 @@ def check_queue_and_start_countdown(
                 continue
             if mode_id in disabled_queue_modes:
                 continue
-            if not has_available_server_capacity(
+            if not has_available_queue_capacity(
                 lobbies, pending_match, server_capacity=server_capacity,
                 game_type=game_type, queue_modes=queue_modes
             ):

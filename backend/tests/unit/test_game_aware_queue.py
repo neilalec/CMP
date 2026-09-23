@@ -9,6 +9,7 @@ from services.queue import (
     check_queue_and_start_countdown,
     get_server_availability,
     has_available_server_capacity,
+    has_available_queue_capacity,
     resolve_queue_game_type,
     start_match_acceptance,
 )
@@ -24,7 +25,12 @@ TEST_MODES = {
 
 def test_squad_mode_ids_resolve_without_renaming():
     assert DEFAULT_QUEUE_MODE == 'skirmish'
-    assert all(resolve_queue_game_type(QUEUE_MODES, mode_id) == 'squad' for mode_id in QUEUE_MODES)
+    assert all(resolve_queue_game_type(QUEUE_MODES, mode_id) == 'squad'
+               for mode_id in QUEUE_MODES if mode_id != 'wardogs_beta9')
+    wardogs = QUEUE_MODES['wardogs_beta9']
+    assert wardogs['max_players'] == 3 * (wardogs['active_per_faction'] + wardogs['reserve_per_faction']) == 9
+    assert wardogs['allow_premade_split'] is False
+    assert 'map_pool' not in wardogs
     assert resolve_queue_game_type(TEST_MODES, 'skirmish') == 'squad'
     assert resolve_queue_game_type(TEST_MODES, 'wardogs_test') == 'wardogs'
     assert resolve_queue_game_type(TEST_MODES, 'wardogs_test', 'squad') is None
@@ -51,7 +57,7 @@ def test_capacity_and_disabled_modes_are_isolated_by_game():
     assert payload['queueModes']['skirmish']['enabled'] is False
 
 
-def test_full_wardogs_test_mode_cannot_start_acceptance_with_squad_capacity():
+def test_full_wardogs_test_mode_starts_acceptance_without_server_capacity():
     started = []
     check_queue_and_start_countdown(
         queue_lock=RLock(), pending_match={'skirmish': None, 'wardogs_test': None},
@@ -59,7 +65,9 @@ def test_full_wardogs_test_mode_cannot_start_acceptance_with_squad_capacity():
         queue_modes=TEST_MODES, lobbies={}, server_capacity={'squad': 1, 'wardogs': 0},
         start_match_acceptance=lambda players, queue_mode: started.append((queue_mode, players)),
     )
-    assert started == [('skirmish', ['a', 'b'])]
+    assert started == [('skirmish', ['a', 'b']), ('wardogs_test', ['x', 'y', 'z'])]
+    assert has_available_queue_capacity({}, {'wardogs_test': None}, {'squad': 0, 'wardogs': 0},
+                                        game_type='wardogs', queue_modes=TEST_MODES)
 
 
 def _join(mode, game_type=None):
@@ -75,18 +83,18 @@ def _join(mode, game_type=None):
         matchmaking_queue=queue, queue_modes=TEST_MODES, disabled_queue_modes=set(),
         pending_match={}, lobbies={}, upsert_player_activity=lambda *_args, **_kwargs: None,
         save_queue=lambda: None, check_queue_and_start_countdown=lambda: None,
-        has_available_server_capacity=has_available_server_capacity,
+        has_available_server_capacity=has_available_queue_capacity,
     )
     return responses[-1], queue
 
 
-def test_squad_join_succeeds_and_wardogs_or_mismatched_game_does_not():
+def test_squad_and_wardogs_join_succeed_but_mismatched_game_does_not():
     response, queue = _join('skirmish')
     assert response['success'] is True
     assert queue['skirmish'] == ['alice']
     response, queue = _join('wardogs_test')
-    assert response['success'] is False
-    assert queue['wardogs_test'] == []
+    assert response['success'] is True
+    assert queue['wardogs_test'] == ['alice']
     response, queue = _join('skirmish', 'wardogs')
     assert response['success'] is False
     assert queue['skirmish'] == []

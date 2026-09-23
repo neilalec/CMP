@@ -38,9 +38,11 @@ export const useQueueStore = defineStore('queue', {
       }
 
       this.queueModes = mergedQueueModes
+      this.wardogsLobbyId = data.wardogsLobbyId || null
       this.inQueue = !!data.inQueue
       this.queueMode = data.queueMode || null
-      this.serverCapacity = Number(data.serverCapacity) || 1
+      this.serverCapacity = Number.isFinite(Number(data.serverCapacity))
+        ? Number(data.serverCapacity) : 1
       this.serverAvailable = data.serverAvailable !== false
       this.serverAvailabilityReason = data.serverAvailabilityReason || 'available'
       this.activeLobbyCount = Number(data.activeLobbyCount) || 0

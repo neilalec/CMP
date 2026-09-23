@@ -181,6 +181,30 @@ def test_group_queue_rejects_groups_larger_than_team_size():
     }
 
 
+def test_wardogs_party_queues_intact_without_server_allocation():
+    from app_state import QUEUE_MODES
+    from services.queue import has_available_queue_capacity
+
+    members = ['alice', 'bob', 'carol']
+    queue = {'wardogs_beta9': []}
+    group = {'ABC': {'code': 'ABC', 'leader': 'alice', 'members': members}}
+    response = handle_group_queue_event(
+        {'username': 'alice', 'queueMode': 'wardogs_beta9', 'gameType': 'wardogs'},
+        logger=DummyLogger(), group_lock=DummyLock(), get_user_group=lambda _user: 'ABC',
+        groups=group, queue_lock=DummyLock(), matchmaking_queue=queue,
+        queue_modes=QUEUE_MODES, user_has_steam_id=lambda _user: True,
+        is_user_in_any_lobby=lambda _user: False,
+        upsert_player_activity=lambda *_args, **_kwargs: None,
+        save_queue=lambda: None, broadcast_queue_update=lambda: None,
+        check_queue_and_start_countdown=lambda: None,
+        build_queue_payload=lambda **_kwargs: {'success': True},
+        has_available_server_capacity=has_available_queue_capacity,
+        lobbies={}, pending_match={'wardogs_beta9': None},
+    )
+    assert response['success'] is True
+    assert queue['wardogs_beta9'] == members
+
+
 def test_admin_can_seed_current_group_with_custom_bot_count():
     context = build_group_context()
     users = {'alice': {'steam_id': '76561198000000001'}}

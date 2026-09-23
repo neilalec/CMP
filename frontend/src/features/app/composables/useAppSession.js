@@ -73,6 +73,11 @@ export function useAppSession({
     if (!isParticipant) return
     if (data?.lobby_id) {
       clearFinalizingLobbySyncTimer()
+      if (data.game_type === 'wardogs') {
+        queueStore.resetQueue()
+        router.push(`/wardogs/lobby/${data.lobby_id}`)
+        return
+      }
       lobbyStore.reset()
       lobbyStore.updateLobbyState(data)
       setCurrentLobbyId(data.lobby_id)
@@ -210,7 +215,11 @@ export function useAppSession({
     try {
       const response = await queueStore.acceptMatch(authStore.username)
       if (response?.lobbyId) {
-        routeToLobby(response.lobbyId)
+        if (response.gameType === 'wardogs') {
+          router.push(`/wardogs/lobby/${response.lobbyId}`)
+        } else {
+          routeToLobby(response.lobbyId)
+        }
         return
       }
       if (response?.allAccepted && !response?.finalizingLobby) {

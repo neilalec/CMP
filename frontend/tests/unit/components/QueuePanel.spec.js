@@ -115,6 +115,26 @@ const mountQueuePanel = (props = {}) => mount(QueuePanel, {
 });
 
 describe('QueuePanel.vue', () => {
+  test('shows WARDOGS beta without a Squad server and supports join and leave', async () => {
+    const wardogs = {
+      id: 'wardogs_beta9', gameType: 'wardogs', label: 'WARDOGS Beta',
+      shortLabel: 'WARDOGS', maxPlayers: 9, playersInQueue: 2,
+      matchmakingAvailable: true
+    };
+    const props = { queueModes: [...queueModes.filter((mode) =>
+      ['s3osmall5', 'ocbt15', 'skirmish'].includes(mode.id)), wardogs], serverAvailable: false };
+    const wrapper = mountQueuePanel(props);
+    expect(wrapper.text()).toContain('WARDOGS Beta Queue');
+    expect(wrapper.text()).toContain('3 factions · 9 players');
+    const wardogsCard = wrapper.findAll('.queue-card').find((card) => card.text().includes('WARDOGS Beta Queue'));
+    expect(wardogsCard.find('.queue-action').attributes('disabled')).toBeUndefined();
+    await wardogsCard.find('.queue-action').trigger('click');
+    expect(wrapper.emitted('join-queue')).toEqual([['wardogs_beta9']]);
+    await wrapper.setProps({ inQueue: true, currentQueueMode: 'wardogs_beta9' });
+    await wardogsCard.find('.queue-action').trigger('click');
+    expect(wrapper.emitted('leave-queue')).toEqual([['wardogs_beta9']]);
+  });
+
   test('renders the current queue modes', () => {
     const wrapper = mountQueuePanel({
       queueModes: ['s3osmall5', 'ocbt15', 'skirmish']

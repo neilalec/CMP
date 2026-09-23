@@ -15,6 +15,7 @@ export const normalizeBackendMatch = (payload) => {
     source: 'cmp-backend',
     phase: match.phase,
     label: match.label,
+    serverId: match.serverId ?? null,
     server: match.server || { state: 'none', label: 'No server observation yet' },
     observation: match.observation || { state: 'none', observedAt: null },
     configuration: match.configuration || {},

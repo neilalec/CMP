@@ -79,6 +79,21 @@ describe('QueueStore', () => {
         expect(store.countdown).toBe(10);
     });
 
+    test('retains WARDOGS matchmaking availability and zero server allocation capacity', () => {
+        store.updateQueueState({
+            serverCapacity: 0, serverAvailable: false,
+            wardogsLobbyId: 'wardogs-lobby-1',
+            queueModes: {
+                wardogs_beta9: { id: 'wardogs_beta9', gameType: 'wardogs',
+                    maxPlayers: 9, matchmakingAvailable: true, playersInQueue: 0 }
+            }
+        });
+        expect(store.serverCapacity).toBe(0);
+        expect(store.serverAvailable).toBe(false);
+        expect(store.queueModes.wardogs_beta9.matchmakingAvailable).toBe(true);
+        expect(store.wardogsLobbyId).toBe('wardogs-lobby-1');
+    });
+
     test('resetQueue clears store state', () => {
         // Set some initial state
         store.updateQueueState({

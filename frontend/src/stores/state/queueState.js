@@ -223,6 +223,7 @@ export const createDefaultQueueState = () => ({
   playersInQueue: 0,
   queueList: [],
   queueModes: createDefaultQueueModes(),
+  wardogsLobbyId: null,
   serverCapacity: 1,
   serverAvailable: true,
   serverAvailabilityReason: 'available',

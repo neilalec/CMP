@@ -621,7 +621,7 @@ def handle_group_queue_event(
             if group['leader'] != username:
                 return {'success': False, 'message': 'Only the leader can queue the group'}
             members = list(group['members'])
-            if len(members) > queue_config['team_size']:
+            if len(members) > (queue_config['active_per_faction'] if game_type == 'wardogs' else queue_config['team_size']):
                 return {'success': False, 'message': 'Group is too large to stay on one team'}
 
         missing_steam_ids = [member for member in members if not user_has_steam_id(member)]

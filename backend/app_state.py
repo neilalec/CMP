@@ -331,6 +331,16 @@ QUEUE_MODES = {
         'team_size': 20,
         'map_pool': ALL_OUT_OF_THE_BOX_40_MAPS,
     },
+    'wardogs_beta9': {
+        'id': 'wardogs_beta9',
+        'label': 'WARDOGS Beta · 3 factions',
+        'short_label': 'WARDOGS Beta 9',
+        'game_type': 'wardogs',
+        'max_players': 9,
+        'active_per_faction': 3,
+        'reserve_per_faction': 0,
+        'allow_premade_split': False,
+    },
     'outofthebox40': {
         'id': 'outofthebox40',
         'label': '30v30 Out of The Box Layers',
@@ -342,7 +352,7 @@ QUEUE_MODES = {
 }
 # Queue IDs are globally unique. Legacy configurations without game_type are Squad.
 for queue_config in QUEUE_MODES.values():
-    queue_config['game_type'] = 'squad'
+    queue_config.setdefault('game_type', 'squad')
 DEFAULT_QUEUE_MODE = 'skirmish'
 MAX_LOBBY_PLAYERS = max(mode['max_players'] for mode in QUEUE_MODES.values())
 
