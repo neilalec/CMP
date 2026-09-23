@@ -2,12 +2,16 @@ from flask import jsonify, redirect, request
 from flask_jwt_extended import decode_token, get_jwt_identity, jwt_required
 from flask_socketio import emit, join_room, leave_room
 import eventlet
+import os
 import random
 import secrets
 import time
 from types import SimpleNamespace
 
 from services.queue import has_available_server_capacity
+from services.game_server_adapter import AdapterError
+from services.server_registry import _redact_wardogs, get_game_server_adapter_for_server
+from services.wardogs_lobby import can_read_lobby, get_wardogs_lobby, observe_wardogs_lobby
 from services.steam_auth import (
     build_frontend_callback_url,
     build_steam_login_url,
@@ -44,6 +48,7 @@ def _http_backend_api():
         get_server_connection_details=backend_app.get_server_connection_details,
         get_user_profile=backend_app.get_user_profile,
         get_server_by_id=backend_app.get_server_by_id,
+        get_db_connection=backend_app.get_db_connection,
         handle_socket_data=backend_app.handle_socket_data,
         is_admin_user=backend_app.is_admin_user,
         list_available_servers=backend_app.list_available_servers,
@@ -329,6 +334,38 @@ def register_http_routes(app):
                 'success': False,
                 'message': str(e)
             }), 502
+
+    @app.route('/api/wardogs/lobbies/<lobby_id>', methods=['GET'])
+    @jwt_required()
+    def api_wardogs_lobby(lobby_id):
+        backend = _http_backend_api()
+        try:
+            lobby = get_wardogs_lobby(backend.get_db_connection, lobby_id)
+        except ValueError:
+            return jsonify({'success': False, 'message': 'WARDOGS lobby unavailable'}), 409
+        if lobby is None:
+            return jsonify({'success': False, 'message': 'WARDOGS lobby not found'}), 404
+        username = get_jwt_identity()
+        if not can_read_lobby(lobby, username, backend.is_admin_user(username)):
+            return jsonify({'success': False, 'message': 'Lobby access required'}), 403
+        server_id = lobby.get('serverId')
+        adapter = None
+        if server_id is not None:
+            server = backend.get_server_by_id(server_id)
+            if not server or server.get('game_type') != 'wardogs':
+                return jsonify({'success': False, 'message': 'WARDOGS server association unavailable'}), 409
+            try:
+                adapter = get_game_server_adapter_for_server(server)
+            except AdapterError:
+                # Missing credential/configuration is an unavailable observation,
+                # not a reason to lose the CMP-owned roster.
+                pass
+        match = observe_wardogs_lobby(lobby, adapter)
+        if server_id is not None:
+            secret = os.environ.get(server.get('wdrcon_secret_env') or '')
+            if secret:
+                match = _redact_wardogs(match, secret)
+        return jsonify({'success': True, 'match': match})
 
     @app.route('/api/lobbies/<lobby_id>/join-link', methods=['GET'])
     @jwt_required()

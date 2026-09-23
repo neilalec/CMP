@@ -8,18 +8,21 @@ const groupsFor = (status) => props.faction.groups.map((group) => ({
 const activeGroups = computed(() => groupsFor('active'));
 const reserveGroups = computed(() => groupsFor('reserve'));
 const commander = computed(() => props.faction.groups.flatMap((group) => group.players).find((player) => player.id === props.faction.commanderId));
-const alignment = (player) => !player.connected ? 'Not observed' : player.observedFactionId === props.faction.id ? 'On faction' : 'Faction mismatch';
+const alignment = (player) => player.connected !== true ? 'Not observed' :
+  !player.observedFactionId ? 'Faction unknown' :
+    player.observedFactionId === props.faction.id ? 'On faction' : 'Faction mismatch';
 </script>
 
 <template>
   <article class="wardogs-faction-card" :style="{ '--faction-color': faction.color }">
     <header class="wardogs-faction-header">
-      <div><h3>{{ faction.name }}</h3><span>{{ summary.active }} active · {{ summary.reserves }} reserves · mock target {{ faction.mockCapacity }}</span></div>
+      <div><h3>{{ faction.name }}</h3><span>{{ summary.active }} active · {{ summary.reserves }} reserves<span v-if="faction.mockCapacity"> · mock target {{ faction.mockCapacity }}</span></span></div>
       <strong>{{ summary.ready }}/{{ summary.active }} ready</strong>
     </header>
     <div class="wardogs-faction-meta">
       <span>{{ summary.connected }}/{{ summary.active }} connected</span>
       <span>{{ summary.missing }} missing</span>
+      <span v-if="summary.unknown">{{ summary.unknown }} connection unknown</span>
       <span>{{ summary.aligned }}/{{ summary.active }} on faction</span>
       <span>Commander: {{ commander?.displayName || 'Unassigned' }}</span>
     </div>
@@ -35,8 +38,8 @@ const alignment = (player) => !player.connected ? 'Not observed' : player.observ
               <div class="wardogs-player-flags">
                 <span>{{ player.registered ? 'CMP registered' : 'CMP registration pending' }}</span>
                 <span>{{ player.steamId ? 'Steam linked' : 'Identity pending' }}</span>
-                <span :class="{ 'wardogs-warning': !player.connected }">{{ player.connected ? 'Connected' : 'Absent' }}</span>
-                <span :class="{ 'wardogs-warning': player.connected && player.observedFactionId !== faction.id }">{{ alignment(player) }}</span>
+                <span :class="{ 'wardogs-warning': player.connected === false }">{{ player.connected === null ? 'Connection unknown' : player.connected ? 'Connected' : 'Absent' }}</span>
+                <span :class="{ 'wardogs-warning': player.connected === true && player.observedFactionId && player.observedFactionId !== faction.id }">{{ alignment(player) }}</span>
                 <span :class="{ 'wardogs-ready': player.ready }">{{ player.ready ? 'Ready' : 'Waiting' }}</span>
               </div>
             </div>

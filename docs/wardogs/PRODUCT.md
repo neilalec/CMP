@@ -14,7 +14,7 @@
 
 Each faction has identity, color, a mock capacity target (not a production rule), optional commander ID, and groups. Each group has a stable ID, type, optional leader ID, and players. A player has a stable ID, display name, CMP registration state, mock Steam identifier when linked, connection and observed faction states, readiness, active/reserve status, and optional sample statistics. Match configuration is display metadata. Results are either unconfirmed or explicitly confirmed **within the mock**; only the latter can produce a ranked preview. Equal scores share a displayed rank; the real tie policy remains open.
 
-The mock data source supplies complete frontend domain objects. A future CMP source will have to normalize backend data into this shape rather than expose WDRCON objects directly to components.
+The mock data source supplies complete frontend domain objects. An optional backend data source now normalizes the authenticated CMP lobby read response into the same shape; components do not receive raw WDRCON objects. Confirmed demo results remain mock-only.
 
 ## Unresolved product questions
 

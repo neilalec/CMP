@@ -7,7 +7,7 @@ const ordinal = (rank) => ({ 1: '1st', 2: '2nd', 3: '3rd' })[rank] || `${rank}th
   <section class="wardogs-score-section">
     <div class="wardogs-section-heading">
       <div><p class="section-kicker">{{ match.phase === 'live' ? 'Observed score snapshot' : 'Three-way result layout' }}</p><h2>{{ match.label }}</h2></div>
-      <span>Mock scores · no lifecycle inference</span>
+      <span>{{ match.source === 'cmp-backend' ? 'Observed scores · no lifecycle inference' : 'Mock scores · no lifecycle inference' }}</span>
     </div>
     <p class="wardogs-result-note">{{ match.phase === 'results' ? match.result.note : 'Scores may be delayed or unavailable. Current leader is not an authoritative winner.' }}</p>
     <div class="wardogs-score-grid">
@@ -21,7 +21,7 @@ const ordinal = (rank) => ({ 1: '1st', 2: '2nd', 3: '3rd' })[rank] || `${rank}th
       </article>
     </div>
     <div v-if="match.phase === 'live'" class="window-panel">
-      <div class="window-titlebar"><span>Recent demo observations</span></div>
+      <div class="window-titlebar"><span>{{ match.source === 'cmp-backend' ? 'Server observations' : 'Recent demo observations' }}</span></div>
       <ul class="wardogs-observations"><li v-for="observation in match.observations" :key="observation">{{ observation }}</li></ul>
     </div>
     <div v-else class="window-panel">

@@ -35,6 +35,7 @@ Delivery is **capability-driven**. Missing natural-end or winner evidence does n
 - [ ] WARDOGS player join strategy and full game-aware allocation policy
 - [x] Isolated production-shaped read-only WDRCON client for verified endpoints
 - [x] WARDOGS adapter skeleton with per-build capability gating (read-only)
+- [x] WARDOGS backend lobby/read model with CMP-owned roster persistence and observation reconciliation
 - [ ] Production WARDOGS adapter
 - [ ] Enable lifecycle/result automation only where verified evidence supports it
 
@@ -53,4 +54,4 @@ Delivery is **capability-driven**. Missing natural-end or winner evidence does n
 - [ ] Production results presentation with verified outcome source
 - [ ] Matchmaking algorithm
 - [ ] Rating policy
-- [ ] Backend integration
+- [~] Backend integration (authenticated read-only lobby endpoint and optional frontend backend source; matchmaking/allocation remain separate)

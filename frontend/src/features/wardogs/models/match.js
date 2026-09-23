@@ -13,10 +13,11 @@ export const factionSummary = (faction) => {
   return {
     active: active.length,
     reserves: reservePlayers(faction).length,
-    connected: active.filter((player) => player.connected).length,
+    connected: active.filter((player) => player.connected === true).length,
     ready: active.filter((player) => player.ready).length,
-    missing: active.filter((player) => !player.connected).length,
-    aligned: active.filter((player) => player.connected && player.observedFactionId === faction.id).length
+    missing: active.filter((player) => player.connected === false).length,
+    unknown: active.filter((player) => player.connected == null).length,
+    aligned: active.filter((player) => player.connected === true && player.observedFactionId === faction.id).length
   };
 };
 
@@ -24,7 +25,7 @@ export const matchSummary = (match) => match.factions.reduce((totals, faction) =
   const summary = factionSummary(faction);
   for (const key of Object.keys(totals)) totals[key] += summary[key];
   return totals;
-}, { active: 0, reserves: 0, connected: 0, ready: 0, missing: 0, aligned: 0 });
+}, { active: 0, reserves: 0, connected: 0, ready: 0, missing: 0, unknown: 0, aligned: 0 });
 
 // Only the explicitly confirmed demo scenario gets ranks. Observed live scores
 // and incomplete result snapshots are never interpreted as final outcomes.
