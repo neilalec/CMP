@@ -1,6 +1,6 @@
 # CMP ↔ WARDOGS target architecture and reuse audit
 
-Design audit, 2026-09-23. This is a proposed incremental target, not an implemented adapter. It updates the older [Squad architecture audit](../../spikes/wardogs/WARDOGS_CMP_ARCHITECTURE_AUDIT.md): missing natural-end/winner evidence **does not block** a useful WARDOGS product, because the result can require a referee. Read the [capability matrix](CAPABILITIES.md) for the narrower status of each actual WDRCON operation. The existing WARDOGS [frontend feature](../../frontend/src/features/wardogs/) is mock-only and remains isolated.
+Design audit, 2026-09-23. This is a proposed incremental target, not an implemented adapter. The first slice now exists as [observation/capability contracts](../../backend/services/game_server_contracts.py) and a [read-only WDRCON client](../../backend/integrations/wardogs/client.py), with no CMP runtime wiring. It updates the older [Squad architecture audit](../../spikes/wardogs/WARDOGS_CMP_ARCHITECTURE_AUDIT.md): missing natural-end/winner evidence **does not block** a useful WARDOGS product, because the result can require a referee. Read the [capability matrix](CAPABILITIES.md) for the narrower status of each actual WDRCON operation. The existing WARDOGS [frontend feature](../../frontend/src/features/wardogs/) is mock-only and remains isolated.
 
 ## What the repository does now
 
