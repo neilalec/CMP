@@ -31,7 +31,8 @@ Delivery is **capability-driven**. Missing natural-end or winner evidence does n
 - [ ] Generic game-server control/adapter contract
 - [x] Read-only WDRCON mapping for verified capability/status/player/rotation shapes
 - [ ] Minimum CMP refactor
-- [ ] Game-aware server registry/configuration and join strategy
+- [x] Game-aware registry records, read-only health probe, and Squad allocation isolation
+- [ ] WARDOGS player join strategy and full game-aware allocation policy
 - [x] Isolated production-shaped read-only WDRCON client for verified endpoints
 - [ ] WARDOGS adapter skeleton with per-build capability gating
 - [ ] Production WARDOGS adapter

@@ -10,6 +10,9 @@ from urllib import error as urllib_error
 from urllib.parse import quote, urlparse
 
 from itsdangerous import BadSignature, URLSafeSerializer
+from integrations.wardogs.client import WDRCONClient
+from integrations.wardogs.errors import WDRCONError
+from services.game_server_contracts import ALL_CAPABILITIES
 
 from services.bridge import (
     BridgeUnavailable,
@@ -61,6 +64,79 @@ def mask_secret(value):
     if len(value) <= 4:
         return '****' if value else ''
     return f"{value[:2]}{'*' * max(4, len(value) - 4)}{value[-2:]}"
+
+
+GAME_TYPES = {'squad', 'wardogs'}
+WARDOGS_SECRET_ENV_PATTERN = re.compile(r'^CMP_WARDOGS_RCON_[A-Z0-9_]+$')
+
+
+def validate_game_type(value):
+    game_type = str(value or 'squad').strip().lower()
+    if game_type not in GAME_TYPES:
+        raise ValueError('game_type must be squad or wardogs')
+    return game_type
+
+
+def _wardogs_client(payload):
+    env_name = str(payload.get('wdrcon_secret_env') or '').strip()
+    if not WARDOGS_SECRET_ENV_PATTERN.fullmatch(env_name):
+        raise ValueError('wdrcon_secret_env must name a CMP_WARDOGS_RCON_ environment variable')
+    password = os.environ.get(env_name)
+    if not password:
+        raise ValueError('Configured WARDOGS credential is unavailable')
+    if payload.get('bridge_token'):
+        raise ValueError('WARDOGS credentials must use wdrcon_secret_env, not bridge_token')
+    return WDRCONClient(payload.get('bridge_url'), password)
+
+
+def _redact_wardogs(value, secret):
+    if isinstance(value, str):
+        return value.replace(secret, '[REDACTED]')
+    if isinstance(value, list):
+        return [_redact_wardogs(item, secret) for item in value]
+    if isinstance(value, dict):
+        return {key: _redact_wardogs(item, secret) for key, item in value.items()}
+    return value
+
+
+def _wardogs_probe(payload):
+    client = _wardogs_client(payload)
+    client.fetch_capabilities()
+    status = client.fetch_status()
+    snapshot = client.capability_snapshot
+    result = {
+        'game_type': 'wardogs',
+        'reachable': True,
+        'serverInfo': {
+            'serverName': status.server_name,
+            'map': status.map_id,
+            'experiences': list(status.experiences),
+            'lighting': status.lighting,
+            'alternator': status.alternator,
+            'factionScores': [
+                {'faction': item.faction, 'score': item.score, 'colorHex': item.color_hex}
+                for item in status.faction_scores
+            ],
+        },
+        'playerCount': status.current_players,
+        'apiVersion': snapshot.api_version,
+        'build': snapshot.build,
+        'rateLimitPerMinutePerIp': snapshot.max_requests_per_minute_per_ip,
+        'observedAt': status.observed_at.isoformat(),
+        'capabilityStates': {
+            name: {
+                'state': snapshot.state_of(name).value,
+                'observedAt': snapshot.capabilities[name].observed_at.isoformat()
+                if snapshot.capabilities[name].observed_at else None,
+                'evidence': snapshot.capabilities[name].evidence,
+            }
+            for name in ALL_CAPABILITIES
+        },
+        'warnings': [],
+    }
+    # Server-controlled display fields must never echo the RCON credential into
+    # API responses, registry metadata, or health-check history.
+    return _redact_wardogs(result, os.environ[str(payload['wdrcon_secret_env']).strip()])
 
 
 def normalize_steam_lobby_id(value):
@@ -1143,6 +1219,8 @@ def init_server_registry_tables(get_db_connection):
                 join_password TEXT NOT NULL DEFAULT '',
                 bridge_url TEXT NOT NULL,
                 bridge_token_encrypted TEXT NOT NULL DEFAULT '',
+                game_type TEXT NOT NULL DEFAULT 'squad' CHECK (game_type IN ('squad', 'wardogs')),
+                wdrcon_secret_env TEXT NOT NULL DEFAULT '',
                 submitted_by TEXT NOT NULL DEFAULT '',
                 approved_by TEXT NOT NULL DEFAULT '',
                 approved_at REAL,
@@ -1202,6 +1280,10 @@ def init_server_registry_tables(get_db_connection):
             conn.execute("ALTER TABLE servers ADD COLUMN approved_at REAL")
         if 'steam_lobby_id' not in server_columns:
             conn.execute("ALTER TABLE servers ADD COLUMN steam_lobby_id TEXT NOT NULL DEFAULT ''")
+        if 'game_type' not in server_columns:
+            conn.execute("ALTER TABLE servers ADD COLUMN game_type TEXT NOT NULL DEFAULT 'squad' CHECK (game_type IN ('squad', 'wardogs'))")
+        if 'wdrcon_secret_env' not in server_columns:
+            conn.execute("ALTER TABLE servers ADD COLUMN wdrcon_secret_env TEXT NOT NULL DEFAULT ''")
         conn.commit()
 
 
@@ -1224,7 +1306,10 @@ def _row_to_server_payload(row, secret_key=None, include_secret=False):
         'connect_address': row['connect_address'],
         'join_password': row['join_password'],
         'bridge_url': row['bridge_url'],
-        'bridge_token_masked': mask_secret(decrypt_bridge_token(row['bridge_token_encrypted'], secret_key)),
+        'bridge_token_masked': mask_secret(decrypt_bridge_token(row['bridge_token_encrypted'], secret_key))
+        if row['game_type'] == 'squad' else '',
+        'game_type': row['game_type'],
+        'wdrcon_secret_env': row['wdrcon_secret_env'],
         'submitted_by': row['submitted_by'],
         'approved_by': row['approved_by'],
         'approved_at': row['approved_at'],
@@ -1235,17 +1320,20 @@ def _row_to_server_payload(row, secret_key=None, include_secret=False):
         'last_health_check_at': row['last_health_check_at'],
         'last_health_status': row['last_health_status'],
         'last_health_error': row['last_health_error'],
-        'capabilities': {
-            'players': bool(row['cap_players']),
-            'layer_change': bool(row['cap_layer_change']),
-            'broadcast': bool(row['cap_broadcast']),
-            'round_result': bool(row['cap_round_result']),
-        },
         'metadata': _from_json(row['metadata_json'], {}),
         'created_at': row['created_at'],
         'updated_at': row['updated_at'],
     }
-    if include_secret:
+    if row['game_type'] == 'squad':
+        payload['capabilities'] = {
+            'players': bool(row['cap_players']),
+            'layer_change': bool(row['cap_layer_change']),
+            'broadcast': bool(row['cap_broadcast']),
+            'round_result': bool(row['cap_round_result']),
+        }
+    else:
+        payload['capabilityStates'] = payload['metadata'].get('capabilityStates', {})
+    if include_secret and row['game_type'] == 'squad':
         payload['bridge_token'] = decrypt_bridge_token(row['bridge_token_encrypted'], secret_key)
     return payload
 
@@ -1263,13 +1351,21 @@ def get_server_by_id(get_db_connection, server_id, secret_key, include_secret=Fa
 
 
 def create_server(get_db_connection, secret_key, payload, submitted_by=''):
+    game_type = validate_game_type(payload.get('game_type'))
     display_name = str(payload.get('display_name') or '').strip()
     if not display_name:
         raise ValueError('display_name is required')
-    bridge_url = validate_bridge_url(payload.get('bridge_url'))
+    if game_type == 'wardogs':
+        # URL/credential validation occurs without persisting or returning the secret.
+        _wardogs_client(payload)
+        if any(payload.get(name) for name in ('steam_lobby_id', 'connect_address', 'join_password')):
+            raise ValueError('WARDOGS join details are not supported yet')
+        bridge_url = str(payload.get('bridge_url')).rstrip('/')
+    else:
+        bridge_url = validate_bridge_url(payload.get('bridge_url'))
     now = time.time()
     slug = slugify_server_name(display_name)
-    bridge_token_encrypted = encrypt_bridge_token(payload.get('bridge_token'), secret_key)
+    bridge_token_encrypted = encrypt_bridge_token(payload.get('bridge_token'), secret_key) if game_type == 'squad' else ''
 
     with get_db_connection() as conn:
         existing = conn.execute("SELECT 1 FROM servers WHERE slug = ?", (slug,)).fetchone()
@@ -1279,9 +1375,10 @@ def create_server(get_db_connection, secret_key, payload, submitted_by=''):
             """
             INSERT INTO servers (
                 slug, display_name, owner_label, connect_address, join_password,
-                steam_lobby_id, bridge_url, bridge_token_encrypted, submitted_by, approved_by, approved_at,
+                steam_lobby_id, bridge_url, bridge_token_encrypted, game_type, wdrcon_secret_env,
+                submitted_by, approved_by, approved_at,
                 status, enabled, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '', NULL, 'pending', 0, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', NULL, 'pending', 0, ?, ?)
             """,
             (
                 slug,
@@ -1292,6 +1389,8 @@ def create_server(get_db_connection, secret_key, payload, submitted_by=''):
                 str(payload.get('steam_lobby_id') or '').strip(),
                 bridge_url,
                 bridge_token_encrypted,
+                game_type,
+                str(payload.get('wdrcon_secret_env') or '').strip() if game_type == 'wardogs' else '',
                 str(submitted_by or '').strip(),
                 now,
                 now,
@@ -1396,6 +1495,8 @@ def record_server_health_check(get_db_connection, server_id, result, error_messa
 
 
 def build_bridge_request_for_server(server_record):
+    if validate_game_type(server_record.get('game_type')) != 'squad':
+        raise ValueError('SquadJS bridge is only available for Squad servers')
     bridge_url = validate_bridge_url(server_record.get('bridge_url'))
     bridge_token = str(server_record.get('bridge_token') or '').strip()
 
@@ -1414,6 +1515,8 @@ def build_bridge_request_for_server(server_record):
 
 def test_server_connection(server_payload):
     server_payload = server_payload or {}
+    if validate_game_type(server_payload.get('game_type')) == 'wardogs':
+        return _wardogs_probe(server_payload)
     bridge_url = validate_bridge_url(server_payload.get('bridge_url'))
     bridge_request = build_bridge_request_for_server(server_payload)
 
@@ -1465,6 +1568,25 @@ def run_server_health_check(get_db_connection, secret_key, server_id):
     server = get_server_by_id(get_db_connection, server_id, secret_key, include_secret=True)
     if not server:
         raise ValueError('Server not found')
+
+    if server['game_type'] == 'wardogs':
+        try:
+            result = test_server_connection(server)
+            status, error_message = 'healthy', ''
+        except WDRCONError as error:
+            status, error_message = 'offline', str(error)
+            result = {'game_type': 'wardogs', 'reachable': False, 'capabilityStates': {}, 'warnings': []}
+        except Exception:
+            # Never persist or return raw exception text from an external service.
+            status, error_message = 'offline', 'WARDOGS probe unavailable'
+            result = {'game_type': 'wardogs', 'reachable': False, 'capabilityStates': {}, 'warnings': []}
+        checked_at = record_server_health_check(get_db_connection, server_id, status, error_message, result)
+        updated = update_server_record(
+            get_db_connection, secret_key, server_id, status=status,
+            last_health_check_at=checked_at, last_health_status=status,
+            last_health_error=error_message, metadata=result,
+        )
+        return updated, result
 
     error_message = None
     try:
@@ -1546,17 +1668,21 @@ def approve_server(get_db_connection, secret_key, server_id, approved_by):
     )
 
 
-def list_available_servers(get_db_connection, secret_key):
+def list_available_servers(get_db_connection, secret_key, game_type='squad'):
+    game_type = validate_game_type(game_type)
     return [
         server for server in list_servers(get_db_connection, secret_key)
-        if server.get('enabled') and server.get('status') in {'healthy', 'degraded', 'approved'} and not server.get('current_lobby_id')
+        if server.get('game_type') == game_type and server.get('enabled')
+        and server.get('status') in {'healthy', 'degraded', 'approved'} and not server.get('current_lobby_id')
     ]
 
 
-def get_server_pool_capacity(get_db_connection, secret_key):
-    servers = list_servers(get_db_connection, secret_key)
+def get_server_pool_capacity(get_db_connection, secret_key, game_type='squad'):
+    game_type = validate_game_type(game_type)
+    servers = [server for server in list_servers(get_db_connection, secret_key)
+               if server.get('game_type') == game_type]
     if not servers:
-        return 1
+        return 1 if game_type == 'squad' else 0
     capacity = len([
         server for server in servers
         if server.get('enabled') and server.get('status') in {'healthy', 'degraded', 'approved', 'reserved'}
@@ -1564,8 +1690,8 @@ def get_server_pool_capacity(get_db_connection, secret_key):
     return max(0, capacity)
 
 
-def allocate_server_for_lobby(get_db_connection, secret_key, lobby_id):
-    available = list_available_servers(get_db_connection, secret_key)
+def allocate_server_for_lobby(get_db_connection, secret_key, lobby_id, game_type='squad'):
+    available = list_available_servers(get_db_connection, secret_key, game_type=game_type)
     if not available:
         return None
     server = available[0]

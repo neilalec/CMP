@@ -409,6 +409,8 @@ def register_http_routes(app):
     def api_servers_test():
         backend = _http_backend_api()
         payload = request.get_json(silent=True) or {}
+        if str(payload.get('game_type') or 'squad').strip().lower() == 'wardogs' and not backend.is_admin_user(get_jwt_identity()):
+            return jsonify({'success': False, 'message': 'Admin access required for WARDOGS servers'}), 403
         try:
             result = backend.test_server_connection(payload)
             return jsonify({'success': True, 'result': result})
@@ -421,6 +423,8 @@ def register_http_routes(app):
         backend = _http_backend_api()
         username = get_jwt_identity()
         payload = request.get_json(silent=True) or {}
+        if str(payload.get('game_type') or 'squad').strip().lower() == 'wardogs' and not backend.is_admin_user(username):
+            return jsonify({'success': False, 'message': 'Admin access required for WARDOGS servers'}), 403
         try:
             server = backend.create_server(payload, submitted_by=username)
             return jsonify({'success': True, 'server': server}), 201
