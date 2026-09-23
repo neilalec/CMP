@@ -1,7 +1,7 @@
 import random
 import time
 
-from services.queue import find_user_queue_mode, get_queue_for_mode
+from services.queue import find_user_queue_mode, get_queue_for_mode, resolve_queue_game_type
 
 
 GROUP_SEED_NAME_PREFIXES = [
@@ -598,9 +598,10 @@ def handle_group_queue_event(
         username = data.get('username') if data else None
         queue_mode = str((data or {}).get('queueMode') or 'skirmish').strip().lower()
         queue_config = queue_modes.get(queue_mode)
+        game_type = resolve_queue_game_type(queue_modes, queue_mode, (data or {}).get('gameType'))
         if not username:
             return {'success': False, 'message': 'Missing username'}
-        if not queue_config:
+        if not queue_config or game_type is None:
             return {'success': False, 'message': 'Unknown queue mode'}
         disabled_queue_modes = set(disabled_queue_modes or [])
         if queue_mode in disabled_queue_modes:
@@ -634,11 +635,15 @@ def handle_group_queue_event(
             return {'success': False, 'message': 'A group member is already in a lobby'}
 
         with queue_lock:
-            if not has_available_server_capacity(lobbies, pending_match, server_capacity=1):
+            if not has_available_server_capacity(
+                lobbies, pending_match, server_capacity=1,
+                game_type=game_type, queue_modes=queue_modes
+            ):
                 return {
+                    **build_queue_payload(username=username, queue_mode=queue_mode),
                     'success': False,
-                    'message': 'A match is already using the only available server.',
-                    **build_queue_payload(username=username, queue_mode=queue_mode)
+                    'message': ('A match is already using the only available server.' if game_type == 'squad'
+                                else 'No server capacity is available for this queue.')
                 }
             if any(find_user_queue_mode(matchmaking_queue, member) for member in members):
                 return {'success': False, 'message': 'A group member is already in the queue'}

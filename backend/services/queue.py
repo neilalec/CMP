@@ -1,6 +1,46 @@
 import eventlet
 
 
+QUEUE_GAME_TYPES = frozenset({'squad', 'wardogs'})
+
+
+def resolve_queue_game_type(queue_modes, queue_mode, requested_game_type=None):
+    """Queue IDs are globally unique; missing legacy metadata means Squad."""
+    config = (queue_modes or {}).get(queue_mode)
+    if not isinstance(config, dict) or config.get('id', queue_mode) != queue_mode:
+        return None
+    game_type = config.get('game_type', 'squad')
+    if game_type not in QUEUE_GAME_TYPES:
+        return None
+    if requested_game_type is not None and requested_game_type != game_type:
+        return None
+    return game_type
+
+
+def _capacity_for_game(server_capacity, game_type):
+    if game_type not in QUEUE_GAME_TYPES:
+        return 0
+    if isinstance(server_capacity, dict):
+        value = server_capacity.get(game_type, 0)
+    else:
+        # A legacy scalar is Squad capacity, never WARDOGS capacity.
+        value = server_capacity if game_type == 'squad' else 0
+    return 1 if value is None and game_type == 'squad' else max(0, int(value or 0))
+
+
+def _active_capacity_usage(lobbies, pending_match, game_type, queue_modes):
+    active_lobbies = sum(
+        1 for lobby in (lobbies or {}).values()
+        if lobby.get('game_type', 'squad') == game_type
+        and not (lobby.get('step') == 5 and lobby.get('server_released_at'))
+    )
+    active_pending_matches = sum(
+        1 for mode_id, match in (pending_match or {}).items()
+        if match and (match.get('game_type') or resolve_queue_game_type(queue_modes, mode_id) or 'squad') == game_type
+    )
+    return active_lobbies, active_pending_matches
+
+
 def get_queue_for_mode(matchmaking_queue, queue_mode):
     return matchmaking_queue.setdefault(queue_mode, [])
 
@@ -26,15 +66,10 @@ def iter_all_queued_users(matchmaking_queue):
             yield username
 
 
-def has_available_server_capacity(lobbies, pending_match, server_capacity=1):
-    capacity = 1 if server_capacity is None else max(0, int(server_capacity or 0))
-    active_lobbies = sum(
-        1 for lobby in (lobbies or {}).values()
-        if not (lobby.get('step') == 5 and lobby.get('server_released_at'))
-    )
-    active_pending_matches = sum(
-        1 for match in (pending_match or {}).values()
-        if match
+def has_available_server_capacity(lobbies, pending_match, server_capacity=1, *, game_type='squad', queue_modes=None):
+    capacity = _capacity_for_game(server_capacity, game_type)
+    active_lobbies, active_pending_matches = _active_capacity_usage(
+        lobbies, pending_match, game_type, queue_modes
     )
     return (active_lobbies + active_pending_matches) < capacity
 
@@ -42,16 +77,14 @@ def has_available_server_capacity(lobbies, pending_match, server_capacity=1):
 def get_server_availability(
     lobbies,
     pending_match,
-    server_capacity=1
+    server_capacity=1,
+    *,
+    game_type='squad',
+    queue_modes=None
 ):
-    capacity = 1 if server_capacity is None else max(0, int(server_capacity or 0))
-    active_lobbies = sum(
-        1 for lobby in (lobbies or {}).values()
-        if not (lobby.get('step') == 5 and lobby.get('server_released_at'))
-    )
-    active_pending_matches = sum(
-        1 for match in (pending_match or {}).values()
-        if match
+    capacity = _capacity_for_game(server_capacity, game_type)
+    active_lobbies, active_pending_matches = _active_capacity_usage(
+        lobbies, pending_match, game_type, queue_modes
     )
     available = (active_lobbies + active_pending_matches) < capacity
     if capacity <= 0:
@@ -91,11 +124,15 @@ def build_queue_payload(
     disabled_queue_modes = set(disabled_queue_modes or [])
 
     for mode_id, config in queue_modes.items():
+        game_type = resolve_queue_game_type(queue_modes, mode_id)
+        if game_type is None:
+            continue
         queue = list(matchmaking_queue.get(mode_id, []))
         total_players_in_queue += len(queue)
         enabled = mode_id not in disabled_queue_modes
         queues_payload[mode_id] = {
             'id': mode_id,
+            'gameType': game_type,
             'label': config['label'],
             'shortLabel': config['short_label'],
             'teamSize': config['team_size'],
@@ -108,18 +145,22 @@ def build_queue_payload(
         }
 
     resolved_queue_mode = queue_mode or current_queue_mode
+    active_game_type = resolve_queue_game_type(queue_modes, resolved_queue_mode) if resolved_queue_mode else 'squad'
     active_queue = list(matchmaking_queue.get(resolved_queue_mode, [])) if resolved_queue_mode else []
     active_config = queue_modes.get(resolved_queue_mode) if resolved_queue_mode else None
     server_availability = get_server_availability(
         lobbies,
         pending_match,
-        server_capacity=server_capacity
+        server_capacity=server_capacity,
+        game_type=active_game_type,
+        queue_modes=queue_modes
     )
 
     payload = {
         'success': True,
         'inQueue': current_queue_mode is not None,
         'queueMode': current_queue_mode,
+        'gameType': active_game_type,
         'playersInQueue': len(active_queue),
         'queue': active_queue,
         'maxPlayers': active_config['max_players'] if active_config else None,
@@ -197,6 +238,7 @@ def start_match_acceptance(
     *,
     players,
     queue_mode,
+    game_type='squad',
     max_lobby_players,
     match_accept_countdown,
     pending_match,
@@ -213,6 +255,7 @@ def start_match_acceptance(
     state = {
         'id': f"match_{int(__import__('time').time() * 1000)}",
         'queue_mode': queue_mode,
+        'game_type': game_type,
         'players': tracked_players,
         'accepted': {player: False for player in tracked_players},
         'countdown': match_accept_countdown
@@ -320,10 +363,16 @@ def check_queue_and_start_countdown(
     disabled_queue_modes = set(disabled_queue_modes or [])
 
     with queue_lock:
-        if not has_available_server_capacity(lobbies, pending_match, server_capacity=server_capacity):
-            return
         for mode_id, config in queue_modes.items():
+            game_type = resolve_queue_game_type(queue_modes, mode_id)
+            if game_type is None:
+                continue
             if mode_id in disabled_queue_modes:
+                continue
+            if not has_available_server_capacity(
+                lobbies, pending_match, server_capacity=server_capacity,
+                game_type=game_type, queue_modes=queue_modes
+            ):
                 continue
             queue = get_queue_for_mode(matchmaking_queue, mode_id)
             if get_pending_for_mode(pending_match, mode_id):

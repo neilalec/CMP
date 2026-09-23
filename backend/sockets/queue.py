@@ -1,6 +1,6 @@
 import random
 
-from services.queue import find_user_queue_mode, get_pending_for_mode, get_queue_for_mode
+from services.queue import find_user_queue_mode, get_pending_for_mode, get_queue_for_mode, resolve_queue_game_type
 
 
 SEED_NAME_PREFIXES = [
@@ -103,6 +103,7 @@ def handle_join_queue_event(
         username = data.get('username')
         queue_mode = str(data.get('queueMode') or 'skirmish').strip().lower()
         queue_config = queue_modes.get(queue_mode)
+        game_type = resolve_queue_game_type(queue_modes, queue_mode, data.get('gameType'))
 
         if not username:
             emit(f"{socket_events['QUEUE']['JOIN']}_response", {
@@ -111,7 +112,7 @@ def handle_join_queue_event(
             })
             return
 
-        if not queue_config:
+        if not queue_config or game_type is None:
             emit(f"{socket_events['QUEUE']['JOIN']}_response", {
                 'success': False,
                 'message': 'Unknown queue mode'
@@ -144,11 +145,15 @@ def handle_join_queue_event(
             return
 
         with queue_lock:
-            if not has_available_server_capacity(lobbies, pending_match, server_capacity=1):
+            if not has_available_server_capacity(
+                lobbies, pending_match, server_capacity=1,
+                game_type=game_type, queue_modes=queue_modes
+            ):
                 emit(f"{socket_events['QUEUE']['JOIN']}_response", {
+                    **build_queue_payload(username=username, queue_mode=queue_mode),
                     'success': False,
-                    'message': 'A match is already using the only available server.',
-                    **build_queue_payload(username=username, queue_mode=queue_mode)
+                    'message': ('A match is already using the only available server.' if game_type == 'squad'
+                                else 'No server capacity is available for this queue.')
                 })
                 return
 
@@ -317,7 +322,7 @@ def handle_seed_queue_event(
         queue_config = queue_modes.get(queue_mode)
         if not is_admin_user(username):
             return {'success': False, 'message': 'Admin access required'}
-        if not queue_config:
+        if not queue_config or resolve_queue_game_type(queue_modes, queue_mode, (data or {}).get('gameType')) != 'squad':
             return {'success': False, 'message': 'Unknown queue mode'}
 
         requested_count = int((data or {}).get('count') or queue_config['max_players'])
@@ -434,6 +439,8 @@ def handle_clear_queue_event(
         queue_mode = str((data or {}).get('queueMode') or '').strip().lower() or None
         if not is_admin_user(username):
             return {'success': False, 'message': 'Admin access required'}
+        if queue_mode and queue_mode not in matchmaking_queue:
+            return {'success': False, 'message': 'Unknown queue mode'}
 
         if queue_mode:
             queue = list(get_queue_for_mode(matchmaking_queue, queue_mode))
@@ -496,7 +503,7 @@ def handle_set_queue_enabled_event(
         enabled = bool((data or {}).get('enabled'))
         if not is_admin_user(username):
             return {'success': False, 'message': 'Admin access required'}
-        if not queue_mode or queue_mode not in queue_modes:
+        if not queue_mode or resolve_queue_game_type(queue_modes, queue_mode, (data or {}).get('gameType')) is None:
             return {'success': False, 'message': 'Unknown queue mode'}
 
         cleared = []

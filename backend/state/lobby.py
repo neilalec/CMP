@@ -200,6 +200,7 @@ def get_match_accept_payload(username=None):
         return {
             'active': True,
             'queueMode': queue_mode,
+            'gameType': pending.get('game_type', 'squad'),
             'players': list(pending.get('players', [])),
             'playerProfiles': build_player_profile_map(pending.get('players', [])),
             'acceptedPlayers': accepted_players,

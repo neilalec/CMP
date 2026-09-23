@@ -12,7 +12,6 @@ from app_state import (
     BASE_DIR,
     BRIDGE_ERROR_LOG_INTERVAL_SECONDS,
     DATABASE_PATH,
-    DEFAULT_QUEUE_MODE,
     DEV_MODE,
     DEV_LIVE_ROLL_OVERRIDE_USERNAME,
     DEV_LIVE_ROLL_OVERRIDE_STEAM_ID,
@@ -67,6 +66,7 @@ from services.bridge import (
     squadjs_bridge_request as squadjs_bridge_request_service
 )
 from services.auth_security import hash_password, needs_password_rehash
+from services.queue import resolve_queue_game_type
 from services.live_roll import start_live_roll_monitor as start_live_roll_monitor_service
 from services.history import (
     build_admin_diagnostics as build_admin_diagnostics_service,
@@ -374,6 +374,9 @@ def initialize_state():
         mode_id: list(loaded_queues.get(mode_id, []))
         for mode_id in QUEUE_MODES
     })
+    # Acceptance timers are process-local. Restored queue members start unaccepted.
+    pending_match.clear()
+    pending_match.update({mode_id: None for mode_id in QUEUE_MODES})
     restored_groups = load_active_groups_service(get_db_connection)
     groups.clear()
     groups.update(restored_groups)
@@ -400,8 +403,14 @@ def load_queue():
                     'SELECT mode, username FROM queue_entries ORDER BY mode ASC, position ASC'
                 ).fetchall()
                 for row in rows:
-                    mode = row['mode'] if row['mode'] in QUEUE_MODES else DEFAULT_QUEUE_MODE
-                    queues.setdefault(mode, []).append(row['username'])
+                    mode = row['mode']
+                    if resolve_queue_game_type(QUEUE_MODES, mode) is None:
+                        logging.getLogger(__name__).warning(
+                            'Skipping persisted queue entry with invalid mode %r for user %r',
+                            mode, row['username']
+                        )
+                        continue
+                    queues[mode].append(row['username'])
                 return queues
         except Exception as e:
             logging.getLogger(__name__).error(f"Failed to load queue from SQLite: {str(e)}")

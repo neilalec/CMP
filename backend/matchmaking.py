@@ -17,6 +17,7 @@ from services.queue import (
     find_user_queue_mode,
     get_pending_for_mode,
     get_queue_for_mode,
+    resolve_queue_game_type,
     start_match_acceptance as start_match_acceptance_service,
     update_queue_state as update_queue_state_service
 )
@@ -149,7 +150,7 @@ def build_queue_payload(username=None, countdown=None, queue_mode=None):
         disabled_queue_modes=app.disabled_queue_modes,
         lobbies=app.lobbies,
         pending_match=app.pending_match,
-        server_capacity=app.get_server_pool_capacity(),
+        server_capacity={'squad': app.get_server_pool_capacity(), 'wardogs': 0},
         username=username,
         countdown=countdown,
         queue_mode=queue_mode
@@ -191,15 +192,24 @@ def cancel_pending_match(reason='Match acceptance cancelled.', remove_players=No
 
 def finalize_pending_match(match_id):
     app = _app()
-    current_pending_match = next(
-        (match for match in app.pending_match.values() if match and match.get('id') == match_id),
-        None
+    pending_mode, current_pending_match = next(
+        ((mode, match) for mode, match in app.pending_match.items() if match and match.get('id') == match_id),
+        (None, None)
     )
     app.logger.info(
         "Finalizing pending match: match_id=%s current_pending=%s",
         match_id,
         current_pending_match.get('id') if current_pending_match else None
     )
+    queue_mode = current_pending_match.get('queue_mode') if current_pending_match else None
+    game_type = resolve_queue_game_type(QUEUE_MODES, queue_mode)
+    if (not current_pending_match or pending_mode != queue_mode or game_type is None
+            or current_pending_match.get('game_type', 'squad') != game_type):
+        app.logger.warning('Refusing finalization for invalid game/mode: match_id=%s mode=%s', match_id, queue_mode)
+        return False
+    if game_type != 'squad':
+        app.logger.warning('No %s lobby finalizer is available for mode=%s', game_type, queue_mode)
+        return False
     lobby_id = finalize_pending_match_service(
         current_pending_match,
         match_id,
@@ -214,6 +224,9 @@ def finalize_pending_match(match_id):
 
 def start_match_acceptance(players, queue_mode):
     app = _app()
+    game_type = resolve_queue_game_type(QUEUE_MODES, queue_mode)
+    if game_type is None or game_type != 'squad':
+        return False
     queue_config = get_queue_config(queue_mode)
     current_pending_match = get_pending_for_mode(app.pending_match, queue_mode)
 
@@ -226,6 +239,7 @@ def start_match_acceptance(players, queue_mode):
     success, new_pending_match = start_match_acceptance_service(
         players=players,
         queue_mode=queue_mode,
+        game_type=game_type,
         max_lobby_players=queue_config['max_players'],
         match_accept_countdown=MATCH_ACCEPT_COUNTDOWN,
         pending_match=current_pending_match,
@@ -273,7 +287,7 @@ def check_queue_and_start_countdown():
             queue_modes=QUEUE_MODES,
             disabled_queue_modes=app.disabled_queue_modes,
             lobbies=app.lobbies,
-            server_capacity=app.get_server_pool_capacity(),
+            server_capacity={'squad': app.get_server_pool_capacity(), 'wardogs': 0},
             start_match_acceptance=start_match_acceptance
         )
     except Exception as e:
@@ -487,6 +501,9 @@ def create_lobby(players_override=None, queue_mode=None):
     if not resolved_queue_mode and players_override:
         sample_player = next(iter(players_override), None)
         resolved_queue_mode = find_user_queue_mode(app.matchmaking_queue, sample_player) or DEFAULT_QUEUE_MODE
+    resolved_queue_mode = resolved_queue_mode or DEFAULT_QUEUE_MODE
+    if resolve_queue_game_type(QUEUE_MODES, resolved_queue_mode) != 'squad':
+        return False
     queue_config = get_queue_config(resolved_queue_mode)
     queue = get_queue_for_mode(app.matchmaking_queue, queue_config['id'])
     with app.queue_lock:

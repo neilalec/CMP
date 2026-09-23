@@ -31,7 +31,8 @@ Delivery is **capability-driven**. Missing natural-end or winner evidence does n
 - [x] Normalized game-server observation and capability contracts
 - [x] Generic game-server adapter/control capability contract (read boundary and fail-closed control gate; no writes)
 - [x] Read-only WDRCON mapping for verified capability/status/player/rotation shapes
-- [ ] Minimum CMP refactor (game-scoped queue/capacity and finalization dispatch; Squad behavior preserved)
+- [x] Shared game-aware queue/acceptance foundation (mode identity, capacity isolation, safe restore, restart reset, finalization guard)
+- [ ] WARDOGS queue entry/party snapshot and Hybrid faction assignment
 - [x] Game-aware registry records, read-only health probe, and Squad allocation isolation
 - [ ] WARDOGS player join strategy and full game-aware allocation policy
 - [x] Isolated production-shaped read-only WDRCON client for verified endpoints

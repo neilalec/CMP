@@ -340,6 +340,9 @@ QUEUE_MODES = {
         'map_pool': ALL_OUT_OF_THE_BOX_40_MAPS,
     }
 }
+# Queue IDs are globally unique. Legacy configurations without game_type are Squad.
+for queue_config in QUEUE_MODES.values():
+    queue_config['game_type'] = 'squad'
 DEFAULT_QUEUE_MODE = 'skirmish'
 MAX_LOBBY_PLAYERS = max(mode['max_players'] for mode in QUEUE_MODES.values())
 
