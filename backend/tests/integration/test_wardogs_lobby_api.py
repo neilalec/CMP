@@ -8,6 +8,8 @@ import wiring
 from flask_jwt_extended import create_access_token
 
 from services.game_server_contracts import PlayerSnapshot, ServerPlayer, ServerStatus
+from services.wardogs_assignment import WardogsAssignmentConfig
+from services.wardogs_finalization import finalize_wardogs_accepted_match
 from services.wardogs_lobby import get_wardogs_lobby, save_wardogs_lobby
 
 
@@ -89,3 +91,24 @@ def test_unknown_associated_server_fails_safely(flask_app, monkeypatch):
     monkeypatch.setattr(backend_app, "get_server_by_id", lambda _id: None)
     response = flask_app.test_client().get("/api/wardogs/lobbies/wd-api", headers=headers(flask_app, "alice"))
     assert response.status_code == 409
+
+
+def test_finalized_lobby_is_readable_through_existing_authenticated_endpoint(flask_app):
+    pending = {
+        'id': 'accepted-api-match', 'game_type': 'wardogs', 'queue_mode': 'wardogs-internal',
+        'players': ['alice', 'bob', 'carol'],
+        'accepted': {'alice': True, 'bob': True, 'carol': True},
+    }
+    result = finalize_wardogs_accepted_match(
+        pending, queue_modes={'wardogs-internal': {'id': 'wardogs-internal', 'game_type': 'wardogs'}},
+        groups={}, user_to_group={}, profiles={}, config=WardogsAssignmentConfig(1, 0),
+        get_db_connection=app_core.get_db_connection,
+    )
+    assert result.success
+    response = flask_app.test_client().get(
+        f'/api/wardogs/lobbies/{result.lobby_id}', headers=headers(flask_app, 'alice'))
+    assert response.status_code == 200
+    match = response.get_json()['match']
+    assert match['id'] == result.lobby_id
+    assert match['serverId'] is None and match['observation']['state'] == 'none'
+    assert [faction['summary']['active'] for faction in match['factions']] == [1, 1, 1]

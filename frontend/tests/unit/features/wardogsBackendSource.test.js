@@ -51,6 +51,17 @@ describe('WARDOGS backend data source', () => {
     expect(factionSummary(match.factions[0])).toMatchObject({ active: 1, reserves: 1, connected: 1, ready: 0, aligned: 0 });
   });
 
+  test('preserves an unclassified premade group without relabeling it', () => {
+    const payload = backendPayload();
+    payload.match.factions[0].groups[0].type = 'premade';
+    payload.match.factions[0].groups[0].name = 'Premade';
+    const match = normalizeBackendMatch(payload);
+    expect(match.factions[0].groups[0].type).toBe('premade');
+    const faction = match.factions[0];
+    const wrapper = mount(FactionRoster, { props: { faction, summary: factionSummary(faction) } });
+    expect(wrapper.text()).toContain('premade');
+  });
+
   test('store loads backend with bearer auth and mock scenarios remain available', async () => {
     const request = jest.fn().mockResolvedValue({ ok: true, json: async () => backendPayload() });
     const source = createBackendWardogsDataSource({

@@ -21,6 +21,7 @@ from services.queue import (
     start_match_acceptance as start_match_acceptance_service,
     update_queue_state as update_queue_state_service
 )
+from services.wardogs_finalization import finalize_wardogs_accepted_match
 from state.group import get_player_groups, get_user_group
 from state.lobby import emit_active_lobby_sync, get_player_sids, is_user_in_any_lobby, upsert_player_activity
 from state.runtime import is_countdown_paused, pause_aware_sleep, with_retry
@@ -190,7 +191,7 @@ def cancel_pending_match(reason='Match acceptance cancelled.', remove_players=No
     return success
 
 
-def finalize_pending_match(match_id):
+def finalize_pending_match(match_id, *, wardogs_config=None, queue_modes=None):
     app = _app()
     pending_mode, current_pending_match = next(
         ((mode, match) for mode, match in app.pending_match.items() if match and match.get('id') == match_id),
@@ -202,19 +203,44 @@ def finalize_pending_match(match_id):
         current_pending_match.get('id') if current_pending_match else None
     )
     queue_mode = current_pending_match.get('queue_mode') if current_pending_match else None
-    game_type = resolve_queue_game_type(QUEUE_MODES, queue_mode)
+    active_modes = QUEUE_MODES if queue_modes is None else queue_modes
+    game_type = resolve_queue_game_type(active_modes, queue_mode)
     if (not current_pending_match or pending_mode != queue_mode or game_type is None
             or current_pending_match.get('game_type', 'squad') != game_type):
         app.logger.warning('Refusing finalization for invalid game/mode: match_id=%s mode=%s', match_id, queue_mode)
         return False
-    if game_type != 'squad':
-        app.logger.warning('No %s lobby finalizer is available for mode=%s', game_type, queue_mode)
-        return False
+    if game_type == 'wardogs':
+        if wardogs_config is None:
+            app.logger.warning('WARDOGS assignment configuration is required for mode=%s', queue_mode)
+            return False
+
+        def create_wardogs_lobby(_players, queue_mode):
+            result = finalize_wardogs_accepted_match(
+                current_pending_match,
+                queue_modes=active_modes,
+                groups=app.groups,
+                user_to_group=app.user_to_group,
+                profiles=app.users,
+                config=wardogs_config,
+                get_db_connection=app.get_db_connection,
+            )
+            if not result.success:
+                app.logger.warning(
+                    'WARDOGS finalization failed: match_id=%s status=%s errors=%s overflow=%s',
+                    match_id, result.status, result.errors,
+                    tuple(item.entry.entry_id for item in result.unassigned),
+                )
+                return False
+            return result.lobby_id
+
+        lobby_builder = create_wardogs_lobby
+    else:
+        lobby_builder = create_lobby
     lobby_id = finalize_pending_match_service(
         current_pending_match,
         match_id,
         broadcast_queue_update,
-        create_lobby
+        lobby_builder
     )
     if lobby_id:
         app.pending_match[current_pending_match.get('queue_mode')] = None

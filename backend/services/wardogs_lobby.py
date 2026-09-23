@@ -20,7 +20,7 @@ FACTIONS = (
     ("manticore", "Manticore", "#62754e"),
 )
 FACTION_IDS = {item[0] for item in FACTIONS}
-GROUP_TYPES = {"solo", "squad", "clan"}
+GROUP_TYPES = {"solo", "premade", "squad", "clan"}
 ROSTER_STATUSES = {"active", "reserve"}
 PHASES = {"assembling", "live"}
 OBSERVATION_MAX_AGE_SECONDS = 60
@@ -86,15 +86,35 @@ def validate_lobby(lobby):
     server_id = lobby.get("serverId")
     if server_id is not None and (isinstance(server_id, bool) or not isinstance(server_id, int) or server_id <= 0):
         raise ValueError("Invalid WARDOGS server association")
+    provenance = lobby.get("provenance")
+    if provenance is not None:
+        if (not isinstance(provenance, dict)
+                or not isinstance(provenance.get("pendingMatchId"), str) or not provenance["pendingMatchId"]
+                or not isinstance(provenance.get("queueMode"), str) or not provenance["queueMode"]
+                or provenance.get("gameType") != "wardogs"
+                or provenance.get("snapshotSource") != "accepted_cmp_party_snapshot"
+                or not isinstance(provenance.get("createdAt"), str) or not provenance["createdAt"]):
+            raise ValueError("Invalid WARDOGS lobby provenance")
+        assignment = provenance.get("assignmentConfiguration")
+        if (not isinstance(assignment, dict)
+                or assignment.get("factions") != [item[0] for item in FACTIONS]
+                or isinstance(assignment.get("activePerFaction"), bool)
+                or not isinstance(assignment.get("activePerFaction"), int)
+                or assignment["activePerFaction"] <= 0
+                or isinstance(assignment.get("reservePerFaction"), bool)
+                or not isinstance(assignment.get("reservePerFaction"), int)
+                or assignment["reservePerFaction"] < 0
+                or assignment.get("allowPremadeSplit") is not False):
+            raise ValueError("Invalid WARDOGS assignment provenance")
     return lobby
 
 
-def save_wardogs_lobby(get_db_connection, lobby):
-    """Internal/seed service API; no public mutation route is registered."""
+def _owned_lobby(lobby):
     validate_lobby(lobby)
-    owned = {
+    return {
         "id": lobby["id"], "phase": lobby["phase"], "label": lobby.get("label"),
         "serverId": lobby.get("serverId"),
+        "provenance": lobby.get("provenance"),
         "factions": [{
             "id": faction["id"], "commanderId": faction.get("commanderId"),
             "groups": [{
@@ -108,14 +128,30 @@ def save_wardogs_lobby(get_db_connection, lobby):
             } for group in faction["groups"]],
         } for faction in lobby["factions"]],
     }
-    roster = json.dumps(owned, ensure_ascii=True, sort_keys=True)
+
+
+def _write_wardogs_lobby(get_db_connection, lobby, *, create_only):
+    roster = json.dumps(_owned_lobby(lobby), ensure_ascii=True, sort_keys=True)
     now = datetime.now(timezone.utc).isoformat()
     with get_db_connection() as conn:
-        conn.execute("""INSERT INTO wardogs_lobbies (lobby_id, schema_version, roster_json, updated_at)
-            VALUES (?, 1, ?, ?) ON CONFLICT(lobby_id) DO UPDATE SET
-            schema_version=excluded.schema_version, roster_json=excluded.roster_json,
-            updated_at=excluded.updated_at""", (lobby["id"], roster, now))
+        sql = """INSERT INTO wardogs_lobbies (lobby_id, schema_version, roster_json, updated_at)
+            VALUES (?, 1, ?, ?)"""
+        if not create_only:
+            sql += """ ON CONFLICT(lobby_id) DO UPDATE SET
+                schema_version=excluded.schema_version, roster_json=excluded.roster_json,
+                updated_at=excluded.updated_at"""
+        conn.execute(sql, (lobby["id"], roster, now))
         conn.commit()
+
+
+def save_wardogs_lobby(get_db_connection, lobby):
+    """Internal/seed upsert API; no public mutation route is registered."""
+    _write_wardogs_lobby(get_db_connection, lobby, create_only=False)
+
+
+def create_wardogs_lobby(get_db_connection, lobby):
+    """Atomically insert a finalized lobby without replacing an existing roster."""
+    _write_wardogs_lobby(get_db_connection, lobby, create_only=True)
 
 
 def get_wardogs_lobby(get_db_connection, lobby_id):
@@ -211,7 +247,7 @@ def build_wardogs_read_model(lobby, *, players: PlayerSnapshot | None = None,
                     "observedFactionName": observed.faction if observed else None,
                     "alignmentState": alignment, "isLeader": group.get("leaderId") == player["id"],
                 })
-            groups.append({"id": group["id"], "name": group.get("name") or "Solo",
+            groups.append({"id": group["id"], "name": group.get("name") or ("Solo" if group["type"] == "solo" else "Premade"),
                            "type": group["type"], "leaderId": group.get("leaderId"),
                            "plannedFactionId": faction_id, "players": members})
         factions.append({"id": faction_id, "name": label, "color": color,

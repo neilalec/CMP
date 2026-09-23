@@ -4,8 +4,9 @@
 
 - WARDOGS v1 matchmaking is **Hybrid**: solos, squads, and larger clan/team detachments enter the queue. CMP eventually assembles those entries into Valkyra, Lonestar, and Manticore.
 - Preserve premade groups intact. The isolated v1 matcher places larger premades before solos, balances active headcounts, and uses solos to fill gaps. It never splits a premade; entries that fit no active or reserve slot remain explicit overflow. Capacities are supplied to the matcher, not assumed from a production server. Skill balancing is deferred.
-- The competitive hierarchy is Match → Factions → Groups → Players. A solo can be a one-player group. Groups have `solo`, `squad`, or `clan` type.
+- The competitive hierarchy is Match → Factions → Groups → Players. A solo can be a one-player group. Groups may be `solo`, unclassified `premade`, `squad`, or `clan`.
 - CMP solo/premade source kind does not infer WARDOGS `squad` or `clan` display type; the assignment algorithm gives no group type a balancing weight.
+- Until a separate group classification exists, a finalized CMP party is shown as a neutral `premade` group. Finalized players start unready; connection and faction alignment come only from server observation.
 - The frontend distinguishes active players from reserves. It does not move a reserve to active automatically.
 - Group leaders and faction commanders are optional, independently represented roles. Assignment in the mock is manual.
 - Steam-linked identity, connection, observed faction alignment, and explicit readiness are separate player properties. A player can be marked ready while disconnected in a diagnostic scenario; the UI displays both facts rather than silently treating one as the other.
@@ -29,4 +30,4 @@ The mock data source supplies complete frontend domain objects. An optional back
 - Rating unit and algorithm: individual, group/clan, faction result, or a combination.
 - Repeated premade pairing avoidance and later skill balancing.
 
-The backend matcher is an isolated algorithm only; it is not wired into queue exposure, acceptance, lobby creation, or allocation. The frontend feature has no matchmaking algorithm, lifecycle detection, substitution action, or rating policy.
+The backend can finalize an internally supplied, fully accepted WARDOGS pending match into a persisted planned lobby when an explicit assignment configuration is supplied. The public WARDOGS queue and server allocation remain disabled. The frontend feature has no matchmaking algorithm, lifecycle detection, substitution action, or rating policy.
