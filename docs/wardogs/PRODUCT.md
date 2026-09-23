@@ -3,8 +3,9 @@
 ## Confirmed decisions (2026-09-23)
 
 - WARDOGS v1 matchmaking is **Hybrid**: solos, squads, and larger clan/team detachments enter the queue. CMP eventually assembles those entries into Valkyra, Lonestar, and Manticore.
-- Preserve premade groups whenever possible. Special handling is needed when a group cannot fit the remaining faction capacity. Solos and smaller groups fill gaps. Population balance precedes any future rating balance policy.
+- Preserve premade groups intact. The isolated v1 matcher places larger premades before solos, balances active headcounts, and uses solos to fill gaps. It never splits a premade; entries that fit no active or reserve slot remain explicit overflow. Capacities are supplied to the matcher, not assumed from a production server. Skill balancing is deferred.
 - The competitive hierarchy is Match → Factions → Groups → Players. A solo can be a one-player group. Groups have `solo`, `squad`, or `clan` type.
+- CMP solo/premade source kind does not infer WARDOGS `squad` or `clan` display type; the assignment algorithm gives no group type a balancing weight.
 - The frontend distinguishes active players from reserves. It does not move a reserve to active automatically.
 - Group leaders and faction commanders are optional, independently represented roles. Assignment in the mock is manual.
 - Steam-linked identity, connection, observed faction alignment, and explicit readiness are separate player properties. A player can be marked ready while disconnected in a diagnostic scenario; the UI displays both facts rather than silently treating one as the other.
@@ -18,7 +19,7 @@ The mock data source supplies complete frontend domain objects. An optional back
 
 ## Unresolved product questions
 
-- Exact faction capacity and acceptable population imbalance; treatment of a premade too large for available capacity.
+- Production faction capacities and acceptable population imbalance.
 - Queue acceptance and replacement rules for reserves and substitutes; whether reserves may stay connected.
 - Who assigns group leaders and commanders, and whether either role has permissions or readiness authority.
 - Meaning of individual, group, and faction readiness; relationship to observed server alignment.
@@ -28,4 +29,4 @@ The mock data source supplies complete frontend domain objects. An optional back
 - Rating unit and algorithm: individual, group/clan, faction result, or a combination.
 - Repeated premade pairing avoidance and later skill balancing.
 
-No matchmaking algorithm, lifecycle detection, substitution action, or rating policy is implemented in the frontend feature.
+The backend matcher is an isolated algorithm only; it is not wired into queue exposure, acceptance, lobby creation, or allocation. The frontend feature has no matchmaking algorithm, lifecycle detection, substitution action, or rating policy.
