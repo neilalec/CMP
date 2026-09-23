@@ -2,6 +2,8 @@
 
 Update this checklist as evidence and implementation land. `[~]` means in progress; it is not a GitHub checkbox state.
 
+Delivery is **capability-driven**. Missing natural-end or winner evidence does not block architecture, roster, server-read, or manual-result work. Enable each automated control or finalisation path only after its behavior is verified on the deployed build; never promote score resets, caps, map changes, or timers into completion proof. See [capabilities](CAPABILITIES.md) and [target architecture](TARGET_ARCHITECTURE.md).
+
 ## Technical investigation and integration
 
 - [x] Current WDRCON research
@@ -19,13 +21,19 @@ Update this checklist as evidence and implementation land. `[~]` means in progre
 - [ ] Same-map restart identity established
 - [ ] Controlled faction assignment test
 - [ ] Controlled restart/end/map tests
-- [ ] Final WARDOGS capability/lifecycle documentation
+- [x] Capability-driven feature matrix (current evidence and fallbacks)
+- [ ] Lifecycle/result capability semantics established on a populated server
+- [ ] Final WARDOGS capability/lifecycle evidence documentation
 - [x] Initial CMP/SquadJS architecture audit
-- [ ] Target CMP ↔ WARDOGS architecture/reuse audit
-- [ ] Stack/runtime suitability review
-- [ ] Generic server-operation contract
+- [x] Target CMP ↔ WARDOGS architecture/reuse audit (design)
+- [x] Stack/runtime suitability review (design; load validation remains)
+- [ ] Generic game-server observation/control contract
 - [ ] Minimum CMP refactor
+- [ ] Game-aware server registry/configuration and join strategy
+- [ ] Production WDRCON client for verified read endpoints
+- [ ] WARDOGS adapter skeleton with per-build capability gating
 - [ ] Production WARDOGS adapter
+- [ ] Enable lifecycle/result automation only where verified evidence supports it
 
 ## Product and frontend
 
@@ -38,6 +46,7 @@ Update this checklist as evidence and implementation land. `[~]` means in progre
 - [x] Optional commanders and leaders presentation
 - [x] Mock live-match presentation
 - [x] Ties/incomplete result presentation
+- [ ] Manual/referee-confirmed result workflow and provenance
 - [ ] Production results presentation with verified outcome source
 - [ ] Matchmaking algorithm
 - [ ] Rating policy

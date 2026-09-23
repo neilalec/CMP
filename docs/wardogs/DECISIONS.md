@@ -11,4 +11,5 @@
 | 2026-09-23 | Accepted | Group leaders and faction commanders are optional. | Their selection and authority are not yet defined. |
 | 2026-09-23 | Open | Match lifecycle and final result policy. | Populated natural end and same-map restart evidence remain incomplete. |
 | 2026-09-23 | Open | Rating policy. | Result semantics and rating unit need product decisions. |
-| 2026-09-23 | Not approved | Global N-team CMP refactor. | Scope and backend abstraction await real-server evidence and a target architecture audit. |
+| 2026-09-23 | Not approved | Global N-team CMP refactor. | The target audit favors a minimum game-scoped boundary; no application-wide conversion or production refactor is authorized. |
+| 2026-09-23 | Accepted | Deliver WARDOGS by verified capability, with a referee-confirmed result fallback. | Unproven lifecycle signals must not block useful matchmaking/roster features or be replaced by score/map/time heuristics. The fallback workflow itself is not yet implemented. |

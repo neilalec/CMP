@@ -1,0 +1,99 @@
+# CMP ↔ WARDOGS target architecture and reuse audit
+
+Design audit, 2026-09-23. This is a proposed incremental target, not an implemented adapter. It updates the older [Squad architecture audit](../../spikes/wardogs/WARDOGS_CMP_ARCHITECTURE_AUDIT.md): missing natural-end/winner evidence **does not block** a useful WARDOGS product, because the result can require a referee. Read the [capability matrix](CAPABILITIES.md) for the narrower status of each actual WDRCON operation. The existing WARDOGS [frontend feature](../../frontend/src/features/wardogs/) is mock-only and remains isolated.
+
+## What the repository does now
+
+`backend/app.py` uses Flask-SocketIO with Eventlet; `backend/wiring.py` exposes HTTP and socket routes. `backend/services/queue.py` and `backend/matchmaking.py` accept queues and build two-team lobbies. `backend/app_core.py` selects per-server callbacks and passes them into `backend/services/live_roll.py`. Those callbacks use the Squad-specific HTTP client/normalizers in `backend/services/bridge.py`, the registry in `backend/services/server_registry.py`, and the bundled `squadjs/bridge-server.js` plus `squadjs/cmp/` modules. `live_roll.py` expects Squad layer transitions, two-side roster enforcement, and a winner/loser ticket record from `/round/best`; `app_core.save_completed_match` immediately invokes `backend/services/elo.py`. This is *not* a generic server adapter today.
+
+`backend/services/state_persistence.py` serializes lobbies as JSON but restores only `team1` and `team2`. `backend/services/history.py` stores JSON team/result fields but its scored filter requires winner/loser tickets. `backend/app_state.py` declares `NvN` queue modes, two-team capacities and Squad map pools. `frontend/src/views/Lobby.vue`, `frontend/src/views/Results.vue`, `frontend/src/stores/state/lobbyState.js`, and `frontend/src/features/lobby/` consume the two-side contract. The WARDOGS feature instead has its own Match → Factions → Groups → Players model and local mock source.
+
+## Reuse decisions
+
+The category applies to the named concern, not every line in a file. “Now” means needed for an initial safe WARDOGS backend slice; “later” means defer until that product surface is built.
+
+| Concern and current location | Decision | Concrete WARDOGS change and timing |
+| --- | --- | --- |
+| Authentication/users: `backend/app.py`, `backend/wiring.py`, `backend/services/auth_security.py`, `backend/app_core.py` | Reuse unchanged at identity/permission layer; adapt role policy | Reuse CMP accounts/JWT and admin checks. Define referee permission distinct from ordinary player and from powerful RCON access before result submission (now). Do not expose WDRCON bearer credentials to clients. |
+| Steam profile mapping: `backend/services/profile.py`, `backend/app_core.py` users table | Reuse with small adaptation | Match `steam_id` strings to observed WDRCON Steam IDs, preserving unlinked/ambiguous states; never infer from display names (now). Keep Squad EOS mapping in `bridge.py` Squad-only. |
+| Groups: `backend/sockets/group.py`, `backend/app_state.py` groups | Extract queue-entry concept; preserve current group socket behavior | Current groups have leader/members and `group_queue` checks `team_size`, then appends members to a flat queue. Capture solo/squad/clan entry identity and size through acceptance/assignment, with policy for oversized entries and reserves (now for Hybrid queue). No change to Squad group rules. |
+| Matchmaking queue: `backend/services/queue.py`, `backend/matchmaking.py`, `backend/app_state.py` | Reuse acceptance/timer ideas; separate format policy | Existing `max_players=2×team_size` and flat mode queues cannot express three faction targets or indivisible entries. Add a WARDOGS queue mode/entry contract without changing Squad modes (now). |
+| Assignment: `backend/matchmaking.py:assign_teams/create_lobby` | Keep Squad algorithm; implement WARDOGS separately | `assign_teams` returns only `team1/team2`; write a tested three-faction group-preserving assembler with explicit overflow/balance policy later, after queue-entry contract. Do not stretch the current function to a third key. |
+| Lobby model: `backend/matchmaking.py`, `backend/sockets/lobby.py`, `backend/runtime.py` | Extract a game/format discriminator and WARDOGS roster model | WARDOGS needs three named factions, groups, active/reserves and optional leaders/commanders. Route by `game`/format at creation, socket mutations and cleanup; leave legacy Squad payloads intact (now before connected lobby). |
+| Readiness: `backend/services/live_roll.py:get_live_roll_readiness`, `backend/services/bridge.py:build_lobby_server_presence` | Keep Squad rule; new WARDOGS policy | Squad readiness derives aligned/connected counts plus grace time. WARDOGS must separately store explicit readiness and observed connection/alignment, including unknown when polling fails; policy/quorum remains a product decision (now for live lobby). |
+| Socket.IO transport: `backend/app.py`, `backend/wiring.py`, `backend/sockets/` | Reuse transport unchanged | Add game-scoped WARDOGS events/snapshots and authorization without reinterpreting existing `lobby_update`/Squad payloads (now when backend connects). |
+| Frontend state transport: `frontend/src/features/wardogs/stores/matchStore.js`, `mock/mockDataSource.js`; existing frontend socket service | Reuse transport mechanism; add data-source implementation | Normalize CMP DTOs into the WARDOGS store, with observed-at/staleness and pending states. Keep mock selector at `/prototype/wardogs` until product route is ready (later). |
+| Server registry: `backend/services/server_registry.py` | Reuse allocation/approval concept; adapt schema/probes by game | Current `bridge_url`, Squad capability columns and Steam/EOS discovery cannot validate WDRCON. Add explicit `game`, protocol-specific encrypted credential/config, capability snapshot and game-aware health test; no global Squad probe change (now). |
+| Allocation: `backend/services/server_registry.py:allocate_server_for_lobby/release_server_allocation` | Reuse with adaptation | Filter by game, required capability set and usable join method; reserve atomically and keep reserved until server cleanup/handback is safe. Existing release-before-delayed-kick path in `live_roll.py` must not be copied (now). |
+| Join information: `backend/app_core.py:get_server_connection_details/build_lobby_join_url`, `backend/services/server_registry.py:build_join_strategy` | Keep Squad strategy; WARDOGS-specific provider | Squad uses Steam/EOS/synthetic lobby discovery. Capture WARDOGS join instructions independently, validate with host/client, and expose only non-secret player details (now when allocating). WDRCON `/v1/server-id` is not a match ID. |
+| Server health: `backend/services/server_registry.py:test_server_connection/run_server_health_check` | Extract game-aware health/capability probe | Squad health tests `/players`, `/layers`, `/round/latest` and sets broadcast optimistically. WARDOGS probe should read capabilities/status and report advertised versus successful reads, freshness, build and limits (now). |
+| Server operations: `backend/app_core.py` callbacks, `backend/services/bridge.py` | Extract minimum adapter boundary | Keep Squad wrappers/bridge stable; add WDRCON HTTP client and separate adapter for supported read/control operations. Requested and observed effects are distinct (now, incrementally). |
+| Live orchestration: `backend/services/live_roll.py` | Keep Squad-specific; WARDOGS coordinator separately | Layer-roll confirmation, side swap, ticket polling, and automatic Elo cannot serve three factions. Share only game-neutral scheduling/notification helpers once duplication exists; do not route WARDOGS into `start_live_roll_monitor` (now for backend pilot). |
+| Lifecycle observation: `squadjs/cmp/{state,rounds,scoreboard}.js`, `backend/services/live_roll.py` | Keep Squad collector; separate WARDOGS observation | WDRCON status/feed may provide snapshots, not a verified natural end. Emit `unknown` when no authoritative signal; use explicit referee transition (now). |
+| State persistence: `backend/services/state_persistence.py` | Reuse JSON mechanism; add versioned WARDOGS restoration | `_restore_lobby` discards faction keys beyond `team1/team2`. Add a discriminated restore path and tests for three factions, reserves, group IDs and result status; leave Squad restore unchanged (now before durable lobby). |
+| Match history: `backend/services/history.py` | Reuse audit/JSON storage concept; adapt accepted-result query | `teams_json`/`round_result_json` are flexible, but `_match_has_score` requires two ticket sides. Store WARDOGS result/provenance separately or in versioned JSON with explicit acceptance state; do not feed it through current scored filter (now for fallback). |
+| Result confirmation: no current WARDOGS workflow; `backend/services/history.py` and admin socket/HTTP routes in `backend/wiring.py` | Implement separately | Add referee draft/review/confirm/void actions with audit trail, actor, evidence references and idempotent acceptance; no client-supplied “authoritative” flag (now for minimum useful case). |
+| Rating/Elo: `backend/services/elo.py`, `backend/app_core.py:save_completed_match` | Keep Squad-specific; defer WARDOGS rating | Existing function maps only team1/team2 and runs on save. Later rating policy consumes only accepted WARDOGS result via a distinct, idempotent path; no implicit call from generic history save (later). |
+| Admin/referee tooling: `backend/wiring.py` admin routes, `backend/app_core.py` admin checks, frontend admin views | Reuse auth/navigation patterns; new workflow | Separate referee confirmation from RCON controls; require server-scoped role, reason/evidence, conflict review and audit (now for manual result). |
+| Deployment/configuration: `backend/app_state.py`, `backend/.env` conventions, `docker-compose.yml`, `docker-compose.next.yml`, `scripts/dev-local.ps1` | Keep stack; add game-scoped config | WDRCON URL/password per server, protected TLS/private routing, polling rate/backoff and no secret logging; keep SquadJS optional for frontend-only local work (now for WDRCON client). |
+
+## Minimal integration boundary
+
+Place a server-scoped adapter selection beside `backend/app_core.py:get_bridge_request_for_server` and `backend/services/server_registry.py`, **not** inside the current SquadJS route implementation. The first extraction can be a small `GameServerAdapter` protocol plus `SquadAdapter` wrapper over existing `bridge.py` functions and `WardogsAdapter` over a dedicated WDRCON client. Selection uses a persisted game/protocol discriminator, never endpoint-shape guessing. Existing Squad callbacks stay behaviorally identical; migrate individual call sites only as needed. WARDOGS matchmaking/orchestration remains separate from this transport boundary.
+
+Suggested typed contract (design notation, not code to introduce in this audit):
+
+```text
+capabilities() -> {name: {level, build, checked_at, evidence_ref}}
+observe_status() -> ServerStatus(server_id, observed_at, health, map_config?, scores?, player_count?)
+observe_players() -> [ServerPlayer(steam_id?, name?, observed_faction?, observed_at)]
+observe_rotation() -> RotationSnapshot?                 # optional
+request_control(command, actor, idempotency_key) -> CommandResult(requested, acknowledged,
+                                                       observed_effect?, error?)
+observe_lifecycle(cmp_attempt_id) -> LifecycleObservation(
+    state=unknown|live_observed|completed_authoritative,
+    source, observed_at, server_round_id?, final_result?)
+```
+
+`ServerStatus` and `ServerPlayer` are observation DTOs, not the CMP match model and not raw WDRCON objects. The CMP match holds faction IDs, group membership, active/reserve assignments, registered profile IDs and explicit player readiness; reconcile observations by validated Steam ID. Scores are timestamped and may be absent. `LifecycleObservation.unknown` is a first-class answer. `completed_authoritative` requires an independently established server result and round identity; no current WARDOGS evidence enables it. A `CommandResult.acknowledged` response never implies `observed_effect` or final result. Control methods are optional and must be checked by per-build capability *and* CMP permission; absence returns an unsupported/degraded result, not a fake success.
+
+The contract solves protocol leakage: `bridge.py` currently translates Squad `steamID`/numeric `teamID`, layer fields and `/round/best` into lobby state, while registry health assumes SquadJS routes. The wrapper leaves those meanings in the Squad adapter; WARDOGS maps Steam strings, named factions, status/rotation and WDRCON commands independently. Extract only the operations a first WARDOGS slice needs—capability/status/player reads, then gated controls—rather than generalizing every Squad operation such as slomo or synthetic join URLs. Game-aware registry and persistence are needed before a live WARDOGS lobby; rating abstraction can wait.
+
+## Referee result fallback and provenance
+
+Use a CMP-generated `match_id` and distinct `attempt_id` to correlate an allocation, roster snapshot and any restart, even when WDRCON provides no stable round ID. A referee/admin with explicit permission marks the attempt ended, enters or confirms all three faction scores and ranking/tie disposition, attaches observation/evidence references, and submits a result draft. CMP stores who did it, when, source, server/build, roster revision, and any later correction/void event. Confirmation must be idempotent and reject stale or conflicting drafts; a correction creates an audited revision, not a silent overwrite. Manual confirmation need not imply the underlying score was server-authoritative.
+
+Proposed state/provenance split:
+
+| Status | Provenance | Meaning / rating eligibility |
+| --- | --- | --- |
+| `pending` or `needs_review` | `observed_snapshot`, `referee_entry`, or none | Incomplete/unconfirmed; **never** rated |
+| `accepted` | `referee_confirmed` | Three-faction result explicitly approved; eligible for a *future* rating policy only after that policy exists |
+| `accepted` | `server_authoritative` | Allowed only when verified lifecycle, final scores, ranking and round identity are all available for this build; not currently enabled for WARDOGS |
+| `void` or `cancelled` | actor/reason retained | No competitive result or rating |
+
+Do not derive `accepted` from three finite live scores, a high score, a reset, a map transition, elapsed time, or an acknowledged end command. The backend—not the UI—enforces the state transition and rating gate. Existing Squad `save_completed_match` calls Elo immediately, so WARDOGS must not use that path unchanged. A referee workflow can operate while server observations are missing: display unknowns, allow evidence-backed entry, and keep the result pending until approved. Disputes and tie-ranking policy need product rules before competitive acceptance.
+
+## Stack/runtime assessment
+
+| Technology | Recommendation | Repository-specific reason and trigger to revisit |
+| --- | --- | --- |
+| Python + Flask | Keep | Existing auth, HTTP routes, server services and tests are usable; a WDRCON HTTP client fits without a language rewrite. |
+| Flask-SocketIO + Socket.IO client | Keep | Existing lobby rooms/events support push to a WARDOGS store; introduce game-scoped payloads rather than changing Squad events. |
+| Eventlet | Keep for Squad now; revisit **before high-volume production polling**, not before a read-only client/adapter skeleton | `backend/app.py` monkey-patches and sets `async_mode='eventlet'`; `live_roll.py`, `matchmaking.py`, `runtime.py` and `wiring.py` use greenlets/sleeps. Adding many long-running WDRCON polls inside this process could contend with Socket.IO and blocking DB/external calls. Start with bounded per-server reads, explicit timeouts, backoff, cancellation, and tests under the current runtime. Load/latency test before scaling; if unsuitable, migrate the whole backend async mode and greenlet call sites (for example to Flask-SocketIO threading plus supervised workers) with Squad regression tests. Do not mix an unplanned asyncio loop into monkey-patched code. |
+| SQLite | Keep for current single-instance scale | `app_core.get_db_connection` opens per-operation connections; registry, queue state, history and Elo write to one DB, while runtime state persists periodically. Add transactional/idempotent result acceptance first. Revisit PostgreSQL when multi-process/multi-host writers, sustained concurrent polling/history writes, lock contention, recovery/HA or audit durability requirements exceed measured SQLite behavior. Database migration is not a prerequisite for a WARDOGS pilot. |
+| Vue 3 + Pinia + Vite | Keep | The mock feature already separates components, store, domain helpers and data source; backend normalization can replace the source without a rewrite. |
+| SquadJS/Node | Keep for Squad; not a WARDOGS dependency | `squadjs/cmp/` is explicitly Squad RCON/log-parser code. A Python WDRCON client can call the verified HTTP API directly. |
+
+## Recommended implementation sequence
+
+1. Freeze DTO/capability/result status contracts and tests, including unknown/stale values and the manual gate. Define referee permissions, tie/incomplete policy and CMP match-attempt identity. Real-server lifecycle capture can continue **in parallel**.
+2. Add game-aware registry configuration, credential handling, health/capability snapshots, allocation filters and safe release policy. Keep Squad records/health/join behavior unchanged; verify with existing tests.
+3. Add a focused adapter selector and `SquadAdapter` wrapper around the existing bridge callback seam, preserving Squad outputs. Build a WDRCON client for already observed reads (capabilities, status, players, rotation), with auth, timeout, rate-limit/backoff, schema checks and sanitized logs.
+4. Add a WARDOGS adapter/read-only coordinator and versioned three-faction lobby persistence. Reconcile identities and surface unknown/observed connection, alignment and scores; do not run the Squad live-roll state machine. In parallel, implement the Hybrid queue-entry/three-faction assignment policy and tests once capacity/overflow rules are chosen.
+5. Gate each WDRCON mutation independently after controlled effect/read-back evidence. Keep operator/manual actions where a gate fails. Provide game-specific join details and frontend transport; connect the existing WARDOGS Pinia model to normalized CMP DTOs while preserving `/prototype/wardogs` mock mode.
+6. Implement referee draft/review/accept/void and audit/history, with transactionally idempotent result acceptance. This is the minimum useful completion path and **does not wait** for natural-end evidence.
+7. Decide rating unit and tie policy, then add a WARDOGS-only rating consumer of accepted results. Do not reuse two-team Elo by changing its input shape.
+8. Only if later populated-server evidence proves authoritative end, final scores/ranking and stable round identity—including same-map restart—enable an automatic result source for supported builds. Otherwise retain the referee path indefinitely.
+
+Sequence 2–4 can be developed alongside real-server investigation; 6 can be built alongside frontend/backend read integration after the result contract. The registry/DTO work precedes safe control, and accepted-result semantics precede ratings. No framework, database, SquadJS, Squad match-flow or production WDRCON change is made by this document.
