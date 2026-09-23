@@ -201,18 +201,22 @@ describe('WARDOGS backend data source', () => {
     expect(store.error).not.toContain('offline-secret');
   });
 
-  test('confirmation form is admin-only and prefills observed values with explicit winner choice', async () => {
+  test('confirmation form is admin-only and requires explicit placement separate from observations', async () => {
     const match = normalizeBackendMatch(backendPayload());
     const hidden = mount(WardogsResultConfirmation, { props: { match, canConfirm: false } });
     expect(hidden.find('[aria-label="Confirm WARDOGS result"]').exists()).toBe(false);
     const wrapper = mount(WardogsResultConfirmation, { props: { match, canConfirm: true } });
     expect(wrapper.text()).toContain('Live scores are evidence only');
     expect(wrapper.findAll('input[type="number"]').map((input) => input.element.value)).toEqual(['999', '1', '0']);
-    expect(wrapper.find('select[required]').exists()).toBe(true);
-    await wrapper.find('select[required]').setValue('valkyra');
+    const placement = wrapper.findAll('select[required]');
+    expect(placement).toHaveLength(3);
+    await placement[0].setValue('1');
+    await placement[1].setValue('2');
+    await placement[2].setValue('3');
     await wrapper.find('button').trigger('click');
     expect(wrapper.emitted('confirm')[0][0]).toMatchObject({
       status: 'completed_win', winnerFaction: 'valkyra',
+      placementGroups: [['valkyra'], ['lonestar'], ['manticore']],
       scores: { valkyra: 999, lonestar: 1, manticore: 0 }
     });
   });
@@ -223,8 +227,15 @@ describe('WARDOGS backend data source', () => {
     const scores = wrapper.findAll('input[type="number"]');
     await scores[1].setValue('999');
     await wrapper.find('select').setValue('tie');
+    const placement = wrapper.findAll('select[required]');
+    await placement[0].setValue('1');
+    await placement[1].setValue('1');
+    await placement[2].setValue('2');
     await wrapper.find('button').trigger('click');
-    expect(wrapper.emitted('confirm')[0][0]).toMatchObject({ status: 'tie', winnerFaction: null });
+    expect(wrapper.emitted('confirm')[0][0]).toMatchObject({
+      status: 'tie', winnerFaction: null,
+      placementGroups: [['valkyra', 'lonestar'], ['manticore']]
+    });
     await wrapper.find('select').setValue('incomplete');
     expect(wrapper.findAll('input[type="number"]')).toHaveLength(0);
     await wrapper.find('button').trigger('click');
@@ -232,6 +243,32 @@ describe('WARDOGS backend data source', () => {
     await wrapper.find('select').setValue('void');
     await wrapper.find('button').trigger('click');
     expect(wrapper.emitted('confirm')[2][0]).toMatchObject({ status: 'void', scores: null, winnerFaction: null });
+  });
+
+  test('confirmation accepts normal, tied-first, tied-second, and three-way-tied placements', async () => {
+    const cases = [
+      { status: 'completed_win', scores: ['10', '1', '5'], ranks: ['1', '3', '2'],
+        groups: [['valkyra'], ['manticore'], ['lonestar']] },
+      { status: 'tie', scores: ['10', '1', '10'], ranks: ['1', '2', '1'],
+        groups: [['valkyra', 'manticore'], ['lonestar']] },
+      { status: 'completed_win', scores: ['10', '5', '5'], ranks: ['1', '2', '2'],
+        groups: [['valkyra'], ['lonestar', 'manticore']] },
+      { status: 'tie', scores: ['10', '10', '10'], ranks: ['1', '1', '1'],
+        groups: [['valkyra', 'lonestar', 'manticore']] }
+    ];
+    for (const item of cases) {
+      const match = normalizeBackendMatch(backendPayload());
+      const wrapper = mount(WardogsResultConfirmation, { props: { match, canConfirm: true } });
+      await wrapper.find('select').setValue(item.status);
+      for (const [index, score] of item.scores.entries()) {
+        await wrapper.findAll('input[type="number"]')[index].setValue(score);
+      }
+      for (const [index, rank] of item.ranks.entries()) {
+        await wrapper.findAll('select[required]')[index].setValue(rank);
+      }
+      await wrapper.findAll('button').find((button) => button.text().includes('Confirm authoritative result')).trigger('click');
+      expect(wrapper.emitted('confirm')[0][0].placementGroups).toEqual(item.groups);
+    }
   });
 
   test('divergent final scores warn and participants see a referee-confirmed result', async () => {
@@ -242,25 +279,48 @@ describe('WARDOGS backend data source', () => {
     expect(form.text()).toContain('Submitted final scores differ from the latest observed server scores.');
     match.result = {
       status: 'tie', tied: true,
+      placementGroups: [['valkyra', 'lonestar'], ['manticore']],
       scores: { valkyra: 8, lonestar: 8, manticore: 8 },
       confirmedAt: '2026-09-23T12:00:00Z'
     };
     const display = mount(WardogsResultConfirmation, { props: { match, canConfirm: false } });
     expect(display.text()).toContain('Referee confirmed result');
     expect(display.text()).toContain('AUTHORITATIVE');
-    expect(display.text()).toContain('The referee confirmed a tie.');
+    expect(display.text()).toContain('1st valkyra / lonestar');
+    expect(display.text()).toContain('3rd manticore');
     expect(display.text()).toContain('valkyra: 8');
     expect(display.text()).not.toContain('confirmedBy');
+  });
+
+  test('participants see every authoritative placement and tied group', () => {
+    const match = normalizeBackendMatch(backendPayload());
+    const cases = [
+      { status: 'completed_win', placementGroups: [['valkyra'], ['manticore'], ['lonestar']],
+        expected: ['1st valkyra', '2nd manticore', '3rd lonestar'] },
+      { status: 'tie', placementGroups: [['valkyra', 'manticore'], ['lonestar']],
+        expected: ['1st valkyra / manticore', '3rd lonestar'] },
+      { status: 'completed_win', placementGroups: [['valkyra'], ['manticore', 'lonestar']],
+        expected: ['1st valkyra', '2nd manticore / lonestar'] },
+      { status: 'tie', placementGroups: [['valkyra', 'lonestar', 'manticore']],
+        expected: ['1st valkyra / lonestar / manticore'] }
+    ];
+    for (const { status, placementGroups, expected } of cases) {
+      match.result = { status, placementGroups, scores: { valkyra: 9, lonestar: 4, manticore: 4 } };
+      const display = mount(WardogsResultConfirmation, { props: { match, canConfirm: false } });
+      for (const row of expected) expect(display.text()).toContain(row);
+    }
   });
 
   test('admin can load revision history and correct the current revision with a reason', async () => {
     const match = normalizeBackendMatch(backendPayload());
     match.result = {
       status: 'completed_win', winnerFaction: 'valkyra', revisionNumber: 1,
+      placementGroups: [['valkyra'], ['lonestar'], ['manticore']],
       scores: { valkyra: 90, lonestar: 20, manticore: 5 }, confirmedAt: '2026-09-23T12:00:00Z'
     };
     const history = [{ revisionId: 'wd:1', revisionNumber: 1, revisionType: 'confirmation',
       status: 'completed_win', actorId: 'admin', authoritative: true, scores: match.result.scores,
+      placementGroups: match.result.placementGroups,
       observation: { available: true, observedAt: '2026-09-23T11:59:00Z', differsFromObservation: false } }];
     const wrapper = mount(WardogsResultConfirmation, { props: {
       match, canConfirm: true, resultHistory: history
@@ -272,6 +332,7 @@ describe('WARDOGS backend data source', () => {
     await wrapper.find('button').trigger('click');
     expect(wrapper.text()).toContain('A new immutable revision will supersede the current result.');
     expect(wrapper.findAll('input[type="number"]').map((input) => input.element.value)).toEqual(['90', '20', '5']);
+    expect(wrapper.findAll('select[required]').map((select) => select.element.value)).toEqual(['1', '2', '3']);
     expect(wrapper.text()).toContain('valkyra: 999');
     await wrapper.findAll('button').find((button) => button.text().includes('Use latest observed scores')).trigger('click');
     expect(wrapper.findAll('input[type="number"]').map((input) => input.element.value)).toEqual(['999', '1', '0']);
@@ -280,7 +341,9 @@ describe('WARDOGS backend data source', () => {
     await wrapper.findAll('button').find((button) => button.text().includes('Confirm new revision')).trigger('click');
     expect(wrapper.emitted('correct')[0][0]).toMatchObject({
       expectedRevisionId: 'wd:1', correctionReason: 'Referee entered the wrong score.',
-      result: { status: 'completed_win', winnerFaction: 'valkyra', scores: { valkyra: 80, lonestar: 1, manticore: 0 } }
+      result: { status: 'completed_win', winnerFaction: 'valkyra',
+        placementGroups: [['valkyra'], ['lonestar'], ['manticore']],
+        scores: { valkyra: 80, lonestar: 1, manticore: 0 } }
     });
   });
 

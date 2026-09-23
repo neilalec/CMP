@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 
-from services.wardogs_lobby import FACTION_IDS, get_wardogs_lobby
+from services.wardogs_lobby import FACTIONS, FACTION_IDS, get_wardogs_lobby
 
 
 RESULT_STATUSES = {'completed_win', 'tie', 'incomplete', 'void'}
@@ -35,31 +35,97 @@ def _scores(value, *, required, observed=False):
     return {key: normalized[key] for key in sorted(normalized)}
 
 
+_CANONICAL_FACTION_ORDER = tuple(faction_id for faction_id, _, _ in FACTIONS)
+
+
+def _placement_groups(value, *, required):
+    if value is None and not required:
+        return None
+    if not isinstance(value, list) or not 1 <= len(value) <= 3:
+        raise ValueError('Placement must contain one to three ordered groups')
+    groups = []
+    seen = set()
+    for group in value:
+        if not isinstance(group, list) or not group:
+            raise ValueError('Placement groups must be non-empty lists')
+        if any(not isinstance(faction, str) or faction not in FACTION_IDS for faction in group):
+            raise ValueError('Placement contains an unknown faction')
+        if len(set(group)) != len(group):
+            raise ValueError('A placement group cannot repeat a faction')
+        if seen.intersection(group):
+            raise ValueError('Each faction must appear exactly once in placement')
+        seen.update(group)
+        groups.append([faction for faction in _CANONICAL_FACTION_ORDER if faction in group])
+    if seen != FACTION_IDS:
+        raise ValueError('Placement must include all three WARDOGS factions exactly once')
+    return groups
+
+
+def _validate_score_placement(scores, groups):
+    for group in groups:
+        if len({scores[faction] for faction in group}) != 1:
+            raise ValueError('Factions tied in placement must have equal scores')
+    for left, right in zip(groups, groups[1:]):
+        if max(scores[faction] for faction in left) <= max(scores[faction] for faction in right):
+            raise ValueError('Scores must strictly follow the submitted placement')
+
+
+def _legacy_placement_groups(status, winner, tied, scores):
+    """Convert old result meaning once, at startup; never infer in a consumer."""
+    if status not in {'completed_win', 'tie'}:
+        return None
+    try:
+        normalized_scores = _scores(scores, required=True)
+    except ValueError:
+        return None
+    if status == 'completed_win':
+        if tied or winner not in FACTION_IDS or normalized_scores[winner] != max(normalized_scores.values()):
+            return None
+        if sum(score == normalized_scores[winner] for score in normalized_scores.values()) != 1:
+            return None
+    elif (winner is not None or not tied
+          or sum(score == max(normalized_scores.values()) for score in normalized_scores.values()) < 2):
+        return None
+    ordered = sorted(_CANONICAL_FACTION_ORDER,
+                     key=lambda faction: normalized_scores[faction], reverse=True)
+    groups = []
+    for faction in ordered:
+        if groups and normalized_scores[groups[-1][0]] == normalized_scores[faction]:
+            groups[-1].append(faction)
+        else:
+            groups.append([faction])
+    return _placement_groups(groups, required=True)
+
+
 def _normalize_submission(payload):
     if (not isinstance(payload, dict)
-            or not set(payload).issubset({'status', 'scores', 'winnerFaction', 'note'})
+            or not set(payload).issubset({'status', 'scores', 'placementGroups', 'winnerFaction', 'note'})
             or payload.get('status') not in RESULT_STATUSES):
         raise ValueError('Invalid WARDOGS result status')
     status = payload['status']
     scores = _scores(payload.get('scores'), required=status in {'completed_win', 'tie'})
+    groups = _placement_groups(payload.get('placementGroups'), required=status in {'completed_win', 'tie'})
     winner = payload.get('winnerFaction')
     if status == 'completed_win':
-        if winner not in FACTION_IDS:
-            raise ValueError('Choose one winning faction')
-        highest = max(scores.values())
-        if scores[winner] != highest or sum(score == highest for score in scores.values()) != 1:
-            raise ValueError('The selected winner must have the unique highest final score')
+        if len(groups[0]) != 1:
+            raise ValueError('A completed win requires one faction explicitly placed first')
+        derived_winner = groups[0][0]
+        if winner is not None and winner != derived_winner:
+            raise ValueError('Winner must match the first placement group')
+        winner = derived_winner
     elif winner is not None:
         raise ValueError('Winner is only valid for a completed win')
-    if status == 'tie':
-        highest = max(scores.values())
-        if sum(score == highest for score in scores.values()) < 2:
-            raise ValueError('A tie requires at least two factions to share the highest final score')
+    elif groups is not None and len(groups[0]) < 2:
+        raise ValueError('A tie result requires at least two factions explicitly tied for first')
+    if status in {'completed_win', 'tie'}:
+        _validate_score_placement(scores, groups)
+    elif payload.get('placementGroups') is not None:
+        raise ValueError('Incomplete or void results cannot include a competitive placement')
     note = payload.get('note', '')
     if not isinstance(note, str) or len(note) > 1000:
         raise ValueError('Result note must be 1000 characters or fewer')
-    return {'status': status, 'scores': scores, 'winnerFaction': winner,
-            'tied': status == 'tie', 'note': note.strip() or None}
+    return {'status': status, 'scores': scores, 'placementGroups': groups,
+            'winnerFaction': winner, 'tied': status == 'tie', 'note': note.strip() or None}
 
 
 def init_wardogs_result_tables(get_db_connection):
@@ -74,6 +140,7 @@ def init_wardogs_result_tables(get_db_connection):
             revision_type TEXT NOT NULL CHECK (revision_type IN ('confirmation', 'correction')),
             status TEXT NOT NULL,
             scores_json TEXT,
+            placement_groups_json TEXT,
             winner_faction TEXT,
             tied INTEGER NOT NULL DEFAULT 0,
             actor_id TEXT NOT NULL,
@@ -91,6 +158,9 @@ def init_wardogs_result_tables(get_db_connection):
         )""")
         conn.execute("""CREATE INDEX IF NOT EXISTS idx_wardogs_result_revisions_lobby
             ON wardogs_result_revisions (lobby_id, revision_number)""")
+        columns = {row['name'] for row in conn.execute('PRAGMA table_info(wardogs_result_revisions)')}
+        if 'placement_groups_json' not in columns:
+            conn.execute('ALTER TABLE wardogs_result_revisions ADD COLUMN placement_groups_json TEXT')
         # Keep the old table intact as a recoverable source. A deterministic ID
         # and unique sequence make copying safe on every startup.
         legacy_exists = conn.execute("""SELECT 1 FROM sqlite_master
@@ -114,16 +184,31 @@ def init_wardogs_result_tables(get_db_connection):
                 }
             conn.execute("""INSERT INTO wardogs_result_revisions (
                 revision_id, lobby_id, revision_number, supersedes_revision_id, revision_type,
-                status, scores_json, winner_faction, tied, actor_id, created_at, confirmed_at,
+                status, scores_json, placement_groups_json, winner_faction, tied, actor_id, created_at, confirmed_at,
                 note, correction_reason, observation_available, observed_at, observed_scores_json,
                 submitted_scores_json, differs_from_observation, request_json
-            ) VALUES (?, ?, 1, NULL, 'confirmation', ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?)""", (
+            ) VALUES (?, ?, 1, NULL, 'confirmation', ?, ?, NULL, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?)""", (
                 f'legacy:{lobby_id}:1', lobby_id, row['status'], row['scores_json'],
                 row['winner_faction'], row['tied'], row['confirmed_by'], row['confirmed_at'],
                 row['confirmed_at'], row['note'], row['observation_available'], row['observed_at'],
                 row['observed_scores_json'], row['submitted_scores_json'],
                 row['differs_from_observation'], _json(submission),
             ))
+        # Backfill only legacy rows whose stored outcome and scores establish
+        # the old meaning unambiguously. Unsafe rows remain visible without a
+        # placement rather than receiving an invented ranking.
+        rows = conn.execute("""SELECT revision_id, status, scores_json, winner_faction, tied
+            FROM wardogs_result_revisions WHERE placement_groups_json IS NULL""").fetchall()
+        for row in rows:
+            try:
+                legacy_scores = _decode_scores(row['scores_json'])
+            except (TypeError, ValueError):
+                legacy_scores = None
+            groups = _legacy_placement_groups(
+                row['status'], row['winner_faction'], bool(row['tied']), legacy_scores)
+            if groups is not None:
+                conn.execute('UPDATE wardogs_result_revisions SET placement_groups_json=? WHERE revision_id=?',
+                             (_json(groups), row['revision_id']))
         conn.commit()
 
 
@@ -141,9 +226,14 @@ def _revision_rows(conn, lobby_id):
 def _public_revision(row, *, corrected=False):
     if row is None:
         return {'status': 'unconfirmed', 'revisionNumber': None, 'corrected': False}
+    groups = json.loads(row['placement_groups_json']) if row['placement_groups_json'] else None
     return {
         'status': row['status'], 'scores': _decode_scores(row['scores_json']),
-        'winnerFaction': row['winner_faction'], 'tied': bool(row['tied']),
+        'placementGroups': groups,
+        'placementUnavailable': row['status'] in {'completed_win', 'tie'} and groups is None,
+        'winnerFaction': ((groups[0][0] if len(groups[0]) == 1 else None)
+                          if groups else row['winner_faction']),
+        'tied': (len(groups[0]) > 1 if groups else bool(row['tied'])),
         'confirmedAt': row['confirmed_at'], 'revisionNumber': row['revision_number'],
         'corrected': bool(corrected),
     }
@@ -171,8 +261,17 @@ def get_wardogs_result_history(get_db_connection, lobby_id):
             'revisionId': row['revision_id'], 'revisionNumber': row['revision_number'],
             'supersedesRevisionId': row['supersedes_revision_id'],
             'revisionType': row['revision_type'], 'status': row['status'],
-            'scores': _decode_scores(row['scores_json']), 'winnerFaction': row['winner_faction'],
-            'tied': bool(row['tied']), 'actorId': row['actor_id'],
+            'scores': _decode_scores(row['scores_json']),
+            'placementGroups': (json.loads(row['placement_groups_json'])
+                                if row['placement_groups_json'] else None),
+            'placementUnavailable': (row['status'] in {'completed_win', 'tie'}
+                                     and row['placement_groups_json'] is None),
+            'winnerFaction': ((json.loads(row['placement_groups_json'])[0][0]
+                               if len(json.loads(row['placement_groups_json'])[0]) == 1
+                               else None) if row['placement_groups_json'] else row['winner_faction']),
+            'tied': (len(json.loads(row['placement_groups_json'])[0]) > 1
+                     if row['placement_groups_json'] else bool(row['tied'])),
+            'actorId': row['actor_id'],
             'createdAt': row['created_at'], 'confirmedAt': row['confirmed_at'],
             'note': row['note'], 'correctionReason': row['correction_reason'],
             'observation': {
@@ -200,12 +299,13 @@ def _insert_revision(conn, *, revision_id, lobby_id, revision_number, supersedes
                      observed_scores, observed_at, differs, request_json):
     conn.execute("""INSERT INTO wardogs_result_revisions (
         revision_id, lobby_id, revision_number, supersedes_revision_id, revision_type,
-        status, scores_json, winner_faction, tied, actor_id, created_at, confirmed_at,
+        status, scores_json, placement_groups_json, winner_faction, tied, actor_id, created_at, confirmed_at,
         note, correction_reason, observation_available, observed_at, observed_scores_json,
         submitted_scores_json, differs_from_observation, request_json
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", (
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", (
         revision_id, lobby_id, revision_number, supersedes_revision_id, revision_type,
         submission['status'], _json(submission['scores']) if submission['scores'] is not None else None,
+        _json(submission['placementGroups']) if submission['placementGroups'] is not None else None,
         submission['winnerFaction'], int(submission['tied']), actor_id, timestamp, timestamp,
         submission['note'], correction_reason, int(observed_scores is not None), observed_at,
         _json(observed_scores) if observed_scores is not None else None,

@@ -2,6 +2,7 @@
 
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
+import sqlite3
 
 import app as backend_app
 import app_core
@@ -43,6 +44,7 @@ def auth_headers(flask_app, username):
 
 def complete_win(scores=None):
     return {'status': 'completed_win', 'scores': scores or dict(zip(FACTIONS, (90, 20, 5))),
+            'placementGroups': [['valkyra'], ['lonestar'], ['manticore']],
             'winnerFaction': 'valkyra', 'note': 'Referee checked the board.'}
 
 
@@ -58,6 +60,7 @@ def test_result_is_absent_until_explicit_admin_confirmation_and_survives_reread(
     response = client.post(result_url, json=complete_win(), headers=auth_headers(flask_app, 'admin'))
     assert response.status_code == 200
     assert response.get_json()['result']['winnerFaction'] == 'valkyra'
+    assert response.get_json()['result']['placementGroups'] == [['valkyra'], ['lonestar'], ['manticore']]
     public = client.get(url, headers=auth_headers(flask_app, 'alice')).get_json()['match']['result']
     assert public == response.get_json()['result']
     assert 'confirmedBy' not in public and 'provenance' not in public
@@ -71,7 +74,8 @@ def test_result_is_absent_until_explicit_admin_confirmation_and_survives_reread(
 def test_all_explicit_outcomes_persist_with_three_faction_contract(flask_app):
     for result_status, payload in (
         ('completed_win', complete_win()),
-        ('tie', {'status': 'tie', 'scores': dict(zip(FACTIONS, (10, 10, 10)))}),
+        ('tie', {'status': 'tie', 'scores': dict(zip(FACTIONS, (10, 10, 10))),
+                 'placementGroups': [['valkyra', 'lonestar', 'manticore']]}),
         ('incomplete', {'status': 'incomplete', 'note': 'Stopped early.'}),
         ('void', {'status': 'void', 'note': 'Cancelled.'}),
     ):
@@ -81,11 +85,14 @@ def test_all_explicit_outcomes_persist_with_three_faction_contract(flask_app):
         assert idempotent is False
         assert result['status'] == result_status
         with app_core.get_db_connection() as conn:
-            row = conn.execute('SELECT status, scores_json, winner_faction, tied FROM wardogs_result_revisions WHERE lobby_id=?',
+            row = conn.execute('SELECT status, scores_json, placement_groups_json, winner_faction, tied FROM wardogs_result_revisions WHERE lobby_id=?',
                                (lobby_id,)).fetchone()
         assert row['status'] == result_status
         if result_status == 'tie':
             assert row['tied'] == 1 and row['winner_faction'] is None
+            assert row['placement_groups_json'] is not None
+        if result_status == 'completed_win':
+            assert row['placement_groups_json'] is not None
         if result_status in {'incomplete', 'void'}:
             assert row['scores_json'] is None and row['winner_faction'] is None
 
@@ -118,12 +125,12 @@ def test_observation_prefill_provenance_records_match_and_divergence():
 def test_invalid_factions_scores_and_outcome_semantics_are_rejected():
     save_wardogs_lobby(app_core.get_db_connection, lobby())
     invalid = [
-        {'status': 'completed_win', 'scores': {'bad': 1}, 'winnerFaction': 'valkyra'},
-        {'status': 'completed_win', 'scores': dict(zip(FACTIONS, (1, -1, 0))), 'winnerFaction': 'valkyra'},
-        {'status': 'completed_win', 'scores': dict(zip(FACTIONS, (1, 1, 1))), 'winnerFaction': 'nope'},
-        {'status': 'completed_win', 'scores': dict(zip(FACTIONS, (1, 2, 0))), 'winnerFaction': 'valkyra'},
-        {'status': 'tie', 'scores': dict(zip(FACTIONS, (1, 1, 1))), 'winnerFaction': 'valkyra'},
-        {'status': 'tie', 'scores': dict(zip(FACTIONS, (1, 2, 0)))},
+        {'status': 'completed_win', 'scores': {'bad': 1}, 'placementGroups': [['valkyra'], ['lonestar'], ['manticore']], 'winnerFaction': 'valkyra'},
+        {'status': 'completed_win', 'scores': dict(zip(FACTIONS, (1, -1, 0))), 'placementGroups': [['valkyra'], ['lonestar'], ['manticore']], 'winnerFaction': 'valkyra'},
+        {'status': 'completed_win', 'scores': dict(zip(FACTIONS, (1, 1, 1))), 'placementGroups': [['valkyra'], ['lonestar'], ['manticore']], 'winnerFaction': 'nope'},
+        {'status': 'completed_win', 'scores': dict(zip(FACTIONS, (1, 2, 0))), 'placementGroups': [['valkyra'], ['lonestar'], ['manticore']], 'winnerFaction': 'valkyra'},
+        {'status': 'tie', 'scores': dict(zip(FACTIONS, (1, 1, 1))), 'placementGroups': [['valkyra', 'lonestar', 'manticore']], 'winnerFaction': 'valkyra'},
+        {'status': 'tie', 'scores': dict(zip(FACTIONS, (1, 2, 0))), 'placementGroups': [['valkyra'], ['lonestar'], ['manticore']]},
         {'status': 'incomplete', 'winnerFaction': 'valkyra'},
         {'status': 'void', 'scores': dict(zip(FACTIONS, (True, 0, 0)))},
     ]
@@ -133,6 +140,109 @@ def test_invalid_factions_scores_and_outcome_semantics_are_rejected():
         except ValueError:
             continue
         raise AssertionError(f'Invalid result unexpectedly accepted: {payload}')
+
+
+def test_explicit_placement_groups_cover_supported_ties_and_validate_scores():
+    cases = (
+        ('completed_win', {'valkyra': 9, 'lonestar': 1, 'manticore': 4},
+         [['valkyra'], ['manticore'], ['lonestar']], 'valkyra'),
+        ('tie', {'valkyra': 9, 'lonestar': 1, 'manticore': 9},
+         [['valkyra', 'manticore'], ['lonestar']], None),
+        ('completed_win', {'valkyra': 9, 'lonestar': 4, 'manticore': 4},
+         [['valkyra'], ['lonestar', 'manticore']], 'valkyra'),
+        ('tie', {'valkyra': 9, 'lonestar': 9, 'manticore': 9},
+         [['valkyra', 'lonestar', 'manticore']], None),
+    )
+    for index, (status, scores, groups, winner) in enumerate(cases):
+        lobby_id = f'wd-placement-{index}'
+        save_wardogs_lobby(app_core.get_db_connection, lobby(lobby_id))
+        result, _ = confirm_wardogs_result(
+            app_core.get_db_connection, lobby_id, 'admin',
+            {'status': status, 'scores': scores, 'placementGroups': groups,
+             'winnerFaction': winner})
+        assert result['placementGroups'] == groups
+        assert result['winnerFaction'] == winner
+
+    invalid_groups = (
+        [['valkyra'], ['valkyra'], ['manticore']],
+        [['valkyra'], ['manticore']],
+        [['valkyra'], ['manticore'], ['lonestar', 'unknown']],
+        [['valkyra'], [], ['lonestar', 'manticore']],
+        [['valkyra', 'lonestar'], ['manticore'], ['valkyra']],
+        [['valkyra'], ['lonestar'], ['manticore'], []],
+    )
+    for groups in invalid_groups:
+        try:
+            confirm_wardogs_result(app_core.get_db_connection, 'wd-placement-0', 'admin', {
+                'status': 'completed_win',
+                'scores': {'valkyra': 9, 'lonestar': 1, 'manticore': 4},
+                'placementGroups': groups,
+            })
+        except ValueError:
+            continue
+        raise AssertionError(f'Invalid placement unexpectedly accepted: {groups}')
+
+    contradictory = (
+        ('completed_win', {'valkyra': 4, 'lonestar': 9, 'manticore': 1},
+         [['valkyra'], ['manticore'], ['lonestar']]),
+        ('tie', {'valkyra': 9, 'lonestar': 1, 'manticore': 8},
+         [['valkyra', 'manticore'], ['lonestar']]),
+        ('completed_win', {'valkyra': 9, 'lonestar': 4, 'manticore': 3},
+         [['valkyra'], ['lonestar', 'manticore']]),
+        ('tie', {'valkyra': 9, 'lonestar': 8, 'manticore': 7},
+         [['valkyra', 'lonestar', 'manticore']]),
+    )
+    for status, scores, groups in contradictory:
+        try:
+            confirm_wardogs_result(app_core.get_db_connection, 'wd-placement-0', 'admin', {
+                'status': status, 'scores': scores, 'placementGroups': groups,
+            })
+        except ValueError:
+            continue
+        raise AssertionError(f'Score/placement contradiction accepted: {scores}, {groups}')
+
+
+def test_existing_revision_table_is_upgraded_in_place_and_idempotently(tmp_path):
+    database = tmp_path / 'wardogs-legacy-revisions.sqlite'
+
+    def get_db_connection():
+        connection = sqlite3.connect(database)
+        connection.row_factory = sqlite3.Row
+        return connection
+
+    with get_db_connection() as conn:
+        conn.execute("""CREATE TABLE wardogs_result_revisions (
+            revision_id TEXT PRIMARY KEY, lobby_id TEXT NOT NULL, revision_number INTEGER NOT NULL,
+            supersedes_revision_id TEXT, revision_type TEXT NOT NULL, status TEXT NOT NULL,
+            scores_json TEXT, winner_faction TEXT, tied INTEGER NOT NULL DEFAULT 0,
+            actor_id TEXT NOT NULL, created_at TEXT NOT NULL, confirmed_at TEXT NOT NULL,
+            note TEXT, correction_reason TEXT, observation_available INTEGER NOT NULL,
+            observed_at TEXT, observed_scores_json TEXT, submitted_scores_json TEXT,
+            differs_from_observation INTEGER, request_json TEXT NOT NULL,
+            UNIQUE (lobby_id, revision_number)
+        )""")
+        conn.execute("""INSERT INTO wardogs_result_revisions VALUES (
+            'legacy-revision-7', 'wd-table-upgrade', 7, 'older-revision', 'correction',
+            'completed_win', '{"valkyra":10,"lonestar":5,"manticore":1}', 'valkyra', 0,
+            'admin', 'created', 'confirmed', 'kept note', 'kept reason', 1, 'observed',
+            '{"valkyra":10,"lonestar":5,"manticore":1}',
+            '{"valkyra":10,"lonestar":5,"manticore":1}', 0, '{}'
+        )""")
+        conn.commit()
+
+    init_wardogs_result_tables(get_db_connection)
+    init_wardogs_result_tables(get_db_connection)
+    history = get_wardogs_result_history(get_db_connection, 'wd-table-upgrade')
+    assert len(history) == 1
+    assert history[0]['revisionId'] == 'legacy-revision-7'
+    assert history[0]['revisionNumber'] == 7
+    assert history[0]['actorId'] == 'admin'
+    assert history[0]['correctionReason'] == 'kept reason'
+    assert history[0]['placementGroups'] == [['valkyra'], ['lonestar'], ['manticore']]
+    with get_db_connection() as conn:
+        assert 'placement_groups_json' in {
+            row['name'] for row in conn.execute('PRAGMA table_info(wardogs_result_revisions)')}
+        assert conn.execute('SELECT COUNT(*) FROM wardogs_result_revisions').fetchone()[0] == 1
 
 
 def test_identical_retry_is_idempotent_conflict_is_immutable_and_race_is_safe():
@@ -201,6 +311,17 @@ def test_legacy_confirmation_migrates_once_to_revision_one_with_provenance():
             '{"note":"Referee checked the board.","scores":{"lonestar":20,"manticore":5,"valkyra":90},"status":"completed_win","tied":false,"winnerFaction":"valkyra"}',
         ))
         conn.commit()
+        conn.execute("""INSERT INTO wardogs_results (
+            lobby_id, game_type, status, scores_json, winner_faction, tied,
+            confirmed_at, confirmed_by, note, observation_available, observed_at,
+            observed_scores_json, submitted_scores_json, differs_from_observation, submission_json
+        ) VALUES (?, 'wardogs', 'completed_win', ?, 'manticore', 0, ?, 'admin', 'unsafe legacy',
+                  0, NULL, NULL, ?, NULL, ?)""", (
+            'wd-legacy-unsafe', '{"valkyra":10,"lonestar":4,"manticore":1}',
+            '2026-09-23T14:00:00+00:00', '{"valkyra":10,"lonestar":4,"manticore":1}',
+            '{"status":"completed_win","winnerFaction":"manticore","scores":{"valkyra":10,"lonestar":4,"manticore":1}}',
+        ))
+        conn.commit()
     init_wardogs_result_tables(app_core.get_db_connection)
     init_wardogs_result_tables(app_core.get_db_connection)
     history = get_wardogs_result_history(app_core.get_db_connection, 'wd-result')
@@ -211,16 +332,39 @@ def test_legacy_confirmation_migrates_once_to_revision_one_with_provenance():
     assert history[0]['note'] == 'first note'
     assert history[0]['observation']['available'] is True
     assert history[0]['observation']['differsFromObservation'] is True
+    assert history[0]['placementGroups'] == [['valkyra'], ['lonestar'], ['manticore']]
     assert get_wardogs_result(app_core.get_db_connection, 'wd-result')['revisionNumber'] == 1
     with app_core.get_db_connection() as conn:
         assert conn.execute('SELECT COUNT(*) FROM wardogs_results WHERE lobby_id=?', ('wd-result',)).fetchone()[0] == 1
+        conn.execute("""INSERT INTO wardogs_results (
+            lobby_id, game_type, status, scores_json, winner_faction, tied,
+            confirmed_at, confirmed_by, note, observation_available, observed_at,
+            observed_scores_json, submitted_scores_json, differs_from_observation, submission_json
+        ) VALUES (?, 'wardogs', 'tie', ?, NULL, 1, ?, 'admin', 'legacy tie', 0, NULL,
+                  NULL, ?, NULL, ?)""", (
+            'wd-legacy-tie', '{"valkyra":10,"lonestar":10,"manticore":4}',
+            '2026-09-23T13:00:00+00:00', '{"valkyra":10,"lonestar":10,"manticore":4}',
+            '{"status":"tie","scores":{"valkyra":10,"lonestar":10,"manticore":4}}',
+        ))
+        conn.commit()
+    init_wardogs_result_tables(app_core.get_db_connection)
+    init_wardogs_result_tables(app_core.get_db_connection)
+    tie_history = get_wardogs_result_history(app_core.get_db_connection, 'wd-legacy-tie')
+    assert len(tie_history) == 1
+    assert tie_history[0]['placementGroups'] == [['valkyra', 'lonestar'], ['manticore']]
+    assert tie_history[0]['placementUnavailable'] is False
+    unsafe_history = get_wardogs_result_history(app_core.get_db_connection, 'wd-legacy-unsafe')
+    assert len(unsafe_history) == 1
+    assert unsafe_history[0]['placementGroups'] is None
+    assert unsafe_history[0]['placementUnavailable'] is True
 
 
 def test_corrections_append_full_revisions_and_latest_is_authoritative():
     save_wardogs_lobby(app_core.get_db_connection, lobby())
     confirm_wardogs_result(app_core.get_db_connection, 'wd-result', 'admin', complete_win())
     revision1 = get_wardogs_result_history(app_core.get_db_connection, 'wd-result')[0]
-    tie = {'status': 'tie', 'scores': dict(zip(FACTIONS, (30, 30, 10))), 'note': 'Rechecked evidence.'}
+    tie = {'status': 'tie', 'scores': dict(zip(FACTIONS, (30, 30, 10))),
+           'placementGroups': [['valkyra', 'lonestar'], ['manticore']], 'note': 'Rechecked evidence.'}
     result2, duplicate = correct_wardogs_result(
         app_core.get_db_connection, 'wd-result', 'admin', tie,
         expected_revision_id=revision1['revisionId'], correction_reason='Wrong winner was entered.',
@@ -232,6 +376,8 @@ def test_corrections_append_full_revisions_and_latest_is_authoritative():
     assert revision2['supersedesRevisionId'] == revision1['revisionId']
     assert revision2['correctionReason'] == 'Wrong winner was entered.'
     assert revision2['observation']['differsFromObservation'] is True
+    assert revision1['placementGroups'] == [['valkyra'], ['lonestar'], ['manticore']]
+    assert revision2['placementGroups'] == [['valkyra', 'lonestar'], ['manticore']]
     history = get_wardogs_result_history(app_core.get_db_connection, 'wd-result')
     assert [row['revisionNumber'] for row in history] == [1, 2]
     assert history[0]['authoritative'] is False and history[1]['authoritative'] is True
@@ -249,7 +395,8 @@ def test_correction_requires_reason_and_fresh_expected_revision():
     save_wardogs_lobby(app_core.get_db_connection, lobby())
     confirm_wardogs_result(app_core.get_db_connection, 'wd-result', 'admin', complete_win())
     revision1 = get_wardogs_result_history(app_core.get_db_connection, 'wd-result')[0]
-    correction = {'status': 'tie', 'scores': dict(zip(FACTIONS, (5, 5, 0)))}
+    correction = {'status': 'tie', 'scores': dict(zip(FACTIONS, (5, 5, 0))),
+                  'placementGroups': [['valkyra', 'lonestar'], ['manticore']]}
     for reason in ('', '  '):
         try:
             correct_wardogs_result(app_core.get_db_connection, 'wd-result', 'admin', correction,
@@ -272,7 +419,8 @@ def test_identical_correction_retry_is_idempotent_and_conflicting_race_is_stale(
     save_wardogs_lobby(app_core.get_db_connection, lobby())
     confirm_wardogs_result(app_core.get_db_connection, 'wd-result', 'admin', complete_win())
     revision1 = get_wardogs_result_history(app_core.get_db_connection, 'wd-result')[0]
-    correction = {'status': 'tie', 'scores': dict(zip(FACTIONS, (5, 5, 0)))}
+    correction = {'status': 'tie', 'scores': dict(zip(FACTIONS, (5, 5, 0))),
+                  'placementGroups': [['valkyra', 'lonestar'], ['manticore']]}
     kwargs = {'expected_revision_id': revision1['revisionId'], 'correction_reason': 'Audit review.'}
     with ThreadPoolExecutor(max_workers=2) as executor:
         futures = [executor.submit(correct_wardogs_result, app_core.get_db_connection,
@@ -303,7 +451,8 @@ def test_admin_history_api_is_private_and_participant_gets_latest_only(flask_app
     correction_body = {
         'expectedRevisionId': revision_id,
         'correctionReason': 'Reviewed referee sheet.',
-        'result': {'status': 'tie', 'scores': dict(zip(FACTIONS, (10, 10, 5)))},
+        'result': {'status': 'tie', 'scores': dict(zip(FACTIONS, (10, 10, 5))),
+                   'placementGroups': [['valkyra', 'lonestar'], ['manticore']]},
     }
     assert client.post(correction_url, json=correction_body,
                        headers=auth_headers(flask_app, 'alice')).status_code == 403
@@ -320,6 +469,8 @@ def test_admin_history_api_is_private_and_participant_gets_latest_only(flask_app
     assert len(history) == 2 and history[0]['authoritative'] is False and history[1]['authoritative'] is True
     assert history[1]['actorId'] == 'admin'
     assert history[1]['correctionReason'] == 'Reviewed referee sheet.'
+    assert history[0]['placementGroups'] == [['valkyra'], ['lonestar'], ['manticore']]
+    assert history[1]['placementGroups'] == [['valkyra', 'lonestar'], ['manticore']]
 
 
 def test_stale_correction_api_returns_current_revision_for_reload(flask_app, monkeypatch):
@@ -330,7 +481,8 @@ def test_stale_correction_api_returns_current_revision_for_reload(flask_app, mon
     client.post('/api/admin/wardogs/lobbies/wd-result/result', json=complete_win(), headers=headers)
     old_id = get_wardogs_result_history(app_core.get_db_connection, 'wd-result')[0]['revisionId']
     first = {'expectedRevisionId': old_id, 'correctionReason': 'Fix one.',
-             'result': {'status': 'tie', 'scores': dict(zip(FACTIONS, (8, 8, 3)))}}
+             'result': {'status': 'tie', 'scores': dict(zip(FACTIONS, (8, 8, 3))),
+                        'placementGroups': [['valkyra', 'lonestar'], ['manticore']]}}
     client.post('/api/admin/wardogs/lobbies/wd-result/result/corrections', json=first, headers=headers)
     stale = {'expectedRevisionId': old_id, 'correctionReason': 'Another version.',
              'result': {'status': 'void'}}

@@ -14,7 +14,7 @@
 
 ## Frontend representation
 
-Each faction has identity, color, a mock capacity target (not a production rule), optional commander ID, and groups. Each group has a stable ID, type, optional leader ID, and players. A player has a stable ID, display name, CMP registration state, mock Steam identifier when linked, connection and observed faction states, readiness, active/reserve status, and optional sample statistics. Match configuration is display metadata. Results are either unconfirmed or explicitly confirmed **within the mock**; only the latter can produce a ranked preview. Equal scores share a displayed rank; the real tie policy remains open.
+Each faction has identity, color, a mock capacity target (not a production rule), optional commander ID, and groups. Each group has a stable ID, type, optional leader ID, and players. A player has a stable ID, display name, CMP registration state, mock Steam identifier when linked, connection and observed faction states, readiness, active/reserve status, and optional sample statistics. Match configuration is display metadata. Results are either unconfirmed or explicitly confirmed **within the mock**; only the latter can produce a ranked preview. The mock's score-based ranking remains demo-only; production placement is explicitly confirmed and stored with the result.
 
 The mock data source supplies complete frontend domain objects. An optional backend data source now normalizes the authenticated CMP lobby read response into the same shape; components do not receive raw WDRCON objects. Confirmed demo results remain mock-only.
 
@@ -34,7 +34,7 @@ The first enabled queue, `wardogs_beta9`, uses three active players per faction,
 Allocated lobbies now refresh server status and player presence about every 20 seconds. The lobby shows current or last-known server name, map, population, faction alignment, unexpected players, and three live server scores beside the unchanged planned roster. A failed read keeps the last observation with a stale warning; the lobby remains available. Live scores are never an official result.
 ## Results
 
-WARDOGS results are authoritative only after an administrator explicitly confirms them. A recent live score snapshot can prefill the three faction values, but it remains observational evidence; admins can correct it or enter scores when no observation exists. Supported outcomes are completed win (with an explicitly selected winner), tie, incomplete/abandoned, and void/cancelled. Ordinary lobby participants can view the confirmed outcome. Confirmation does not apply ratings or release the allocated server.
+WARDOGS results are authoritative only after an administrator explicitly confirms them. A recent live score snapshot can prefill the three faction values, but it remains observational evidence; admins explicitly enter placement groups as well as scores. Completed results support normal 1st/2nd/3rd placement, ties for first or second, and three-way ties. Scores must agree with the chosen placement; they never define it. Incomplete/abandoned and void/cancelled outcomes have no competitive placement. Ordinary lobby participants can view the confirmed placement and scores. Confirmation does not apply ratings or release the allocated server.
 
 Admins can correct a confirmed result by creating an append-only revision with a required reason. The original confirmation remains in history; the latest revision is authoritative. Participants see the current result and a neutral corrected indicator, not the audit chain.
 
@@ -48,4 +48,4 @@ Solos and premades use the same individual rating rules. Queueing together does 
 
 The only rating inputs are the latest authoritative completed result revision and its recorded placements/tie groups. Unconfirmed, incomplete, abandoned, void and cancelled results do not change ratings. Live server observations never decide a rating. If an administrator corrects a result, the corrected result and later rated matches are recalculated; the old event history remains auditable. Players should see their current WARDOGS rating and the change from each rated match. Tiers and a WARDOGS leaderboard are deferred.
 
-The current result record explicitly represents a unique winner or a tie for the highest score. Before ratings ship, the result contract must also persist authoritative placement groups for every faction, including a tie for second; the rating layer must not infer placement ties from raw scores.
+Every completed result revision stores all three factions in ordered placement groups. Future rating code consumes those groups directly and does not reconstruct placement by sorting scores.

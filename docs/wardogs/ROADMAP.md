@@ -62,6 +62,7 @@ Delivery is **capability-driven**. Missing natural-end or winner evidence does n
 - [ ] Production results presentation with verified outcome source
 - [x] Isolated Hybrid assignment algorithm
 - [x] WARDOGS individual rating policy and replay contract designed
-- [ ] Explicit placement groups in result revisions, then WARDOGS rating calculation, ledger, and deterministic replay
+- [x] Explicit authoritative placement groups on WARDOGS result revisions, including tie for second
+- [ ] WARDOGS rating calculation, immutable ledger, and deterministic replay
 - [ ] Player-facing WARDOGS rating and per-match delta
 - [x] Backend integration (public beta queue, persisted WARDOGS allocation and lobby read with verified manual Join By ID)

@@ -11,31 +11,57 @@ const props = defineProps({
 });
 const emit = defineEmits(['confirm', 'correct']);
 const status = ref('completed_win');
-const winnerFaction = ref('');
 const note = ref('');
 const correctionReason = ref('');
 const correctionMode = ref(false);
 const scores = reactive({ valkyra: '', lonestar: '', manticore: '' });
+const placementRanks = reactive({ valkyra: '', lonestar: '', manticore: '' });
 const successfulObservation = computed(() => Boolean(props.match.observation?.observedAt));
 const observedScores = computed(() => props.match.scores || {});
 const currentRevision = computed(() => props.resultHistory.at(-1) || null);
 const numericScores = computed(() => Object.fromEntries(
   Object.entries(scores).map(([id, value]) => [id, value === '' ? null : Number(value)])
 ));
+const allPlacementsChosen = computed(() => Object.values(placementRanks).every((value) => value !== ''));
 const completeScores = computed(() => Object.values(numericScores.value).every((value) =>
   Number.isInteger(value) && value >= 0
 ));
-const highestScore = computed(() => completeScores.value ? Math.max(...Object.values(numericScores.value)) : null);
-const topScoreCount = computed(() => completeScores.value
-  ? Object.values(numericScores.value).filter((value) => value === highestScore.value).length : 0);
-const outcomeValid = computed(() => status.value === 'completed_win'
-  ? completeScores.value && Boolean(winnerFaction.value) && numericScores.value[winnerFaction.value] === highestScore.value && topScoreCount.value === 1
-  : status.value === 'tie' ? completeScores.value && topScoreCount.value >= 2 : true);
+const placementGroups = computed(() => {
+  const values = Object.values(placementRanks);
+  if (values.some((value) => !['1', '2', '3'].includes(String(value)))) return null;
+  const orderedRanks = [...new Set(values.map(Number))].sort((a, b) => a - b);
+  if (orderedRanks.some((rank, index) => rank !== index + 1)) return null;
+  return orderedRanks.map((rank) => props.match.factions.map((faction) => faction.id)
+    .filter((id) => Number(placementRanks[id]) === rank));
+});
+const placementValid = computed(() => {
+  const groups = placementGroups.value;
+  if (!groups || (status.value === 'completed_win' && groups[0].length !== 1) ||
+      (status.value === 'tie' && groups[0].length < 2)) return false;
+  if (!completeScores.value) return false;
+  return groups.every((group) => group.every((id) => numericScores.value[id] === numericScores.value[group[0]])) &&
+    groups.every((group, index) => index === 0 || numericScores.value[groups[index - 1][0]] > numericScores.value[group[0]]);
+});
+const outcomeValid = computed(() => ['completed_win', 'tie'].includes(status.value)
+  ? completeScores.value && placementValid.value : true);
 const differs = computed(() => successfulObservation.value && completeScores.value &&
   Object.keys(scores).some((id) => numericScores.value[id] !== observedScores.value[id]));
 const resultLabel = (value) => ({
-  completed_win: 'Completed win', tie: 'Tie', incomplete: 'Incomplete / abandoned', void: 'Void / cancelled'
+  completed_win: 'Completed win', tie: 'Tie for first', incomplete: 'Incomplete / abandoned', void: 'Void / cancelled'
 })[value] || value;
+const ordinal = (rank) => ({ 1: '1st', 2: '2nd', 3: '3rd' })[rank] || `${rank}th`;
+const placementRows = (result) => {
+  if (!Array.isArray(result?.placementGroups)) return [];
+  let rank = 1;
+  return result.placementGroups.map((group) => {
+    const row = {
+      rank,
+      factions: group.map((id) => props.match.factions.find((faction) => faction.id === id)?.name || id)
+    };
+    rank += group.length;
+    return row;
+  });
+};
 
 const fillObservedScores = () => {
   for (const id of Object.keys(scores)) {
@@ -56,17 +82,21 @@ const beginCorrection = () => {
   if (!currentRevision.value) return;
   correctionMode.value = true;
   status.value = props.match.result.status;
-  winnerFaction.value = props.match.result.winnerFaction || '';
   note.value = currentRevision.value.note || '';
   correctionReason.value = '';
   for (const id of Object.keys(scores)) {
     const score = props.match.result.scores?.[id];
     scores[id] = Number.isInteger(score) ? String(score) : '';
   }
+  for (const id of Object.keys(placementRanks)) placementRanks[id] = '';
+  (props.match.result.placementGroups || []).forEach((group, index) => {
+    for (const id of group) placementRanks[id] = String(index + 1);
+  });
 };
 const cancelCorrection = () => {
   correctionMode.value = false;
   correctionReason.value = '';
+  for (const id of Object.keys(placementRanks)) placementRanks[id] = '';
   fillObservedScores();
 };
 watch(() => [props.match.id, props.match.result?.revisionNumber], ([lobbyId, revision], [previousLobbyId, previousRevision]) => {
@@ -74,17 +104,17 @@ watch(() => [props.match.id, props.match.result?.revisionNumber], ([lobbyId, rev
       (previousRevision && revision && revision > previousRevision))) {
     correctionMode.value = false;
     correctionReason.value = '';
+    for (const id of Object.keys(placementRanks)) placementRanks[id] = '';
     fillObservedScores();
   }
 });
 const submit = () => {
   if (!outcomeValid.value) return;
-  const result = { status: status.value, winnerFaction: null, scores: null, note: note.value };
-  if (status.value === 'completed_win') {
+  const result = { status: status.value, winnerFaction: null, placementGroups: null, scores: null, note: note.value };
+  if (['completed_win', 'tie'].includes(status.value)) {
     result.scores = numericScores.value;
-    result.winnerFaction = winnerFaction.value;
-  } else if (status.value === 'tie') {
-    result.scores = numericScores.value;
+    result.placementGroups = placementGroups.value;
+    if (status.value === 'completed_win') result.winnerFaction = placementGroups.value[0][0];
   }
   if (correctionMode.value) {
     if (!currentRevision.value || !correctionReason.value.trim()) return;
@@ -103,7 +133,7 @@ const submit = () => {
   <section v-if="canConfirm && (match.result?.status === 'unconfirmed' || correctionMode)" class="window-panel wardogs-result-confirmation" aria-label="Confirm WARDOGS result">
     <div class="window-titlebar"><span>{{ correctionMode ? `Correct result · revision ${(match.result.revisionNumber || 1) + 1}` : 'Referee result confirmation' }}</span><span class="window-titlebar-meta">ADMIN</span></div>
     <p v-if="correctionMode">A new immutable revision will supersede the current result. The previous revision remains in history.</p>
-    <p v-else>Live scores are evidence only. Confirm the final outcome explicitly; CMP will not infer completion or a winner.</p>
+    <p v-else>Live scores are evidence only. Enter the placement explicitly; CMP will not infer completion or ranking from scores.</p>
     <div v-if="successfulObservation" class="wardogs-result-note">
       <strong>Latest live observation · {{ match.observation.state }}</strong>
       <small>{{ match.observation.observedAt }}</small>
@@ -124,18 +154,24 @@ const submit = () => {
         <span>{{ faction.name }} final score</span>
         <input v-model="scores[faction.id]" type="number" min="0" step="1" required inputmode="numeric">
       </label>
+      <label v-for="faction in match.factions" :key="`place-${faction.id}`" class="wardogs-result-field">
+        <span>{{ faction.name }} placement group</span>
+        <select v-model="placementRanks[faction.id]" required>
+          <option disabled value="">Choose placement</option>
+          <option value="1">1st</option>
+          <option value="2">2nd</option>
+          <option value="3">3rd</option>
+        </select>
+      </label>
+      <small>Choose the same place for factions tied together. All three factions must be placed.</small>
     </div>
     <button v-if="correctionMode && successfulObservation && (status === 'completed_win' || status === 'tie')" type="button" @click="useObservedScores">Use latest observed scores</button>
-    <label v-if="status === 'completed_win'" class="wardogs-result-field">
-      <span>Winning faction (choose explicitly)</span>
-      <select v-model="winnerFaction" required>
-        <option disabled value="">Choose a winner</option>
-        <option v-for="faction in match.factions" :key="faction.id" :value="faction.id">{{ faction.name }}</option>
-      </select>
-    </label>
     <p v-if="differs" class="wardogs-result-note">Submitted final scores differ from the latest observed server scores.</p>
-    <p v-if="completeScores && !outcomeValid" class="wardogs-result-note">
-      {{ status === 'tie' ? 'A tie needs at least two factions to share the highest submitted score.' : 'The selected winner must have the unique highest submitted score.' }}
+    <p v-if="completeScores && ['completed_win', 'tie'].includes(status) && placementGroups && !placementValid" class="wardogs-result-note">
+      Placement and scores must agree. Tied factions need equal scores, and each higher placement group needs a higher score.
+    </p>
+    <p v-if="['completed_win', 'tie'].includes(status) && allPlacementsChosen && !placementGroups" class="wardogs-result-note">
+      Placement groups must use consecutive places with no gaps.
     </p>
     <label v-if="correctionMode" class="wardogs-result-field">
       <span>Required correction reason</span>
@@ -155,8 +191,13 @@ const submit = () => {
   <section v-else-if="match.result?.status !== 'unconfirmed'" class="window-panel wardogs-confirmed-result" aria-label="Referee confirmed result">
     <div class="window-titlebar"><span>Referee confirmed result</span><span class="window-titlebar-meta">AUTHORITATIVE · REVISION {{ match.result.revisionNumber }}</span></div>
     <strong>{{ resultLabel(match.result.status) }}</strong>
-    <p v-if="match.result.status === 'completed_win'">{{ match.factions.find((faction) => faction.id === match.result.winnerFaction)?.name }} won.</p>
-    <p v-else-if="match.result.status === 'tie'">The referee confirmed a tie.</p>
+    <div v-if="placementRows(match.result).length" class="wardogs-confirmed-placement" aria-label="Confirmed placement">
+      <div v-for="row in placementRows(match.result)" :key="`${row.rank}-${row.factions.join('-')}`">
+        <strong>{{ ordinal(row.rank) }}</strong> {{ row.factions.join(' / ') }}
+      </div>
+    </div>
+    <p v-else-if="match.result.placementUnavailable" class="wardogs-result-note">Placement is unavailable for this older result and needs administrator review.</p>
+    <p v-else-if="match.result.status === 'incomplete' || match.result.status === 'void'">No competitive placement was recorded.</p>
     <p v-if="match.result.corrected">Result corrected by an administrator.</p>
     <div v-if="match.result.scores" class="wardogs-result-score-summary">
       <span v-for="faction in match.factions" :key="faction.id">{{ faction.name }}: {{ match.result.scores[faction.id] }}</span>
@@ -172,7 +213,12 @@ const submit = () => {
       <div><strong>Revision {{ revision.revisionNumber }} · {{ revision.revisionType === 'confirmation' ? 'Original confirmation' : 'Correction' }}</strong>
         <span v-if="revision.authoritative" class="wardogs-current-revision">CURRENT AUTHORITATIVE</span></div>
       <span>{{ resultLabel(revision.status) }}</span>
-      <span v-if="revision.winnerFaction">Winner: {{ match.factions.find((faction) => faction.id === revision.winnerFaction)?.name }}</span>
+      <div v-if="placementRows(revision).length" class="wardogs-confirmed-placement">
+        <div v-for="row in placementRows(revision)" :key="`${revision.revisionId}-${row.rank}-${row.factions.join('-')}`">
+          <strong>{{ ordinal(row.rank) }}</strong> {{ row.factions.join(' / ') }}
+        </div>
+      </div>
+      <span v-else-if="revision.placementUnavailable" class="wardogs-result-note">Placement unavailable; review required.</span>
       <span v-for="faction in match.factions" v-if="revision.scores" :key="faction.id">{{ faction.name }}: {{ revision.scores[faction.id] }}</span>
       <small>{{ revision.confirmedAt }} · {{ revision.actorId }}</small>
       <p v-if="revision.note">{{ revision.note }}</p>
