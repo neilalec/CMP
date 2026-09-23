@@ -6,4 +6,4 @@ This directory records durable product decisions and the implementation roadmap.
 - `docs/wardogs/` holds product decisions and work still to be done.
 - [`frontend/src/features/wardogs/`](../../frontend/src/features/wardogs/) is the production-shaped frontend feature. Its current data source is local mock data; the route remains `/prototype/wardogs`.
 
-The frontend model is ready to represent three faction rosters. The backend now has a small [normalized observation contract](../../backend/services/game_server_contracts.py) and an isolated [read-only WDRCON client](../../backend/integrations/wardogs/client.py); neither is wired to CMP lobbies or establishes a WARDOGS match-completion signal. Development can proceed with a manual/referee result path while lifecycle automation remains unverified.
+The frontend supports three faction rosters and an authenticated CMP lobby read. Allocated WARDOGS lobbies use the verified manual Join By ID flow; lifecycle and result automation remain unverified. See the [capability matrix](CAPABILITIES.md) for current real-server evidence.

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import replace
 from datetime import datetime, timezone
 
@@ -14,6 +15,7 @@ from .errors import WDRCONPayloadError
 
 
 ROUTES = {
+    "server_join_id": "GET /v1/server-id",
     "server_status": "GET /v1/status",
     "players": "GET /v1/players",
     "steam_identity": "GET /v1/players",
@@ -28,6 +30,8 @@ ROUTES = {
     "end_match": "POST /v1/match/end",
     "kick_player": "POST /v1/players/{id}/kick",
 }
+
+_JOIN_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 
 
 def utc_now() -> datetime:
@@ -148,6 +152,18 @@ def parse_status(payload: dict, *, observed_at: datetime | None = None) -> Serve
         rotation_next_index=_integer(rotation.get("nextIndex"), "rotation.nextIndex"),
         score_tick=tick,
     )
+
+
+def parse_server_join_id(payload: dict) -> str:
+    """Normalize the player-facing ID without assuming a UUID version/format."""
+    body = _object(payload, "server ID response")
+    value = body.get("serverId")
+    if not isinstance(value, str):
+        raise WDRCONPayloadError("serverId must be a string")
+    value = value.strip()
+    if not value or len(value) > 128 or not _JOIN_ID.fullmatch(value):
+        raise WDRCONPayloadError("serverId is invalid")
+    return value
 
 
 def parse_players(payload: dict, *, observed_at: datetime | None = None) -> PlayerSnapshot:

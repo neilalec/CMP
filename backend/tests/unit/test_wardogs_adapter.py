@@ -54,6 +54,7 @@ def adapter_with_requests(payloads=None):
     payloads = payloads or {
         "/v1/capabilities": CAPABILITIES, "/v1/status": STATUS,
         "/v1/players": PLAYERS, "/v1/rotation": ROTATION,
+        "/v1/server-id": {"serverId": "server-id-from-adapter"},
     }
 
     def opener(request, timeout):
@@ -74,9 +75,11 @@ def test_normalized_reads_and_capability_gates():
     assert adapter.get_status().map_id == "Bakurani"
     assert adapter.get_players().players[0].steam_id == "76561198000000001"
     assert adapter.get_rotation().entries[0].map_id == "Bakurani"
+    assert adapter.get_join_id() == "server-id-from-adapter"
     assert adapter.supports("server_status")
     assert adapter.supports("players")
     assert adapter.supports("rotation")
+    assert adapter.supports("server_join_id")
     assert not adapter.supports("broadcast")
     assert not adapter.supports("unknown_name")
     assert {call.get_method() for call in calls} == {"GET"}

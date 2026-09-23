@@ -49,6 +49,9 @@ class WardogsAdapter:
     def get_rotation(self):
         return self._read(self._client.fetch_rotation)
 
+    def get_join_id(self) -> str:
+        return self._read(self._client.fetch_server_join_id)
+
     def observe_lifecycle(self):
         return self._client.observe_lifecycle()
 

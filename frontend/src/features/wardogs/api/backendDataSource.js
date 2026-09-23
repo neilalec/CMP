@@ -19,7 +19,9 @@ export const normalizeBackendMatch = (payload) => {
     join: {
       state: match.join?.state || (match.serverId ? 'server_allocated_join_unavailable' : 'waiting_for_server'),
       serverName: match.join?.serverName || null,
-      instructions: match.join?.instructions || null,
+      joinId: typeof match.join?.joinId === 'string' ? match.join.joinId : null,
+      instructions: Array.isArray(match.join?.instructions)
+        ? match.join.instructions.filter((step) => typeof step === 'string') : null,
       directJoinUrl: match.join?.directJoinUrl || null
     },
     server: match.server || { state: 'none', label: 'No server observation yet' },

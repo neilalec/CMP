@@ -22,7 +22,7 @@ class CapabilityState(str, Enum):
 
 READ_CAPABILITIES = (
     "server_status", "players", "steam_identity", "faction_assignment_read",
-    "faction_scores", "rotation", "map_config",
+    "faction_scores", "rotation", "map_config", "server_join_id",
 )
 CONTROL_CAPABILITIES = (
     "broadcast", "faction_assignment_write", "map_change", "restart_match",

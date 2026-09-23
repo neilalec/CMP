@@ -18,7 +18,7 @@ CAPABILITIES = {
     "apiVersion": 1, "build": "++Wardogs+Live-CL-501228",
     "limits": {"maxBodyBytes": 65536, "maxRequestsPerMinutePerIp": 600},
     "routes": [
-        "GET /v1/status", "GET /v1/players", "GET /v1/rotation",
+        "GET /v1/status", "GET /v1/players", "GET /v1/rotation", "GET /v1/server-id",
         "POST /v1/match/restart", "PATCH /v1/players/{id}",
         "GET /v1/some-new-route",
     ],
@@ -129,6 +129,7 @@ def test_client_uses_bearer_gets_only_and_marks_successful_reads_observed():
     payloads = {
         "/v1/capabilities": CAPABILITIES, "/v1/status": STATUS,
         "/v1/players": PLAYERS, "/v1/rotation": ROTATION,
+        "/v1/server-id": {"serverId": "wardogs-test-join-id"},
     }
     requests = []
 
@@ -150,9 +151,37 @@ def test_client_uses_bearer_gets_only_and_marks_successful_reads_observed():
         assert states.state_of(name) == CapabilityState.OBSERVED
     assert states.state_of("restart_match") == CapabilityState.ADVERTISED
     assert states.state_of("authoritative_winner") == CapabilityState.UNKNOWN
+    assert client.fetch_server_join_id() == "wardogs-test-join-id"
+    assert client.capability_snapshot.state_of("server_join_id") == CapabilityState.OBSERVED
     assert {request.get_method() for request, _ in requests} == {"GET"}
     assert all(request.get_header("Authorization") == "Bearer secret-value" for request, _ in requests)
     assert all(timeout == 3 for _, timeout in requests)
+
+
+@pytest.mark.parametrize("payload", [
+    {}, {"serverId": ""}, {"serverId": "   "}, {"serverId": 123},
+    {"serverId": "contains spaces"}, [],
+])
+def test_server_join_id_rejects_missing_blank_or_malformed_values(payload):
+    client = WDRCONClient("https://example.test", "secret",
+                          opener=lambda *_args, **_kwargs: FakeResponse(payload))
+    with pytest.raises(WDRCONError):
+        client.fetch_server_join_id()
+
+
+def test_server_join_id_read_uses_bearer_get_and_does_not_leak_credentials():
+    seen = []
+
+    def opener(request, timeout):
+        seen.append((request, timeout))
+        return FakeResponse({"serverId": "server-id-from-read"})
+
+    client = WDRCONClient("https://example.test", "private-token", opener=opener)
+    assert client.fetch_server_join_id() == "server-id-from-read"
+    request, _ = seen[0]
+    assert request.full_url == "https://example.test/v1/server-id"
+    assert request.get_method() == "GET"
+    assert request.get_header("Authorization") == "Bearer private-token"
 
 
 def test_empty_roster_does_not_verify_identity_or_faction_fields():

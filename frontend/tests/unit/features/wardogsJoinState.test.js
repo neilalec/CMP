@@ -22,11 +22,37 @@ describe('WARDOGS join state', () => {
 
   test('manual instructions and direct action require explicit states', () => {
     const manual = render({ state: 'manual_join_available',
-      serverName: 'Test server', instructions: 'Use the verified server browser listing.' });
-    expect(manual.text()).toContain('Use the verified server browser listing.');
+      serverName: 'Test server', joinId: 'server-id-from-test',
+      instructions: ['Open WARDOGS.', 'Choose Join By ID.', 'Enter the Join ID.',
+        'Select Lookup.', 'Join the resolved server.'] });
+    expect(manual.text()).toContain('Test server');
+    expect(manual.text()).toContain('server-id-from-test');
+    expect(manual.text()).toContain('Choose Join By ID.');
+    expect(manual.text()).toContain('Select Lookup.');
+    expect(manual.find('button').text()).toBe('Copy Join ID');
     expect(manual.find('a').exists()).toBe(false);
     const direct = render({ state: 'direct_join_available',
       serverName: 'Test server', directJoinUrl: 'steam://connect/127.0.0.1:1234' });
     expect(direct.find('a').attributes('href')).toBe('steam://connect/127.0.0.1:1234');
+  });
+
+  test('join ID remains usable when server name is unavailable', () => {
+    const manual = render({ state: 'manual_join_available', joinId: 'test-id',
+      instructions: ['Select Join By ID.'] });
+    expect(manual.text()).toContain('WARDOGS server allocated');
+    expect(manual.text()).toContain('test-id');
+    expect(manual.find('a').exists()).toBe(false);
+  });
+
+  test('copy control copies the dynamic Join ID', async () => {
+    const writeText = jest.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText }, configurable: true
+    });
+    const manual = render({ state: 'manual_join_available', joinId: 'copy-this-id',
+      instructions: [] });
+    await manual.find('button').trigger('click');
+    expect(writeText).toHaveBeenCalledWith('copy-this-id');
+    expect(manual.text()).toContain('Join ID copied.');
   });
 });

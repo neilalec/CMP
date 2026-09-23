@@ -54,6 +54,26 @@ describe('WARDOGS backend data source', () => {
     expect(factionSummary(match.factions[0])).toMatchObject({ active: 1, reserves: 1, connected: 1, ready: 0, aligned: 0 });
   });
 
+  test('normalizes only the manual Join By ID fields', () => {
+    const payload = backendPayload();
+    payload.match.serverId = 7;
+    payload.match.join = {
+      state: 'manual_join_available', serverName: 'Observed server',
+      joinId: 'dynamic-id-for-test',
+      instructions: ['Open WARDOGS.', 'Choose Join By ID.', 'Enter the Join ID.',
+        'Select Lookup.', 'Join the resolved server.'],
+      directJoinUrl: null, adminMetadata: 'must not reach the component'
+    };
+    const match = normalizeBackendMatch(payload);
+    expect(match.join).toEqual({
+      state: 'manual_join_available', serverName: 'Observed server',
+      joinId: 'dynamic-id-for-test',
+      instructions: ['Open WARDOGS.', 'Choose Join By ID.', 'Enter the Join ID.',
+        'Select Lookup.', 'Join the resolved server.'],
+      directJoinUrl: null
+    });
+  });
+
   test('preserves an unclassified premade group without relabeling it', () => {
     const payload = backendPayload();
     payload.match.factions[0].groups[0].type = 'premade';

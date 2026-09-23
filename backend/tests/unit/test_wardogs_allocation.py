@@ -104,7 +104,7 @@ def test_waiting_and_join_unavailable_states_never_expose_admin_details(monkeypa
     lobby = get_wardogs_lobby(app_core.get_db_connection, 'wd-join')
     waiting = build_wardogs_read_model(lobby)['join']
     assert waiting == {'state': 'waiting_for_server', 'serverName': None,
-                       'instructions': None, 'directJoinUrl': None}
+                       'joinId': None, 'instructions': None, 'directJoinUrl': None}
     server_id = _server(monkeypatch, 'Visible WARDOGS server')
     _allocate('wd-join')
     lobby = get_wardogs_lobby(app_core.get_db_connection, 'wd-join')

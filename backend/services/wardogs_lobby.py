@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from collections import Counter
 from datetime import datetime, timezone
 
@@ -25,6 +26,7 @@ GROUP_TYPES = {"solo", "premade", "squad", "clan"}
 ROSTER_STATUSES = {"active", "reserve"}
 PHASES = {"assembling", "live"}
 OBSERVATION_MAX_AGE_SECONDS = 60
+_JOIN_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 
 
 def init_wardogs_lobby_tables(get_db_connection):
@@ -202,14 +204,17 @@ def _iso(value):
     return value.isoformat() if value is not None else None
 
 
-def build_wardogs_join_state(lobby, server=None):
-    """Only explicitly verified player join strategies may add instructions later."""
+def build_wardogs_join_state(lobby, server=None, *, join_id=None, observed_server_name=None):
+    """Expose only the verified manual Join By ID workflow."""
     if lobby.get('serverId') is None:
-        return {'state': 'waiting_for_server', 'serverName': None,
+        return {'state': 'waiting_for_server', 'serverName': None, 'joinId': None,
                 'instructions': None, 'directJoinUrl': None}
     name = None
     if server and server.get('game_type') == 'wardogs':
-        candidate = str((server.get('metadata') or {}).get('serverInfo', {}).get('serverName')
+        metadata = server.get('metadata') or {}
+        server_info = metadata.get('serverInfo') if isinstance(metadata, dict) else None
+        server_info = server_info if isinstance(server_info, dict) else {}
+        candidate = str(observed_server_name or server_info.get('serverName')
                         or server.get('display_name') or '').strip()
         secret_ref = server.get('wdrcon_secret_env')
         forbidden = (server.get('bridge_url'), secret_ref,
@@ -217,8 +222,26 @@ def build_wardogs_join_state(lobby, server=None):
         if (candidate and len(candidate) <= 128 and not any(ord(char) < 32 for char in candidate)
                 and not any(value and str(value).casefold() in candidate.casefold() for value in forbidden)):
             name = candidate
+    normalized_join_id = join_id.strip() if isinstance(join_id, str) else None
+    if normalized_join_id and (len(normalized_join_id) > 128 or not _JOIN_ID.fullmatch(normalized_join_id)):
+        normalized_join_id = None
+    if normalized_join_id:
+        return {
+            'state': 'manual_join_available', 'serverName': name,
+            'joinId': normalized_join_id,
+            'instructions': [
+                'Open WARDOGS.',
+                'Select Deploy.',
+                'Open Community.',
+                'Choose Join By ID.',
+                'Enter the Join ID.',
+                'Select Lookup.',
+                'Join the resolved server.',
+            ],
+            'directJoinUrl': None,
+        }
     return {'state': 'server_allocated_join_unavailable', 'serverName': name,
-            'instructions': None, 'directJoinUrl': None}
+            'joinId': None, 'instructions': None, 'directJoinUrl': None}
 
 
 def build_wardogs_read_model(lobby, *, players: PlayerSnapshot | None = None,
@@ -310,7 +333,9 @@ def build_wardogs_read_model(lobby, *, players: PlayerSnapshot | None = None,
         "id": lobby["id"], "source": "cmp-backend", "phase": lobby["phase"],
         "label": lobby.get("label") or "WARDOGS lobby", "serverId": lobby.get("serverId"),
         "join": build_wardogs_join_state(lobby),
-        "server": {"state": observation_state, "label": {
+        "server": {"state": observation_state,
+                   "name": status.server_name if status and observation_state == "fresh" else None,
+                   "label": {
             "none": "No server observation yet", "fresh": "Server observed",
             "stale": "Server observation stale"}[observation_state]},
         "observation": {"state": observation_state, "observedAt": _iso(observed_at)},

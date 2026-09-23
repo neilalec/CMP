@@ -7,6 +7,7 @@ import app_core
 import wiring
 from flask_jwt_extended import create_access_token
 
+from services.game_server_adapter import AdapterError, AdapterErrorKind
 from services.game_server_contracts import PlayerSnapshot, ServerPlayer, ServerStatus
 from services.wardogs_assignment import WardogsAssignmentConfig
 from services.wardogs_finalization import finalize_wardogs_accepted_match
@@ -71,16 +72,29 @@ def test_associated_server_reads_only_normalized_data_and_hides_credentials(flas
     at = datetime.now(timezone.utc)
     class FakeAdapter:
         def get_status(self):
-            return ServerStatus(at, map_id=f"Bakurani-{credential}", current_players=2, max_players=100)
+            return ServerStatus(at, server_name="Live WARDOGS display", map_id=f"Bakurani-{credential}", current_players=2, max_players=100)
         def get_players(self):
             return PlayerSnapshot((ServerPlayer("76561198000000001", "server-name", "Valkyra"),
                                    ServerPlayer("76561198000000099", credential, "Lonestar")), at)
+        def get_join_id(self):
+            return "dynamic-server-join-id"
     monkeypatch.setattr(wiring, "get_game_server_adapter_for_server", lambda _server: FakeAdapter())
     response = flask_app.test_client().get("/api/wardogs/lobbies/wd-api", headers=headers(flask_app, "alice"))
     assert response.status_code == 200
     body = response.get_json()["match"]
     assert body["serverId"] == 7
-    assert body['join']['state'] == 'server_allocated_join_unavailable'
+    assert body['join']['state'] == 'manual_join_available'
+    assert body['join']['serverName'] == 'Live WARDOGS display'
+    assert body['join']['joinId'] == 'dynamic-server-join-id'
+    assert body['join']['instructions'] == [
+        'Open WARDOGS.',
+        'Select Deploy.',
+        'Open Community.',
+        'Choose Join By ID.',
+        'Enter the Join ID.',
+        'Select Lookup.',
+        'Join the resolved server.',
+    ]
     assert body['join']['directJoinUrl'] is None
     assert body["factions"][0]["groups"][0]["players"][0]["connected"] is True
     assert body["factions"][0]["groups"][0]["players"][0]["ready"] is False
@@ -88,6 +102,33 @@ def test_associated_server_reads_only_normalized_data_and_hides_credentials(flas
     assert credential not in text and "CMP_WARDOGS_RCON_PRIVATE" not in text
     assert "bridge_url" not in text and "server-name" not in text
     assert body["unexpectedPlayers"][0]["displayName"] == "[REDACTED]"
+
+
+def test_join_id_read_failure_keeps_associated_server_allocated(flask_app, monkeypatch):
+    save_wardogs_lobby(app_core.get_db_connection, lobby(server_id=7))
+    monkeypatch.setattr(backend_app, "get_server_by_id", lambda _id: {
+        "id": 7, "game_type": "wardogs", "current_lobby_id": "wd-api",
+        "display_name": "Configured WARDOGS server",
+    })
+    at = datetime.now(timezone.utc)
+
+    class JoinReadFails:
+        def get_status(self):
+            return ServerStatus(at, server_name="Observed server")
+        def get_players(self):
+            return PlayerSnapshot((), at)
+        def get_join_id(self):
+            raise AdapterError(AdapterErrorKind.TRANSPORT_FAILURE)
+
+    monkeypatch.setattr(wiring, "get_game_server_adapter_for_server", lambda _server: JoinReadFails())
+    response = flask_app.test_client().get(
+        "/api/wardogs/lobbies/wd-api", headers=headers(flask_app, "alice"))
+    assert response.status_code == 200
+    body = response.get_json()["match"]
+    assert body["serverId"] == 7
+    assert body["join"]["state"] == "server_allocated_join_unavailable"
+    assert body["join"]["joinId"] is None
+    assert body["join"]["instructions"] is None
 
 
 def test_unknown_associated_server_fails_safely(flask_app, monkeypatch):

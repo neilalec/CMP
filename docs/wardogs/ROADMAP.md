@@ -39,7 +39,7 @@ Delivery is **capability-driven**. Missing natural-end or winner evidence does n
 - [x] Game-aware registry records, read-only health probe, and Squad allocation isolation
 - [x] Transactional WARDOGS server allocation and persisted lobby/server association
 - [x] Normalized waiting and allocated-without-join states
-- [ ] Verified player join mechanism and instructions (no reliable gameplay endpoint established)
+- [x] Verified manual Join By ID support (`GET /v1/server-id`; live client lookup and player join verified)
 - [x] Isolated production-shaped read-only WDRCON client for verified endpoints
 - [x] WARDOGS adapter skeleton with per-build capability gating (read-only)
 - [x] WARDOGS backend lobby/read model with CMP-owned roster persistence and observation reconciliation
@@ -61,4 +61,4 @@ Delivery is **capability-driven**. Missing natural-end or winner evidence does n
 - [ ] Production results presentation with verified outcome source
 - [x] Isolated Hybrid assignment algorithm
 - [ ] Rating policy
-- [~] Backend integration (public beta queue, persisted WARDOGS allocation and lobby read; verified player join remains open)
+- [x] Backend integration (public beta queue, persisted WARDOGS allocation and lobby read with verified manual Join By ID)

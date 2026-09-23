@@ -364,7 +364,16 @@ def register_http_routes(app):
                 # not a reason to lose the CMP-owned roster.
                 pass
         match = observe_wardogs_lobby(lobby, adapter)
-        match['join'] = build_wardogs_join_state(lobby, server if server_id is not None else None)
+        join_id = None
+        if adapter is not None and server_id is not None:
+            try:
+                join_id = adapter.get_join_id()
+            except AdapterError:
+                # Join lookup is an optional read; it never changes allocation.
+                pass
+        match['join'] = build_wardogs_join_state(
+            lobby, server if server_id is not None else None,
+            join_id=join_id, observed_server_name=match.get('server', {}).get('name'))
         if server_id is not None:
             secret = os.environ.get(server.get('wdrcon_secret_env') or '')
             if secret:

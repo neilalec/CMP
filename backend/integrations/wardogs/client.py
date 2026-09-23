@@ -16,6 +16,7 @@ from .errors import WDRCONError
 from .parsing import (
     mark_read_observed, parse_capabilities, parse_players, parse_rotation,
     parse_status, utc_now,
+    parse_server_join_id,
 )
 
 
@@ -136,6 +137,14 @@ class WDRCONClient:
             evidence="GET /v1/rotation",
         )
         return rotation
+
+    def fetch_server_join_id(self) -> str:
+        join_id = parse_server_join_id(self._get("/v1/server-id"))
+        self._capabilities = mark_read_observed(
+            self._capabilities, ("server_join_id",), observed_at=utc_now(),
+            evidence="GET /v1/server-id; returned ID resolved in live WARDOGS Join By ID and player joined",
+        )
+        return join_id
 
     def observe_lifecycle(self) -> LifecycleObservation:
         # No verified WDRCON read currently establishes start/end or finality.
