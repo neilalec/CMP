@@ -49,6 +49,7 @@ const differs = computed(() => successfulObservation.value && completeScores.val
 const resultLabel = (value) => ({
   completed_win: 'Completed win', tie: 'Tie for first', incomplete: 'Incomplete / abandoned', void: 'Void / cancelled'
 })[value] || value;
+const signedDelta = (value) => value > 0 ? `+${value}` : value < 0 ? `−${Math.abs(value)}` : '0';
 const ordinal = (rank) => ({ 1: '1st', 2: '2nd', 3: '3rd' })[rank] || `${rank}th`;
 const placementRows = (result) => {
   if (!Array.isArray(result?.placementGroups)) return [];
@@ -130,6 +131,12 @@ const submit = () => {
 </script>
 
 <template>
+  <section v-if="match.rating" class="window-panel wardogs-player-rating" aria-label="Your WARDOGS rating">
+    <div class="window-titlebar"><span>Your WARDOGS rating</span></div>
+    <strong>WARDOGS rating: {{ match.rating.currentRating }}</strong>
+    <p v-if="match.rating.match">This match: {{ signedDelta(match.rating.match.delta) }}
+      ({{ match.rating.match.before }} → {{ match.rating.match.after }})</p>
+  </section>
   <section v-if="canConfirm && (match.result?.status === 'unconfirmed' || correctionMode)" class="window-panel wardogs-result-confirmation" aria-label="Confirm WARDOGS result">
     <div class="window-titlebar"><span>{{ correctionMode ? `Correct result · revision ${(match.result.revisionNumber || 1) + 1}` : 'Referee result confirmation' }}</span><span class="window-titlebar-meta">ADMIN</span></div>
     <p v-if="correctionMode">A new immutable revision will supersede the current result. The previous revision remains in history.</p>

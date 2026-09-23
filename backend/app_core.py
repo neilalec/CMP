@@ -194,6 +194,8 @@ def init_database():
     init_runtime_state_tables_service(get_db_connection)
     init_wardogs_lobby_tables(get_db_connection)
     init_wardogs_result_tables(get_db_connection)
+    from services.wardogs_rating import init_wardogs_rating_tables
+    init_wardogs_rating_tables(get_db_connection)
 
 
 def get_secret_key():

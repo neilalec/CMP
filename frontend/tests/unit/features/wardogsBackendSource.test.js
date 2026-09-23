@@ -39,6 +39,21 @@ const backendPayload = () => ({
 describe('WARDOGS backend data source', () => {
   beforeEach(() => setActivePinia(createPinia()));
 
+  test('shows the current WARDOGS rating and signed match delta only when rated', () => {
+    const payload = backendPayload();
+    payload.match.result = { status: 'completed_win', revisionNumber: 1,
+      placementGroups: [['valkyra'], ['lonestar'], ['manticore']] };
+    payload.match.rating = { currentRating: 1024, match: { before: 1000, delta: 24, after: 1024 } };
+    const rated = mount(WardogsResultConfirmation, { props: { match: normalizeBackendMatch(payload) } });
+    expect(rated.text()).toContain('WARDOGS rating: 1024');
+    expect(rated.text()).toContain('This match: +24');
+    payload.match.rating = { currentRating: 1000, match: null };
+    const skipped = mount(WardogsResultConfirmation, { props: { match: normalizeBackendMatch(payload) } });
+    expect(skipped.text()).toContain('WARDOGS rating: 1000');
+    expect(skipped.text()).not.toContain('This match:');
+    expect(skipped.text()).not.toContain('Elo');
+  });
+
   test('normalizes backend payload into the existing grouped domain without result inference', () => {
     const match = normalizeBackendMatch(backendPayload());
     expect(match.serverId).toBeNull();

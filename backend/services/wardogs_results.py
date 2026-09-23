@@ -6,6 +6,7 @@ import json
 from datetime import datetime, timezone
 
 from services.wardogs_lobby import FACTIONS, FACTION_IDS, get_wardogs_lobby
+from services.wardogs_rating import apply_result_revision
 
 
 RESULT_STATUSES = {'completed_win', 'tie', 'incomplete', 'void'}
@@ -344,6 +345,7 @@ def confirm_wardogs_result(get_db_connection, lobby_id, confirmed_by, payload,
                          actor_id=confirmed_by, timestamp=timestamp, correction_reason=None,
                          observed_scores=observed, observed_at=observed_at,
                          differs=differs, request_json=request_json)
+        apply_result_revision(conn, lobby_id, now=now)
         row = _current_row(conn, lobby_id)
         return _public_revision(row), False
 
@@ -385,5 +387,6 @@ def correct_wardogs_result(get_db_connection, lobby_id, revised_by, payload,
                          submission=submission, actor_id=revised_by, timestamp=timestamp,
                          correction_reason=correction_reason, observed_scores=observed,
                          observed_at=observed_at, differs=differs, request_json=request_json)
+        apply_result_revision(conn, lobby_id, now=now)
         row = _current_row(conn, lobby_id)
         return _public_revision(row, corrected=True), False

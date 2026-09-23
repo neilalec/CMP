@@ -55,6 +55,7 @@ export const normalizeBackendMatch = (payload) => {
     }),
     scores: Object.fromEntries(FACTION_IDS.map((id) => [id, match.scores?.[id] ?? null])),
     result: match.result || { status: 'unconfirmed' },
+    rating: match.rating || null,
     observations: match.observations || [],
     unexpectedPlayers: match.unexpectedPlayers || []
   };

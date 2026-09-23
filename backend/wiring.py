@@ -21,6 +21,7 @@ from services.wardogs_results import (
     StaleWardogsRevisionError, confirm_wardogs_result, correct_wardogs_result,
     get_wardogs_result, get_wardogs_result_history,
 )
+from services.wardogs_rating import get_player_rating, get_rating_skip
 from services.steam_auth import (
     build_frontend_callback_url,
     build_steam_login_url,
@@ -373,6 +374,7 @@ def register_http_routes(app):
                 pass
         match = read_wardogs_lobby(lobby)
         match['result'] = get_wardogs_result(backend.get_db_connection, lobby_id)
+        match['rating'] = get_player_rating(backend.get_db_connection, username, lobby_id)
         join_id = get_or_fetch_wardogs_join_id(lobby, adapter)
         match['join'] = build_wardogs_join_state(
             lobby, server if server_id is not None else None,
@@ -429,7 +431,8 @@ def register_http_routes(app):
         revisions = get_wardogs_result_history(backend.get_db_connection, lobby_id)
         if not revisions:
             return jsonify({'success': False, 'message': 'WARDOGS lobby not found'}), 404
-        return jsonify({'success': True, 'revisions': revisions})
+        return jsonify({'success': True, 'revisions': revisions,
+                        'ratingSkipReason': get_rating_skip(backend.get_db_connection, lobby_id)})
 
     @app.route('/api/admin/wardogs/lobbies/<lobby_id>/result/corrections', methods=['POST'])
     @jwt_required()
