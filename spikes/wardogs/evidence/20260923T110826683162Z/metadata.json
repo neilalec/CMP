@@ -1,0 +1,49 @@
+{
+  "advertisedRateLimits": {
+    "maxBodyBytes": 65536,
+    "maxRequestsPerMinutePerIp": 600
+  },
+  "advertisedRoutes": [
+    "DELETE /v1/bans/{steamId}",
+    "GET /v1/audit",
+    "GET /v1/bans",
+    "GET /v1/capabilities",
+    "GET /v1/catalog/experiences",
+    "GET /v1/catalog/lightings",
+    "GET /v1/catalog/maps",
+    "GET /v1/catalog/maps/{map}/alternators",
+    "GET /v1/catalog/maps/{map}/experiences",
+    "GET /v1/config",
+    "GET /v1/health",
+    "GET /v1/players",
+    "GET /v1/reserved-slots",
+    "GET /v1/rotation",
+    "GET /v1/server-id",
+    "GET /v1/sponsor",
+    "GET /v1/status",
+    "PATCH /v1/players/{id}",
+    "POST /v1/bans",
+    "POST /v1/broadcast",
+    "POST /v1/config/validate",
+    "POST /v1/match/end",
+    "POST /v1/match/map",
+    "POST /v1/match/restart",
+    "POST /v1/players/{id}/kick",
+    "POST /v1/players/{id}/kill",
+    "POST /v1/players/{id}/message",
+    "PUT /v1/config",
+    "PUT /v1/world/lighting"
+  ],
+  "apiVersion": "1",
+  "commandLineOptions": {
+    "interval": 5.0,
+    "samples": 0
+  },
+  "origin": "http://199.115.74.113:9006",
+  "recorderPollingIntervalSeconds": 5.0,
+  "serverBuild": "++Wardogs+Live-CL-501228",
+  "serverId": {
+    "serverId": "5f62a737-4e04-4113-895a-8dc5806247b8"
+  },
+  "utcStarted": "2026-09-23T11:08:26.686202Z"
+}

@@ -20,6 +20,10 @@ function isLocalDevRconOffline(server) {
   return process.env.CMP_DEV_MODE === '1' && (!server.rcon?.connected || !server.rcon?.loggedin);
 }
 
+function isLogParserDisabled(server) {
+  return server.options.disableLogParser || process.env.CMP_DEV_MODE === '1';
+}
+
 function formatLocalDevConnectionError(err) {
   return process.env.CMP_DEV_MODE === '1' && err?.code === 'ECONNREFUSED' ? err.message : err;
 }
@@ -116,8 +120,9 @@ export default class SquadServer extends EventEmitter {
     await this.updateLayerInformation();
     await this.updateA2SInformation();
 
-    if (this.options.disableLogParser) {
-      Logger.verbose('SquadServer', 1, 'Log parser disabled by config; skipping log watch.');
+    if (isLogParserDisabled(this)) {
+      const source = process.env.CMP_DEV_MODE === '1' ? 'local dev mode' : 'config';
+      Logger.verbose('SquadServer', 1, `Log parser disabled by ${source}; skipping log watch.`);
     } else {
       await this.logParser.watch();
     }
@@ -129,7 +134,7 @@ export default class SquadServer extends EventEmitter {
 
   async unwatch() {
     await this.rcon.disconnect();
-    if (!this.options.disableLogParser) {
+    if (!isLogParserDisabled(this)) {
       await this.logParser.unwatch();
     }
   }

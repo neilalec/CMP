@@ -17,6 +17,10 @@ export function useAppSession({
   queueStore,
   groupStore
 }) {
+  const isSessionlessRoute = () => (
+    route.meta?.prototype === true
+    || (typeof window !== 'undefined' && window.location.pathname.startsWith('/prototype/'))
+  )
   const isInLobby = computed(() => isLobbyRoute(route.path))
   const currentLobbyId = ref(getCurrentLobbyId())
   const activeLobbyId = computed(() => {
@@ -254,6 +258,11 @@ export function useAppSession({
   }
 
   onMounted(async () => {
+    if (isSessionlessRoute()) {
+      socketStore.cleanupSocket()
+      rootStore.clearError()
+      return
+    }
     console.log('App mounted, initializing base socket connection...')
     try {
       const isAuthenticated = authStore.restoreAuth()
@@ -289,6 +298,7 @@ export function useAppSession({
   })
 
   watch(() => authStore.isLoggedIn, async (isLoggedIn) => {
+    if (isSessionlessRoute()) return
     if (isLoggedIn && authStore.token) {
       try {
         rootStore.setLoading(true)

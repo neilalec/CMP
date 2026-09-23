@@ -17,6 +17,21 @@ function Test-Command($name) {
     return [bool](Get-Command $name -ErrorAction SilentlyContinue)
 }
 
+function Resolve-CmpPython {
+    if (-not (Test-Command "py")) {
+        throw "The Windows Python launcher (py) was not found. Install Python 3.12 and ensure py.exe is available on PATH."
+    }
+
+    $pythonOutput = & py -3.12 -c "import sys; print(sys.executable)" 2>$null
+    $pythonExitCode = $LASTEXITCODE
+    $pythonPath = ($pythonOutput | Select-Object -First 1).Trim()
+    if ($pythonExitCode -ne 0 -or -not $pythonPath -or -not (Test-Path -LiteralPath $pythonPath)) {
+        throw "Python 3.12 was not found. Install it, then run: py -3.12 -m pip install -r backend\\requirements.txt"
+    }
+
+    return $pythonPath
+}
+
 function Start-CmpJob($name, $workingDirectory, $scriptBlock) {
     Write-Host "Starting $name..." -ForegroundColor Cyan
     Start-Job -Name $name -ArgumentList $workingDirectory -ScriptBlock $scriptBlock
@@ -35,10 +50,7 @@ if (-not (Test-Command "node")) {
     throw "node was not found on PATH."
 }
 
-$pythonCommand = if (Test-Command "python") { "python" } elseif (Test-Command "py") { "py" } else { $null }
-if (-not $pythonCommand) {
-    throw "Neither python nor py was found on PATH."
-}
+$pythonCommand = Resolve-CmpPython
 
 if (-not (Test-PortAvailable 5173)) {
     throw "Frontend port 5173 is already in use. Stop the existing Vite process before starting local dev."
