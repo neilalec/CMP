@@ -106,6 +106,26 @@ describe('WARDOGS backend data source', () => {
     expect(store.match.source).toBe('local-mock');
   });
 
+  test('admin history and correction source use authenticated endpoints and surface stale conflicts', async () => {
+    const request = jest.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ success: true, revisions: [{ revisionId: 'r1' }] }) })
+      .mockResolvedValueOnce({ ok: false, json: async () => ({ success: false, code: 'stale_revision', currentRevisionId: 'r2', message: 'Reload history' }) });
+    const source = createBackendWardogsDataSource({
+      fetchImpl: request, apiBaseUrl: 'https://cmp.test/api', getToken: () => 'admin-token'
+    });
+    await expect(source.loadResultHistory('wd/a')).resolves.toEqual([{ revisionId: 'r1' }]);
+    const correction = { expectedRevisionId: 'r1', correctionReason: 'Review',
+      result: { status: 'void', scores: null, winnerFaction: null } };
+    await expect(source.correctResult('wd/a', correction)).rejects.toMatchObject({
+      code: 'stale_revision', currentRevisionId: 'r2', message: 'Reload history'
+    });
+    expect(request.mock.calls[0][0]).toBe('https://cmp.test/api/admin/wardogs/lobbies/wd%2Fa/result/history');
+    expect(request.mock.calls[1][1]).toMatchObject({
+      method: 'POST', headers: { Authorization: 'Bearer admin-token', 'Content-Type': 'application/json' },
+      body: JSON.stringify(correction)
+    });
+  });
+
   test('faction display distinguishes mismatch, unknown presence, and explicit waiting', () => {
     const match = normalizeBackendMatch(backendPayload());
     const faction = match.factions[0];
@@ -231,6 +251,51 @@ describe('WARDOGS backend data source', () => {
     expect(display.text()).toContain('The referee confirmed a tie.');
     expect(display.text()).toContain('valkyra: 8');
     expect(display.text()).not.toContain('confirmedBy');
+  });
+
+  test('admin can load revision history and correct the current revision with a reason', async () => {
+    const match = normalizeBackendMatch(backendPayload());
+    match.result = {
+      status: 'completed_win', winnerFaction: 'valkyra', revisionNumber: 1,
+      scores: { valkyra: 90, lonestar: 20, manticore: 5 }, confirmedAt: '2026-09-23T12:00:00Z'
+    };
+    const history = [{ revisionId: 'wd:1', revisionNumber: 1, revisionType: 'confirmation',
+      status: 'completed_win', actorId: 'admin', authoritative: true, scores: match.result.scores,
+      observation: { available: true, observedAt: '2026-09-23T11:59:00Z', differsFromObservation: false } }];
+    const wrapper = mount(WardogsResultConfirmation, { props: {
+      match, canConfirm: true, resultHistory: history
+    } });
+    expect(wrapper.text()).toContain('Result revision history');
+    expect(wrapper.text()).toContain('Original confirmation');
+    expect(wrapper.text()).toContain('CURRENT AUTHORITATIVE');
+    expect(wrapper.find('button').text()).toBe('Correct result');
+    await wrapper.find('button').trigger('click');
+    expect(wrapper.text()).toContain('A new immutable revision will supersede the current result.');
+    expect(wrapper.findAll('input[type="number"]').map((input) => input.element.value)).toEqual(['90', '20', '5']);
+    expect(wrapper.text()).toContain('valkyra: 999');
+    await wrapper.findAll('button').find((button) => button.text().includes('Use latest observed scores')).trigger('click');
+    expect(wrapper.findAll('input[type="number"]').map((input) => input.element.value)).toEqual(['999', '1', '0']);
+    await wrapper.find('textarea[required]').setValue('Referee entered the wrong score.');
+    await wrapper.findAll('input[type="number"]')[0].setValue('80');
+    await wrapper.findAll('button').find((button) => button.text().includes('Confirm new revision')).trigger('click');
+    expect(wrapper.emitted('correct')[0][0]).toMatchObject({
+      expectedRevisionId: 'wd:1', correctionReason: 'Referee entered the wrong score.',
+      result: { status: 'completed_win', winnerFaction: 'valkyra', scores: { valkyra: 80, lonestar: 1, manticore: 0 } }
+    });
+  });
+
+  test('admin sees a stale history warning and correction reason is mandatory', async () => {
+    const match = normalizeBackendMatch(backendPayload());
+    match.result = { status: 'tie', revisionNumber: 2, scores: { valkyra: 8, lonestar: 8, manticore: 3 } };
+    const wrapper = mount(WardogsResultConfirmation, { props: {
+      match, canConfirm: true, historyError: 'The result changed while this form was open.',
+      resultHistory: [{ revisionId: 'wd:2', revisionNumber: 2, authoritative: true }]
+    } });
+    expect(wrapper.text()).toContain('The result changed while this form was open.');
+    await wrapper.find('button').trigger('click');
+    const submit = wrapper.findAll('button').find((button) => button.text().includes('Confirm new revision'));
+    expect(submit.element.disabled).toBe(true);
+    expect(wrapper.find('textarea[required]').exists()).toBe(true);
   });
 
   test('rejects malformed payload and missing token before network access', async () => {

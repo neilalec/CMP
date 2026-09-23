@@ -26,7 +26,7 @@ The mock data source supplies complete frontend domain objects. An optional back
 - Meaning of individual, group, and faction readiness; relationship to observed server alignment.
 - Map/config selection ownership and whether voting is individual, group-weighted, or captain/admin controlled.
 - Whether all three rosters remain equally prominent on small screens; group filtering for 30-player factions.
-- Final result evidence, tie handling, missing scores, disputes, and manual referee workflow.
+- Dispute policy and whether a dedicated referee role should replace admin-only confirmation.
 - Rating unit and algorithm: individual, group/clan, faction result, or a combination.
 - Repeated premade pairing avoidance and later skill balancing.
 
@@ -36,3 +36,5 @@ Allocated lobbies now refresh server status and player presence about every 20 s
 ## Results
 
 WARDOGS results are authoritative only after an administrator explicitly confirms them. A recent live score snapshot can prefill the three faction values, but it remains observational evidence; admins can correct it or enter scores when no observation exists. Supported outcomes are completed win (with an explicitly selected winner), tie, incomplete/abandoned, and void/cancelled. Ordinary lobby participants can view the confirmed outcome. Confirmation does not apply ratings or release the allocated server.
+
+Admins can correct a confirmed result by creating an append-only revision with a required reason. The original confirmation remains in history; the latest revision is authoritative. Participants see the current result and a neutral corrected indicator, not the audit chain.

@@ -26,13 +26,53 @@ const backendSource = createBackendWardogsDataSource({ getToken: () => authStore
 let liveSocket = null;
 let subscribedLobbyId = null;
 const confirmingResult = ref(false);
+const correctingResult = ref(false);
+const resultHistory = ref([]);
+const resultHistoryError = ref('');
+const loadResultHistory = async (lobbyId) => {
+  if (!lobbyId || !authStore.isAdmin) {
+    resultHistory.value = [];
+    resultHistoryError.value = '';
+    return;
+  }
+  try {
+    const revisions = await backendSource.loadResultHistory(lobbyId);
+    if (backendLobbyId.value !== lobbyId || !authStore.isAdmin) return;
+    resultHistory.value = revisions;
+    resultHistoryError.value = '';
+  } catch {
+    resultHistory.value = [];
+    resultHistoryError.value = 'Administrator result history is unavailable. Refresh to try again.';
+  }
+};
 const confirmResult = async (submission) => {
   if (!backendLobbyId.value) return;
   confirmingResult.value = true;
   try {
-    await store.confirmBackendResult(backendLobbyId.value, submission, backendSource);
+    const confirmed = await store.confirmBackendResult(backendLobbyId.value, submission, backendSource);
+    if (confirmed) await loadResultHistory(backendLobbyId.value);
   } finally {
     confirmingResult.value = false;
+  }
+};
+const correctResult = async (correction) => {
+  const lobbyId = backendLobbyId.value;
+  if (!lobbyId) return;
+  correctingResult.value = true;
+  resultHistoryError.value = '';
+  try {
+    await backendSource.correctResult(lobbyId, correction);
+    await store.refreshBackendLobby(lobbyId, backendSource);
+    await loadResultHistory(lobbyId);
+  } catch (correctionError) {
+    if (correctionError.code === 'stale_revision') {
+      await Promise.all([store.refreshBackendLobby(lobbyId, backendSource), loadResultHistory(lobbyId)]);
+      resultHistoryError.value = 'The result changed while this form was open. History was refreshed; review the current revision and start again.';
+    } else {
+      store.error = correctionError.message || 'Result correction failed';
+    }
+  } finally {
+    correctingResult.value = false;
   }
 };
 const onLiveUpdate = (data) => {
@@ -84,6 +124,8 @@ watch(backendLobbyId, (lobbyId) => {
     store.selectScenario(scenarioKey.value);
   }
 }, { immediate: true });
+watch(() => [backendLobbyId.value, authStore.isAdmin, match.value?.result?.revisionNumber],
+  ([lobbyId, isAdmin]) => { if (lobbyId && isAdmin) loadResultHistory(lobbyId); }, { immediate: true });
 onUnmounted(detach);
 const onScenarioChange = (event) => store.selectScenario(event.target.value);
 </script>
@@ -121,7 +163,7 @@ const onScenarioChange = (event) => store.selectScenario(event.target.value);
         </div>
       </section>
       <ScoreAndResults v-if="mode === 'backend' || match.phase !== 'assembling'" :match="match" :summaries="factionSummaries" :ranked-results="rankedResults" />
-      <WardogsResultConfirmation v-if="mode === 'backend'" :match="match" :can-confirm="authStore.isAdmin" :confirming="confirmingResult" @confirm="confirmResult" />
+      <WardogsResultConfirmation v-if="mode === 'backend'" :match="match" :can-confirm="authStore.isAdmin" :confirming="confirmingResult" :correcting="correctingResult" :result-history="resultHistory" :history-error="resultHistoryError" @confirm="confirmResult" @correct="correctResult" />
     </template>
   </main>
 </template>

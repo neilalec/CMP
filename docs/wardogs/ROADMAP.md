@@ -58,7 +58,7 @@ Delivery is **capability-driven**. Missing natural-end or winner evidence does n
 - [x] Optional commanders and leaders presentation
 - [x] Mock live-match presentation
 - [x] Ties/incomplete result presentation
-- [x] Admin-confirmed three-faction result workflow with provenance and immutable retry handling
+- [x] Admin-confirmed three-faction results, append-only history, and audited corrections
 - [ ] Production results presentation with verified outcome source
 - [x] Isolated Hybrid assignment algorithm
 - [ ] Rating policy

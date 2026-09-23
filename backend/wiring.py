@@ -17,7 +17,10 @@ from services.wardogs_lobby import (
 )
 from services.wardogs_allocation import cleanup_wardogs_lobby
 from services.wardogs_live import wardogs_lobby_room
-from services.wardogs_results import confirm_wardogs_result, get_wardogs_result
+from services.wardogs_results import (
+    StaleWardogsRevisionError, confirm_wardogs_result, correct_wardogs_result,
+    get_wardogs_result, get_wardogs_result_history,
+)
 from services.steam_auth import (
     build_frontend_callback_url,
     build_steam_login_url,
@@ -409,6 +412,61 @@ def register_http_routes(app):
             return jsonify({'success': False, 'message': 'WARDOGS lobby not found'}), 404
         except FileExistsError:
             return jsonify({'success': False, 'message': 'A confirmed WARDOGS result already exists'}), 409
+        except ValueError as error:
+            return jsonify({'success': False, 'message': str(error)}), 400
+        if not idempotent:
+            backend.socketio.emit('wardogs_lobby_update', {'lobbyId': lobby_id},
+                                  room=wardogs_lobby_room(lobby_id))
+        return jsonify({'success': True, 'result': result, 'idempotent': idempotent})
+
+    @app.route('/api/admin/wardogs/lobbies/<lobby_id>/result/history', methods=['GET'])
+    @jwt_required()
+    def api_admin_wardogs_result_history(lobby_id):
+        backend = _http_backend_api()
+        username = get_jwt_identity()
+        if not backend.is_admin_user(username):
+            return jsonify({'success': False, 'message': 'Admin access required'}), 403
+        revisions = get_wardogs_result_history(backend.get_db_connection, lobby_id)
+        if not revisions:
+            return jsonify({'success': False, 'message': 'WARDOGS lobby not found'}), 404
+        return jsonify({'success': True, 'revisions': revisions})
+
+    @app.route('/api/admin/wardogs/lobbies/<lobby_id>/result/corrections', methods=['POST'])
+    @jwt_required()
+    def api_admin_wardogs_correct_result(lobby_id):
+        backend = _http_backend_api()
+        username = get_jwt_identity()
+        if not backend.is_admin_user(username):
+            return jsonify({'success': False, 'message': 'Admin access required'}), 403
+        try:
+            lobby = get_wardogs_lobby(backend.get_db_connection, lobby_id)
+        except ValueError:
+            return jsonify({'success': False, 'message': 'WARDOGS lobby unavailable'}), 409
+        if lobby is None and not get_wardogs_result_history(backend.get_db_connection, lobby_id):
+            return jsonify({'success': False, 'message': 'No confirmed WARDOGS result exists'}), 404
+        body = request.get_json(silent=True)
+        if not isinstance(body, dict) or set(body) != {
+                'expectedRevisionId', 'correctionReason', 'result'}:
+            return jsonify({'success': False, 'message': 'Invalid correction request'}), 400
+        observation = read_wardogs_lobby(lobby) if lobby is not None else {}
+        observation_meta = observation.get('observation') or {}
+        has_observation = bool(observation_meta.get('observedAt'))
+        try:
+            result, idempotent = correct_wardogs_result(
+                backend.get_db_connection, lobby_id, username, body['result'],
+                expected_revision_id=body['expectedRevisionId'],
+                correction_reason=body['correctionReason'],
+                observed_scores=observation.get('scores') if has_observation else None,
+                observed_at=observation_meta.get('observedAt') if has_observation else None,
+            )
+        except LookupError:
+            return jsonify({'success': False, 'message': 'No confirmed WARDOGS result exists'}), 409
+        except StaleWardogsRevisionError:
+            revisions = get_wardogs_result_history(backend.get_db_connection, lobby_id)
+            current_id = revisions[-1]['revisionId'] if revisions else None
+            return jsonify({'success': False, 'code': 'stale_revision',
+                            'message': 'The result changed. Reload history before correcting it.',
+                            'currentRevisionId': current_id}), 409
         except ValueError as error:
             return jsonify({'success': False, 'message': str(error)}), 400
         if not idempotent:

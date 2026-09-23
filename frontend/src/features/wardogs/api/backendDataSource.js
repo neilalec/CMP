@@ -84,5 +84,34 @@ export const createBackendWardogsDataSource = ({
     const payload = await response.json();
     if (!response.ok || !payload?.success) throw new Error(payload?.message || 'Result confirmation failed');
     return payload.result;
+  },
+  async loadResultHistory(lobbyId) {
+    const token = getToken();
+    if (!token) throw new Error('Sign in to view result history');
+    const response = await fetchImpl(`${apiBaseUrl}/admin/wardogs/lobbies/${encodeURIComponent(lobbyId)}/result/history`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const payload = await response.json();
+    if (!response.ok || !payload?.success || !Array.isArray(payload.revisions)) {
+      throw new Error(payload?.message || 'Result history unavailable');
+    }
+    return payload.revisions;
+  },
+  async correctResult(lobbyId, correction) {
+    const token = getToken();
+    if (!token) throw new Error('Sign in to correct this WARDOGS result');
+    const response = await fetchImpl(`${apiBaseUrl}/admin/wardogs/lobbies/${encodeURIComponent(lobbyId)}/result/corrections`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(correction)
+    });
+    const payload = await response.json();
+    if (!response.ok || !payload?.success) {
+      const error = new Error(payload?.message || 'Result correction failed');
+      error.code = payload?.code;
+      error.currentRevisionId = payload?.currentRevisionId;
+      throw error;
+    }
+    return payload.result;
   }
 });

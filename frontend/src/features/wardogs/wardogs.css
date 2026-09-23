@@ -32,7 +32,15 @@
 .wardogs-result-score-fields, .wardogs-result-score-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .wardogs-result-score-summary span { padding: 8px; background: var(--panel-bg-strong); font-size: .8rem; }
 .wardogs-result-confirmation button { justify-self: start; padding: 9px 14px; }
+.wardogs-result-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.wardogs-result-history { display: grid; gap: 10px; }
+.wardogs-result-revision { display: grid; gap: 5px; padding: 10px; border: 1px solid var(--surface-border); background: var(--panel-bg-strong); font-size: .78rem; }
+.wardogs-result-revision > div { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.wardogs-result-revision p { margin: 0; }
+.wardogs-current-revision { color: var(--success); font: 800 .65rem var(--font-mono); }
+.wardogs-result-confirmation .wardogs-result-note { display: grid; gap: 5px; }
+.wardogs-result-confirmation .wardogs-result-note span { font-size: .72rem; }
 .wardogs-observations { margin: 0; padding: 12px 12px 12px 30px; display: grid; gap: 7px; font-size: .82rem; }.wardogs-stat-row { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 10px 12px; border-bottom: 1px solid var(--surface-border); font-size: .78rem; }.wardogs-stat-row span { color: var(--text-muted); }
 .wardogs-join-id { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }.wardogs-join-id code { user-select: all; padding: 7px 9px; border: 1px solid var(--surface-border); background: var(--panel-bg-strong); font: 700 .9rem var(--font-mono); }.wardogs-join-state ol { padding-left: 1.35rem; }.wardogs-join-state li { margin: 4px 0; }
-@media (max-width: 900px) { .wardogs-faction-grid, .wardogs-score-grid { grid-template-columns: 1fr; }.wardogs-overview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 900px) { .wardogs-faction-grid, .wardogs-score-grid, .wardogs-result-score-fields, .wardogs-result-score-summary { grid-template-columns: 1fr; }.wardogs-overview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 560px) { .wardogs-header, .wardogs-section-heading { align-items: stretch; flex-direction: column; }.wardogs-selector { width: 100%; }.wardogs-overview-grid { grid-template-columns: 1fr; } }
