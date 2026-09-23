@@ -52,6 +52,18 @@ export const useWardogsMatchStore = defineStore('wardogs-match', {
       } finally {
         this.refreshing = false;
       }
+    },
+    async confirmBackendResult(lobbyId, submission, source) {
+      if (this.mode !== 'backend' || this.match?.id !== lobbyId) return false;
+      this.error = null;
+      try {
+        await source.confirmResult(lobbyId, submission);
+        await this.refreshBackendLobby(lobbyId, source);
+        return true;
+      } catch (error) {
+        this.error = error.message || 'Result confirmation failed';
+        return false;
+      }
     }
   }
 });

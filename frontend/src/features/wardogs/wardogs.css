@@ -25,6 +25,13 @@
 .wardogs-score-section { display: grid; gap: 12px; }.wardogs-result-note { margin: 0; padding: 10px 12px; background: var(--warning-soft); color: var(--text-main); font-size: .8rem; }
 .wardogs-score-card { display: grid; gap: 4px; padding: 16px; }.wardogs-score-card > span:first-child { font-family: var(--font-display); font-weight: 800; }.wardogs-score-card > strong { color: var(--faction-color); font: 800 clamp(2rem, 5vw, 3rem) var(--font-display); }
 .wardogs-score-card small { color: var(--text-muted); }.wardogs-score-card .wardogs-rank { color: var(--faction-color); font: 800 .83rem var(--font-mono); }
+.wardogs-result-confirmation, .wardogs-confirmed-result { display: grid; gap: 10px; }
+.wardogs-result-confirmation > p, .wardogs-confirmed-result > p { margin: 0; }
+.wardogs-result-field { display: grid; gap: 5px; font-size: .78rem; font-weight: 700; }
+.wardogs-result-field input, .wardogs-result-field select, .wardogs-result-field textarea { width: 100%; padding: 8px; color: var(--text-main); background: var(--panel-bg-strong); border: 1px solid var(--surface-border); }
+.wardogs-result-score-fields, .wardogs-result-score-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.wardogs-result-score-summary span { padding: 8px; background: var(--panel-bg-strong); font-size: .8rem; }
+.wardogs-result-confirmation button { justify-self: start; padding: 9px 14px; }
 .wardogs-observations { margin: 0; padding: 12px 12px 12px 30px; display: grid; gap: 7px; font-size: .82rem; }.wardogs-stat-row { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 10px 12px; border-bottom: 1px solid var(--surface-border); font-size: .78rem; }.wardogs-stat-row span { color: var(--text-muted); }
 .wardogs-join-id { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }.wardogs-join-id code { user-select: all; padding: 7px 9px; border: 1px solid var(--surface-border); background: var(--panel-bg-strong); font: 700 .9rem var(--font-mono); }.wardogs-join-state ol { padding-left: 1.35rem; }.wardogs-join-state li { margin: 4px 0; }
 @media (max-width: 900px) { .wardogs-faction-grid, .wardogs-score-grid { grid-template-columns: 1fr; }.wardogs-overview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

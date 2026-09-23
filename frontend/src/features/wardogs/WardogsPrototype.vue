@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onUnmounted, watch } from 'vue';
+import { computed, onUnmounted, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useRoute } from 'vue-router';
 import { useAuthStore } from '../../stores/authStore';
@@ -11,6 +11,7 @@ import MatchOverview from './components/MatchOverview.vue';
 import FactionRoster from './components/FactionRoster.vue';
 import ScoreAndResults from './components/ScoreAndResults.vue';
 import JoinState from './components/JoinState.vue';
+import WardogsResultConfirmation from './components/WardogsResultConfirmation.vue';
 import './wardogs.css';
 
 const store = useWardogsMatchStore();
@@ -24,6 +25,16 @@ const backendLobbyId = computed(() => route.name === 'wardogs-lobby' || route.qu
 const backendSource = createBackendWardogsDataSource({ getToken: () => authStore.token });
 let liveSocket = null;
 let subscribedLobbyId = null;
+const confirmingResult = ref(false);
+const confirmResult = async (submission) => {
+  if (!backendLobbyId.value) return;
+  confirmingResult.value = true;
+  try {
+    await store.confirmBackendResult(backendLobbyId.value, submission, backendSource);
+  } finally {
+    confirmingResult.value = false;
+  }
+};
 const onLiveUpdate = (data) => {
   if (data?.lobbyId === backendLobbyId.value) store.refreshBackendLobby(data.lobbyId, backendSource);
 };
@@ -110,6 +121,7 @@ const onScenarioChange = (event) => store.selectScenario(event.target.value);
         </div>
       </section>
       <ScoreAndResults v-if="mode === 'backend' || match.phase !== 'assembling'" :match="match" :summaries="factionSummaries" :ranked-results="rankedResults" />
+      <WardogsResultConfirmation v-if="mode === 'backend'" :match="match" :can-confirm="authStore.isAdmin" :confirming="confirmingResult" @confirm="confirmResult" />
     </template>
   </main>
 </template>

@@ -122,6 +122,7 @@ from services.state_persistence import (
     save_runtime_state as save_runtime_state_service,
 )
 from services.wardogs_lobby import init_wardogs_lobby_tables
+from services.wardogs_results import init_wardogs_result_tables
 from state.lobby import is_user_in_any_lobby
 from state.runtime import pause_aware_sleep
 
@@ -192,6 +193,7 @@ def init_database():
     init_server_registry_tables_service(get_db_connection)
     init_runtime_state_tables_service(get_db_connection)
     init_wardogs_lobby_tables(get_db_connection)
+    init_wardogs_result_tables(get_db_connection)
 
 
 def get_secret_key():

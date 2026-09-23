@@ -17,6 +17,7 @@ from services.wardogs_lobby import (
 )
 from services.wardogs_allocation import cleanup_wardogs_lobby
 from services.wardogs_live import wardogs_lobby_room
+from services.wardogs_results import confirm_wardogs_result, get_wardogs_result
 from services.steam_auth import (
     build_frontend_callback_url,
     build_steam_login_url,
@@ -368,6 +369,7 @@ def register_http_routes(app):
                 # not a reason to lose the CMP-owned roster.
                 pass
         match = read_wardogs_lobby(lobby)
+        match['result'] = get_wardogs_result(backend.get_db_connection, lobby_id)
         join_id = get_or_fetch_wardogs_join_id(lobby, adapter)
         match['join'] = build_wardogs_join_state(
             lobby, server if server_id is not None else None,
@@ -379,6 +381,40 @@ def register_http_routes(app):
                 if isinstance(sensitive, str) and sensitive:
                     match = _redact_wardogs(match, sensitive)
         return jsonify({'success': True, 'match': match})
+
+    @app.route('/api/admin/wardogs/lobbies/<lobby_id>/result', methods=['POST'])
+    @jwt_required()
+    def api_admin_wardogs_confirm_result(lobby_id):
+        backend = _http_backend_api()
+        username = get_jwt_identity()
+        if not backend.is_admin_user(username):
+            return jsonify({'success': False, 'message': 'Admin access required'}), 403
+        try:
+            lobby = get_wardogs_lobby(backend.get_db_connection, lobby_id)
+        except ValueError:
+            return jsonify({'success': False, 'message': 'WARDOGS lobby unavailable'}), 409
+        if lobby is None:
+            return jsonify({'success': False, 'message': 'WARDOGS lobby not found'}), 404
+        observation = read_wardogs_lobby(lobby)
+        observation_meta = observation.get('observation') or {}
+        has_observation = bool(observation_meta.get('observedAt'))
+        try:
+            result, idempotent = confirm_wardogs_result(
+                backend.get_db_connection, lobby_id, username,
+                request.get_json(silent=True),
+                observed_scores=observation.get('scores') if has_observation else None,
+                observed_at=observation_meta.get('observedAt') if has_observation else None,
+            )
+        except LookupError:
+            return jsonify({'success': False, 'message': 'WARDOGS lobby not found'}), 404
+        except FileExistsError:
+            return jsonify({'success': False, 'message': 'A confirmed WARDOGS result already exists'}), 409
+        except ValueError as error:
+            return jsonify({'success': False, 'message': str(error)}), 400
+        if not idempotent:
+            backend.socketio.emit('wardogs_lobby_update', {'lobbyId': lobby_id},
+                                  room=wardogs_lobby_room(lobby_id))
+        return jsonify({'success': True, 'result': result, 'idempotent': idempotent})
 
     @app.route('/api/admin/wardogs/lobbies/<lobby_id>/allocate', methods=['POST'])
     @jwt_required()

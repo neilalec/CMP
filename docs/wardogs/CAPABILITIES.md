@@ -10,6 +10,8 @@ Additional live Join By ID verification was reported for this milestone: `GET /v
 
 Allocated WARDOGS lobbies now use a single periodic, read-only worker for `GET /v1/status` and `GET /v1/players`. Roster, faction, map, population, and score values are observations with freshness and last-read status. They cannot establish match start, end, winner, or official result. The worker does not poll capabilities, rotation, Join ID, or control routes.
 
+An authenticated admin can explicitly confirm a completed win (with a selected winner), tie, incomplete/abandoned, or void/cancelled result. Latest observed faction scores are optional suggestions; a manual result remains possible without WDRCON. Automatic lifecycle and winner detection remain unsupported/unverified.
+
 `Verified (read)` applies only to the shape and conditions actually captured; `reported` marks a real-server observation supplied by the project but not reproducible from the checked-in bundle; `advertised only` and `unverified` do not enable production mutation/finalisation. None of the unknown lifecycle capabilities is asserted *unsupported* by the protocol.
 
 | Capability | Status / evidence | CMP dependent feature | Safe fallback |

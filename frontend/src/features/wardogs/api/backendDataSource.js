@@ -54,7 +54,7 @@ export const normalizeBackendMatch = (payload) => {
       };
     }),
     scores: Object.fromEntries(FACTION_IDS.map((id) => [id, match.scores?.[id] ?? null])),
-    result: { status: 'unconfirmed', note: 'No authoritative result is available.' },
+    result: match.result || { status: 'unconfirmed' },
     observations: match.observations || [],
     unexpectedPlayers: match.unexpectedPlayers || []
   };
@@ -72,5 +72,17 @@ export const createBackendWardogsDataSource = ({
     });
     if (!response.ok) throw new Error(`WARDOGS lobby unavailable (${response.status})`);
     return normalizeBackendMatch(await response.json());
+  },
+  async confirmResult(lobbyId, submission) {
+    const token = getToken();
+    if (!token) throw new Error('Sign in to confirm this WARDOGS result');
+    const response = await fetchImpl(`${apiBaseUrl}/admin/wardogs/lobbies/${encodeURIComponent(lobbyId)}/result`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(submission)
+    });
+    const payload = await response.json();
+    if (!response.ok || !payload?.success) throw new Error(payload?.message || 'Result confirmation failed');
+    return payload.result;
   }
 });

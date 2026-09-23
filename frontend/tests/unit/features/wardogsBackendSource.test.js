@@ -6,6 +6,7 @@ import { useWardogsMatchStore } from '../../../src/features/wardogs/stores/match
 import FactionRoster from '../../../src/features/wardogs/components/FactionRoster.vue';
 import MatchOverview from '../../../src/features/wardogs/components/MatchOverview.vue';
 import ScoreAndResults from '../../../src/features/wardogs/components/ScoreAndResults.vue';
+import WardogsResultConfirmation from '../../../src/features/wardogs/components/WardogsResultConfirmation.vue';
 import { factionSummary, matchSummary, resultRows } from '../../../src/features/wardogs/models/match';
 
 const backendPayload = () => ({
@@ -178,6 +179,58 @@ describe('WARDOGS backend data source', () => {
     expect(store.match.configuration.map).toBe('Next map');
     expect(store.error).toContain('last loaded lobby state');
     expect(store.error).not.toContain('offline-secret');
+  });
+
+  test('confirmation form is admin-only and prefills observed values with explicit winner choice', async () => {
+    const match = normalizeBackendMatch(backendPayload());
+    const hidden = mount(WardogsResultConfirmation, { props: { match, canConfirm: false } });
+    expect(hidden.find('[aria-label="Confirm WARDOGS result"]').exists()).toBe(false);
+    const wrapper = mount(WardogsResultConfirmation, { props: { match, canConfirm: true } });
+    expect(wrapper.text()).toContain('Live scores are evidence only');
+    expect(wrapper.findAll('input[type="number"]').map((input) => input.element.value)).toEqual(['999', '1', '0']);
+    expect(wrapper.find('select[required]').exists()).toBe(true);
+    await wrapper.find('select[required]').setValue('valkyra');
+    await wrapper.find('button').trigger('click');
+    expect(wrapper.emitted('confirm')[0][0]).toMatchObject({
+      status: 'completed_win', winnerFaction: 'valkyra',
+      scores: { valkyra: 999, lonestar: 1, manticore: 0 }
+    });
+  });
+
+  test('tie, incomplete, and void confirmations are explicit and never select a winner', async () => {
+    const match = normalizeBackendMatch(backendPayload());
+    const wrapper = mount(WardogsResultConfirmation, { props: { match, canConfirm: true } });
+    const scores = wrapper.findAll('input[type="number"]');
+    await scores[1].setValue('999');
+    await wrapper.find('select').setValue('tie');
+    await wrapper.find('button').trigger('click');
+    expect(wrapper.emitted('confirm')[0][0]).toMatchObject({ status: 'tie', winnerFaction: null });
+    await wrapper.find('select').setValue('incomplete');
+    expect(wrapper.findAll('input[type="number"]')).toHaveLength(0);
+    await wrapper.find('button').trigger('click');
+    expect(wrapper.emitted('confirm')[1][0]).toMatchObject({ status: 'incomplete', scores: null, winnerFaction: null });
+    await wrapper.find('select').setValue('void');
+    await wrapper.find('button').trigger('click');
+    expect(wrapper.emitted('confirm')[2][0]).toMatchObject({ status: 'void', scores: null, winnerFaction: null });
+  });
+
+  test('divergent final scores warn and participants see a referee-confirmed result', async () => {
+    const match = normalizeBackendMatch(backendPayload());
+    const form = mount(WardogsResultConfirmation, { props: { match, canConfirm: true } });
+    const scores = form.findAll('input[type="number"]');
+    await scores[0].setValue('998');
+    expect(form.text()).toContain('Submitted final scores differ from the latest observed server scores.');
+    match.result = {
+      status: 'tie', tied: true,
+      scores: { valkyra: 8, lonestar: 8, manticore: 8 },
+      confirmedAt: '2026-09-23T12:00:00Z'
+    };
+    const display = mount(WardogsResultConfirmation, { props: { match, canConfirm: false } });
+    expect(display.text()).toContain('Referee confirmed result');
+    expect(display.text()).toContain('AUTHORITATIVE');
+    expect(display.text()).toContain('The referee confirmed a tie.');
+    expect(display.text()).toContain('valkyra: 8');
+    expect(display.text()).not.toContain('confirmedBy');
   });
 
   test('rejects malformed payload and missing token before network access', async () => {
