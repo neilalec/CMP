@@ -1,0 +1,30 @@
+.wardogs-demo { width: min(1180px, 100%); margin: 0 auto; padding: clamp(16px, 3vw, 34px); display: grid; gap: 18px; }
+.wardogs-header, .wardogs-section-heading { display: flex; align-items: end; justify-content: space-between; gap: 16px; }
+.wardogs-header h1, .wardogs-section-heading h2 { margin: 0; font-family: var(--font-display); }
+.wardogs-header h1 { font-size: clamp(1.6rem, 3vw, 2.3rem); }
+.wardogs-header p:not(.eyebrow) { margin: 7px 0 0; color: var(--text-muted); }
+.wardogs-selector { display: grid; gap: 5px; min-width: 220px; color: var(--text-muted); font: 700 .7rem var(--font-mono); text-transform: uppercase; }
+.wardogs-selector select { width: 100%; font-family: var(--font-body); text-transform: none; }
+.wardogs-overview-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; padding: 12px; }
+.wardogs-overview-grid strong, .wardogs-overview-grid small { display: block; line-height: 1.35; }
+.wardogs-overview-grid strong { font-size: .86rem; }.wardogs-overview-grid small { color: var(--text-muted); }
+.wardogs-section-heading { margin-bottom: 12px; }.wardogs-section-heading h2 { font-size: 1.2rem; }
+.wardogs-section-heading > span { color: var(--text-muted); font: 700 .67rem var(--font-mono); text-transform: uppercase; }
+.wardogs-faction-grid, .wardogs-score-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 13px; }
+.wardogs-faction-card, .wardogs-score-card { min-width: 0; border: 1px solid var(--surface-border); border-top: 5px solid var(--faction-color); background: var(--card-bg); box-shadow: var(--card-shadow); }
+.wardogs-faction-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 12px; background: color-mix(in srgb, var(--faction-color) 18%, var(--panel-bg-strong)); }
+.wardogs-faction-header h3 { margin: 0; font-family: var(--font-display); }.wardogs-faction-header span { color: var(--text-muted); font-size: .72rem; }.wardogs-faction-header strong { white-space: nowrap; font: 800 .72rem var(--font-mono); }
+.wardogs-faction-meta { display: flex; flex-wrap: wrap; gap: 6px; padding: 9px; border-bottom: 1px solid var(--surface-border); }
+.wardogs-faction-meta span { padding: 4px 6px; background: var(--panel-bg-strong); border: 1px solid var(--surface-border); font-size: .65rem; font-weight: 700; }
+.wardogs-groups { max-height: 440px; overflow-y: auto; padding: 9px; }.wardogs-groups h4 { margin: 9px 0 6px; color: var(--text-muted); font: 800 .69rem var(--font-mono); text-transform: uppercase; }
+.wardogs-empty { margin: 0 0 9px; color: var(--text-muted); font-size: .75rem; }.wardogs-group { margin-bottom: 6px; border: 1px solid var(--surface-border); background: var(--panel-bg-strong); }
+.wardogs-group summary { display: flex; justify-content: space-between; gap: 8px; padding: 8px; cursor: pointer; font-size: .78rem; }.wardogs-group summary span { color: var(--text-muted); text-transform: capitalize; }
+.wardogs-player-list { display: grid; gap: 5px; padding: 0 7px 7px; }.wardogs-player { padding: 7px; border: 1px solid var(--card-inner-border); background: var(--card-inner-bg); }
+.wardogs-player > div:first-child { display: flex; justify-content: space-between; gap: 5px; font-size: .76rem; }.wardogs-player > div:first-child span { color: var(--faction-color); font-size: .67rem; font-weight: 700; }
+.wardogs-player-flags { display: flex; flex-wrap: wrap; gap: 4px 8px; margin-top: 4px; color: var(--text-muted); font-size: .64rem; }.wardogs-player-flags .wardogs-warning { color: var(--danger); }.wardogs-player-flags .wardogs-ready { color: var(--success); }
+.wardogs-score-section { display: grid; gap: 12px; }.wardogs-result-note { margin: 0; padding: 10px 12px; background: var(--warning-soft); color: var(--text-main); font-size: .8rem; }
+.wardogs-score-card { display: grid; gap: 4px; padding: 16px; }.wardogs-score-card > span:first-child { font-family: var(--font-display); font-weight: 800; }.wardogs-score-card > strong { color: var(--faction-color); font: 800 clamp(2rem, 5vw, 3rem) var(--font-display); }
+.wardogs-score-card small { color: var(--text-muted); }.wardogs-score-card .wardogs-rank { color: var(--faction-color); font: 800 .83rem var(--font-mono); }
+.wardogs-observations { margin: 0; padding: 12px 12px 12px 30px; display: grid; gap: 7px; font-size: .82rem; }.wardogs-stat-row { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 10px 12px; border-bottom: 1px solid var(--surface-border); font-size: .78rem; }.wardogs-stat-row span { color: var(--text-muted); }
+@media (max-width: 900px) { .wardogs-faction-grid, .wardogs-score-grid { grid-template-columns: 1fr; }.wardogs-overview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .wardogs-header, .wardogs-section-heading { align-items: stretch; flex-direction: column; }.wardogs-selector { width: 100%; }.wardogs-overview-grid { grid-template-columns: 1fr; } }
