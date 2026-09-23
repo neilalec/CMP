@@ -11,7 +11,8 @@ from types import SimpleNamespace
 from services.queue import has_available_queue_capacity
 from services.game_server_adapter import AdapterError
 from services.server_registry import _redact_wardogs, get_game_server_adapter_for_server
-from services.wardogs_lobby import can_read_lobby, get_wardogs_lobby, observe_wardogs_lobby
+from services.wardogs_lobby import build_wardogs_join_state, can_read_lobby, get_wardogs_lobby, observe_wardogs_lobby
+from services.wardogs_allocation import cleanup_wardogs_lobby
 from services.steam_auth import (
     build_frontend_callback_url,
     build_steam_login_url,
@@ -34,6 +35,7 @@ def _http_backend_api():
         build_lobby_server_presence=backend_app.build_lobby_server_presence,
         build_lobby_join_url=backend_app.build_lobby_join_url,
         approve_server=backend_app.approve_server,
+        allocate_server_for_lobby=backend_app.allocate_server_for_lobby,
         create_access_token=backend_app.create_access_token,
         create_server=backend_app.create_server,
         fetch_completed_matches=backend_app.fetch_completed_matches,
@@ -352,7 +354,8 @@ def register_http_routes(app):
         adapter = None
         if server_id is not None:
             server = backend.get_server_by_id(server_id)
-            if not server or server.get('game_type') != 'wardogs':
+            if (not server or server.get('game_type') != 'wardogs'
+                    or server.get('current_lobby_id') != lobby_id):
                 return jsonify({'success': False, 'message': 'WARDOGS server association unavailable'}), 409
             try:
                 adapter = get_game_server_adapter_for_server(server)
@@ -361,11 +364,41 @@ def register_http_routes(app):
                 # not a reason to lose the CMP-owned roster.
                 pass
         match = observe_wardogs_lobby(lobby, adapter)
+        match['join'] = build_wardogs_join_state(lobby, server if server_id is not None else None)
         if server_id is not None:
             secret = os.environ.get(server.get('wdrcon_secret_env') or '')
             if secret:
                 match = _redact_wardogs(match, secret)
         return jsonify({'success': True, 'match': match})
+
+    @app.route('/api/admin/wardogs/lobbies/<lobby_id>/allocate', methods=['POST'])
+    @jwt_required()
+    def api_admin_wardogs_allocate(lobby_id):
+        backend = _http_backend_api()
+        username = get_jwt_identity()
+        if not backend.is_admin_user(username):
+            return jsonify({'success': False, 'message': 'Admin access required'}), 403
+        try:
+            server = backend.allocate_server_for_lobby(lobby_id, game_type='wardogs')
+        except ValueError:
+            return jsonify({'success': False, 'message': 'WARDOGS allocation unavailable'}), 409
+        except Exception:
+            return jsonify({'success': False, 'message': 'WARDOGS allocation unavailable'}), 503
+        return jsonify({'success': True, 'serverId': server['id'] if server else None,
+                        'state': 'server_allocated_join_unavailable' if server else 'waiting_for_server'})
+
+    @app.route('/api/admin/wardogs/lobbies/<lobby_id>', methods=['DELETE'])
+    @jwt_required()
+    def api_admin_wardogs_cleanup(lobby_id):
+        backend = _http_backend_api()
+        username = get_jwt_identity()
+        if not backend.is_admin_user(username):
+            return jsonify({'success': False, 'message': 'Admin access required'}), 403
+        try:
+            server_id = cleanup_wardogs_lobby(backend.get_db_connection, lobby_id)
+        except ValueError:
+            return jsonify({'success': False, 'message': 'WARDOGS lobby cleanup unavailable'}), 409
+        return jsonify({'success': True, 'releasedServerId': server_id})
 
     @app.route('/api/lobbies/<lobby_id>/join-link', methods=['GET'])
     @jwt_required()

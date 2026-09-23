@@ -3,6 +3,7 @@
 import io
 import json
 import sqlite3
+import time
 import urllib.error
 
 import app_core
@@ -11,6 +12,7 @@ from flask_jwt_extended import create_access_token
 import app as backend_app
 
 from services import server_registry
+from services.wardogs_lobby import save_wardogs_lobby
 
 
 SECRET_NAME = 'CMP_WARDOGS_RCON_TEST_SERVER'
@@ -190,6 +192,14 @@ def test_squad_allocation_ignores_wardogs_and_explicit_filter_finds_it(monkeypat
     for server in (wardogs, squad):
         server_registry.update_server_record(app_core.get_db_connection, 'test-key', server['id'],
                                              status='healthy', enabled=True)
+    server_registry.update_server_record(app_core.get_db_connection, 'test-key', wardogs['id'],
+                                         approved_at=123.0, last_health_status='healthy',
+                                         last_health_check_at=time.time())
+    save_wardogs_lobby(app_core.get_db_connection, {
+        'id': 'wardogs-lobby', 'phase': 'assembling', 'serverId': None,
+        'factions': [{'id': faction, 'commanderId': None, 'groups': []}
+                     for faction in ('valkyra', 'lonestar', 'manticore')],
+    })
     assert [server['id'] for server in server_registry.list_available_servers(
         app_core.get_db_connection, 'test-key')] == [squad['id']]
     assert server_registry.get_server_pool_capacity(app_core.get_db_connection, 'test-key') == 1

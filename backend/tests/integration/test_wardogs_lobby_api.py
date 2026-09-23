@@ -51,6 +51,7 @@ def test_lobby_is_durable_and_read_requires_membership_or_admin(flask_app):
     assert response.status_code == 200
     match = response.get_json()["match"]
     assert match["observation"]["state"] == "none"
+    assert match['join']['state'] == 'waiting_for_server'
     assert match["factions"][0]["groups"][0]["players"][0]["ready"] is False
     assert client.get("/api/wardogs/lobbies/missing", headers=headers(flask_app, "alice")).status_code == 404
     backend_app.users["admin"] = {"password": "unused", "steam_id": "76561198000000099"}
@@ -63,7 +64,8 @@ def test_associated_server_reads_only_normalized_data_and_hides_credentials(flas
     credential = "private-wdrcon-secret"
     monkeypatch.setenv("CMP_WARDOGS_RCON_PRIVATE", credential)
     monkeypatch.setattr(backend_app, "get_server_by_id", lambda _id: {
-        "id": 7, "game_type": "wardogs", "wdrcon_secret_env": "CMP_WARDOGS_RCON_PRIVATE",
+        "id": 7, "game_type": "wardogs", "current_lobby_id": "wd-api",
+        "wdrcon_secret_env": "CMP_WARDOGS_RCON_PRIVATE",
         "bridge_url": "https://example.test", "password": credential,
     })
     at = datetime.now(timezone.utc)
@@ -78,6 +80,8 @@ def test_associated_server_reads_only_normalized_data_and_hides_credentials(flas
     assert response.status_code == 200
     body = response.get_json()["match"]
     assert body["serverId"] == 7
+    assert body['join']['state'] == 'server_allocated_join_unavailable'
+    assert body['join']['directJoinUrl'] is None
     assert body["factions"][0]["groups"][0]["players"][0]["connected"] is True
     assert body["factions"][0]["groups"][0]["players"][0]["ready"] is False
     text = response.get_data(as_text=True)
@@ -112,3 +116,20 @@ def test_finalized_lobby_is_readable_through_existing_authenticated_endpoint(fla
     assert match['id'] == result.lobby_id
     assert match['serverId'] is None and match['observation']['state'] == 'none'
     assert [faction['summary']['active'] for faction in match['factions']] == [1, 1, 1]
+
+
+def test_admin_can_retry_allocation_and_explicitly_cleanup_lobby(flask_app):
+    save_wardogs_lobby(app_core.get_db_connection, lobby())
+    backend_app.users['admin'] = {'password': 'unused', 'steam_id': '76561198000000099'}
+    app_core.ADMIN_STEAM_IDS.add('76561198000000099')
+    client = flask_app.test_client()
+    retry = '/api/admin/wardogs/lobbies/wd-api/allocate'
+    cleanup = '/api/admin/wardogs/lobbies/wd-api'
+    assert client.post(retry, headers=headers(flask_app, 'alice')).status_code == 403
+    response = client.post(retry, headers=headers(flask_app, 'admin'))
+    assert response.status_code == 200
+    assert response.get_json()['state'] == 'waiting_for_server'
+    assert get_wardogs_lobby(app_core.get_db_connection, 'wd-api') is not None
+    assert client.delete(cleanup, headers=headers(flask_app, 'alice')).status_code == 403
+    assert client.delete(cleanup, headers=headers(flask_app, 'admin')).status_code == 200
+    assert get_wardogs_lobby(app_core.get_db_connection, 'wd-api') is None

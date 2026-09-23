@@ -16,6 +16,12 @@ export const normalizeBackendMatch = (payload) => {
     phase: match.phase,
     label: match.label,
     serverId: match.serverId ?? null,
+    join: {
+      state: match.join?.state || (match.serverId ? 'server_allocated_join_unavailable' : 'waiting_for_server'),
+      serverName: match.join?.serverName || null,
+      instructions: match.join?.instructions || null,
+      directJoinUrl: match.join?.directJoinUrl || null
+    },
     server: match.server || { state: 'none', label: 'No server observation yet' },
     observation: match.observation || { state: 'none', observedAt: null },
     configuration: match.configuration || {},

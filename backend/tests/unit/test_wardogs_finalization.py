@@ -217,6 +217,7 @@ def test_exact_retry_reuses_existing_lobby_without_overwriting_and_conflict_fail
 
 def test_shared_dispatch_uses_wardogs_finalizer_with_internal_config(monkeypatch):
     pending = _pending(['alice', 'bob', 'carol'])
+    allocations = []
     fake_app = SimpleNamespace(
         pending_match={'wardogs-internal': pending}, groups={}, user_to_group={}, users={},
         queue_lock=RLock(), matchmaking_queue={'wardogs-internal': ['alice', 'bob', 'carol']},
@@ -225,7 +226,7 @@ def test_shared_dispatch_uses_wardogs_finalizer_with_internal_config(monkeypatch
         get_user_room=lambda user: user,
         get_db_connection=app_core.get_db_connection,
         logger=SimpleNamespace(info=lambda *_args: None, warning=lambda *_args: None),
-        allocate_server_for_lobby=lambda *_args: (_ for _ in ()).throw(AssertionError('allocation called')),
+        allocate_server_for_lobby=lambda lobby_id, game_type: allocations.append((lobby_id, game_type)) or None,
     )
     monkeypatch.setattr(matchmaking, '_app', lambda: fake_app)
     monkeypatch.setattr(matchmaking, 'broadcast_queue_update', lambda: None)
@@ -234,6 +235,7 @@ def test_shared_dispatch_uses_wardogs_finalizer_with_internal_config(monkeypatch
     lobby_id = matchmaking.finalize_pending_match(
         'match-final', queue_modes=MODES, wardogs_config=WardogsAssignmentConfig(1, 0))
     assert isinstance(lobby_id, str)
+    assert allocations == [(lobby_id, 'wardogs')]
     assert fake_app.pending_match['wardogs-internal'] is None
     assert len(_roster(get_wardogs_lobby(app_core.get_db_connection, lobby_id))) == 3
 

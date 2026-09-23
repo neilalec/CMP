@@ -267,6 +267,14 @@ def finalize_pending_match(match_id, *, wardogs_config=None, queue_modes=None):
                 upsert_player_activity(player, status='in_lobby', lobby_id=lobby_id)
             app.pending_match[queue_mode] = None
             save_queue()
+        try:
+            allocated = app.allocate_server_for_lobby(lobby_id, game_type='wardogs')
+            if allocated is None:
+                app.logger.info('WARDOGS lobby waiting for a server: lobby_id=%s', lobby_id)
+        except Exception:
+            # The persisted lobby and completed acceptance survive allocation errors.
+            # An admin can retry allocation explicitly after investigating.
+            app.logger.warning('WARDOGS allocation unavailable: lobby_id=%s', lobby_id)
         broadcast_queue_update()
         lobby_event = {'lobby_id': lobby_id, 'game_type': 'wardogs',
                        'queue_mode': queue_mode, 'players': players}

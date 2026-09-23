@@ -7,6 +7,7 @@ two-team Squad runtime and contains no WDRCON credentials or server snapshots.
 from __future__ import annotations
 
 import json
+import os
 from collections import Counter
 from datetime import datetime, timezone
 
@@ -201,6 +202,25 @@ def _iso(value):
     return value.isoformat() if value is not None else None
 
 
+def build_wardogs_join_state(lobby, server=None):
+    """Only explicitly verified player join strategies may add instructions later."""
+    if lobby.get('serverId') is None:
+        return {'state': 'waiting_for_server', 'serverName': None,
+                'instructions': None, 'directJoinUrl': None}
+    name = None
+    if server and server.get('game_type') == 'wardogs':
+        candidate = str((server.get('metadata') or {}).get('serverInfo', {}).get('serverName')
+                        or server.get('display_name') or '').strip()
+        secret_ref = server.get('wdrcon_secret_env')
+        forbidden = (server.get('bridge_url'), secret_ref,
+                     os.environ.get(secret_ref) if secret_ref else None)
+        if (candidate and len(candidate) <= 128 and not any(ord(char) < 32 for char in candidate)
+                and not any(value and str(value).casefold() in candidate.casefold() for value in forbidden)):
+            name = candidate
+    return {'state': 'server_allocated_join_unavailable', 'serverName': name,
+            'instructions': None, 'directJoinUrl': None}
+
+
 def build_wardogs_read_model(lobby, *, players: PlayerSnapshot | None = None,
                              status: ServerStatus | None = None,
                              observed_at: datetime | None = None,
@@ -289,6 +309,7 @@ def build_wardogs_read_model(lobby, *, players: PlayerSnapshot | None = None,
     return {
         "id": lobby["id"], "source": "cmp-backend", "phase": lobby["phase"],
         "label": lobby.get("label") or "WARDOGS lobby", "serverId": lobby.get("serverId"),
+        "join": build_wardogs_join_state(lobby),
         "server": {"state": observation_state, "label": {
             "none": "No server observation yet", "fresh": "Server observed",
             "stale": "Server observation stale"}[observation_state]},

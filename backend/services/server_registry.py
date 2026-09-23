@@ -1710,6 +1710,10 @@ def get_server_pool_capacity(get_db_connection, secret_key, game_type='squad'):
 
 
 def allocate_server_for_lobby(get_db_connection, secret_key, lobby_id, game_type='squad'):
+    if validate_game_type(game_type) == 'wardogs':
+        from services.wardogs_allocation import allocate_wardogs_server_for_lobby
+        server_id = allocate_wardogs_server_for_lobby(get_db_connection, lobby_id)
+        return get_server_by_id(get_db_connection, server_id, secret_key) if server_id else None
     available = list_available_servers(get_db_connection, secret_key, game_type=game_type)
     if not available:
         return None

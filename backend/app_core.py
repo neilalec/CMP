@@ -813,8 +813,10 @@ def get_server_pool_capacity():
     return get_server_pool_capacity_service(get_db_connection, get_secret_key())
 
 
-def allocate_server_for_lobby(lobby_id):
-    return allocate_server_for_lobby_service(get_db_connection, get_secret_key(), lobby_id)
+def allocate_server_for_lobby(lobby_id, game_type='squad'):
+    if game_type == 'squad':
+        return allocate_server_for_lobby_service(get_db_connection, get_secret_key(), lobby_id)
+    return allocate_server_for_lobby_service(get_db_connection, get_secret_key(), lobby_id, game_type=game_type)
 
 
 def release_server_allocation(lobby_id, reason='released'):

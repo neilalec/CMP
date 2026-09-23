@@ -8,6 +8,7 @@ import { useWardogsMatchStore } from './stores/matchStore';
 import MatchOverview from './components/MatchOverview.vue';
 import FactionRoster from './components/FactionRoster.vue';
 import ScoreAndResults from './components/ScoreAndResults.vue';
+import JoinState from './components/JoinState.vue';
 import './wardogs.css';
 
 const store = useWardogsMatchStore();
@@ -46,7 +47,7 @@ const onScenarioChange = (event) => store.selectScenario(event.target.value);
     <p v-if="loading" role="status">Loading WARDOGS lobby…</p>
     <p v-if="error" role="alert">{{ error }}</p>
     <template v-if="match">
-      <p v-if="mode === 'backend' && !match.serverId" role="status">Awaiting server setup. Join instructions are not available yet.</p>
+      <JoinState v-if="mode === 'backend'" :join="match.join" />
       <MatchOverview :match="match" :totals="totals" />
       <section v-if="match.phase === 'assembling'" aria-label="Faction rosters">
         <div class="wardogs-section-heading">
