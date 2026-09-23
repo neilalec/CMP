@@ -11,7 +11,9 @@ from urllib.parse import quote, urlparse
 
 from itsdangerous import BadSignature, URLSafeSerializer
 from integrations.wardogs.client import WDRCONClient
+from integrations.wardogs.adapter import WardogsAdapter
 from integrations.wardogs.errors import WDRCONError
+from services.game_server_adapter import AdapterError, AdapterErrorKind
 from services.game_server_contracts import ALL_CAPABILITIES
 
 from services.bridge import (
@@ -87,6 +89,23 @@ def _wardogs_client(payload):
     if payload.get('bridge_token'):
         raise ValueError('WARDOGS credentials must use wdrcon_secret_env, not bridge_token')
     return WDRCONClient(payload.get('bridge_url'), password)
+
+
+def get_game_server_adapter_for_server(server_record):
+    """Select the new adapter only for WARDOGS; Squad keeps its bridge path.
+
+    Returning None for Squad is deliberate: its existing app_core callbacks are
+    not migrated through an incomplete generic adapter.
+    """
+    game_type = server_record.get('game_type', 'squad')
+    if game_type == 'squad':
+        return None
+    if game_type != 'wardogs':
+        raise AdapterError(AdapterErrorKind.OPERATION_UNSUPPORTED)
+    try:
+        return WardogsAdapter(_wardogs_client(server_record))
+    except ValueError:
+        raise AdapterError(AdapterErrorKind.INTEGRATION_UNAVAILABLE) from None
 
 
 def _redact_wardogs(value, secret):

@@ -28,13 +28,13 @@ Delivery is **capability-driven**. Missing natural-end or winner evidence does n
 - [x] Target CMP ↔ WARDOGS architecture/reuse audit (design)
 - [x] Stack/runtime suitability review (design; load validation remains)
 - [x] Normalized game-server observation and capability contracts
-- [ ] Generic game-server control/adapter contract
+- [x] Generic game-server adapter/control capability contract (read boundary and fail-closed control gate; no writes)
 - [x] Read-only WDRCON mapping for verified capability/status/player/rotation shapes
 - [ ] Minimum CMP refactor
 - [x] Game-aware registry records, read-only health probe, and Squad allocation isolation
 - [ ] WARDOGS player join strategy and full game-aware allocation policy
 - [x] Isolated production-shaped read-only WDRCON client for verified endpoints
-- [ ] WARDOGS adapter skeleton with per-build capability gating
+- [x] WARDOGS adapter skeleton with per-build capability gating (read-only)
 - [ ] Production WARDOGS adapter
 - [ ] Enable lifecycle/result automation only where verified evidence supports it
 
