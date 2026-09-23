@@ -89,8 +89,8 @@ def test_no_empty_and_stale_observations_are_distinct():
     stale = build_wardogs_read_model(lobby, players=players, status=status,
                                      now=AT + timedelta(minutes=2))
     assert stale["observation"]["state"] == "stale"
-    assert stale["factions"][0]["groups"][0]["players"][0]["connected"] is None
-    assert stale["scores"]["valkyra"] is None
+    assert stale["factions"][0]["groups"][0]["players"][0]["connected"] is True
+    assert stale["scores"]["valkyra"] == 999
 
 
 def test_failed_read_keeps_roster_and_marks_cached_snapshot_stale():
@@ -110,7 +110,22 @@ def test_failed_read_keeps_roster_and_marks_cached_snapshot_stale():
     adapter.fails = True
     stale = observe_wardogs_lobby(lobby, adapter, now=AT + timedelta(seconds=1))
     assert stale["observation"]["state"] == "stale"
+    assert stale["observation"]["pollState"] == "error"
+    assert stale["scores"]["valkyra"] == 999
     assert stale["factions"][0]["groups"][0]["players"][0]["ready"] is False
+
+
+def test_first_poll_failure_is_unavailable_without_erasing_planned_roster():
+    class FailingAdapter:
+        def get_status(self):
+            raise AdapterError(AdapterErrorKind.TRANSPORT_FAILURE)
+
+    state = observe_wardogs_lobby(owned_lobby(server_id=98), FailingAdapter(), now=AT)
+    assert state['observation'] == {
+        'state': 'unavailable', 'pollState': 'error',
+        'observedAt': None, 'attemptedAt': AT.isoformat(),
+    }
+    assert state['factions'][0]['groups'][0]['players'][0]['connected'] is None
 
 
 def test_validation_rejects_noncanonical_factions_and_invalid_leaders():

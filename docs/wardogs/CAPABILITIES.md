@@ -8,6 +8,8 @@ Evidence: the checked-in [real-server session](../../spikes/wardogs/evidence/202
 
 Additional live Join By ID verification was reported for this milestone: `GET /v1/server-id` returned an ID; entering it through WARDOGS **Deploy → Community → Join By ID** resolved the correct deployed server and a player joined successfully. CMP now reads that value dynamically; the tested live ID is intentionally not stored in the repository.
 
+Allocated WARDOGS lobbies now use a single periodic, read-only worker for `GET /v1/status` and `GET /v1/players`. Roster, faction, map, population, and score values are observations with freshness and last-read status. They cannot establish match start, end, winner, or official result. The worker does not poll capabilities, rotation, Join ID, or control routes.
+
 `Verified (read)` applies only to the shape and conditions actually captured; `reported` marks a real-server observation supplied by the project but not reproducible from the checked-in bundle; `advertised only` and `unverified` do not enable production mutation/finalisation. None of the unknown lifecycle capabilities is asserted *unsupported* by the protocol.
 
 | Capability | Status / evidence | CMP dependent feature | Safe fallback |
@@ -16,7 +18,7 @@ Additional live Join By ID verification was reported for this milestone: `GET /v
 | Player roster | Verified (empty read): `GET /v1/players`; populated read reported separately | Connection count, expected-roster comparison | Show connection as unknown, not absent; allow referee check-in |
 | Steam identity | Reported real-player observation of `players[].steamId`; no populated bundle row | Link CMP profile to observed player; prevent misassignment | Do not auto-match or move ambiguous identities; referee reconciliation |
 | Faction assignment (read) | Reported real-player observation of `players[].faction`; score faction names verified in status | Alignment and three-faction roster | Show unknown alignment; do not count it as ready/verified |
-| Three faction scores | Verified (read shape): `status.factionScores[]` contains Valkyra, Lonestar, Manticore at zero; live change/finality unverified | Live scoreboard and result draft | Display timestamped observed values or unavailable; never finalise from them |
+| Three faction scores | Verified (read shape): `status.factionScores[]` contains Valkyra, Lonestar, Manticore at zero; live change/finality unverified | Live server scores only | Display timestamped observed values or stale last-known values; never finalise from them |
 | Rotation | Verified (read): `GET /v1/rotation` in bundle | Map scheduling/diagnostics | Show configured schedule as unknown; referee selects/announces map |
 | Player Join ID | Verified (read and workflow): `GET /v1/server-id` returned an ID; the live client resolved the correct server and a player joined using Join By ID | Show dynamic Join ID and manual instructions for an allocated lobby | Keep allocation and show join unavailable if the read fails; do not infer a direct URI |
 | Map/config snapshot | Verified (read): map, experiences, lighting, alternator in status; `GET /v1/config` advertised only | Match information and map compatibility | Display known values with observation time; use operator-provided details if absent |

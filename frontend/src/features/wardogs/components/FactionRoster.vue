@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue';
 
-const props = defineProps({ faction: { type: Object, required: true }, summary: { type: Object, required: true } });
+const props = defineProps({ faction: { type: Object, required: true }, summary: { type: Object, required: true }, observationState: { type: String, default: 'none' } });
 const groupsFor = (status) => props.faction.groups.map((group) => ({
   ...group, players: group.players.filter((player) => player.rosterStatus === status)
 })).filter((group) => group.players.length);
@@ -11,6 +11,11 @@ const commander = computed(() => props.faction.groups.flatMap((group) => group.p
 const alignment = (player) => player.connected !== true ? 'Not observed' :
   !player.observedFactionId ? 'Faction unknown' :
     player.observedFactionId === props.faction.id ? 'On faction' : 'Faction mismatch';
+const connectionLabel = (player) => {
+  if (player.connected === null) return 'Connection unknown';
+  if (props.observationState === 'stale') return player.connected ? 'Last seen connected' : 'Last seen absent';
+  return player.connected ? 'Connected' : 'Absent';
+};
 </script>
 
 <template>
@@ -38,7 +43,7 @@ const alignment = (player) => player.connected !== true ? 'Not observed' :
               <div class="wardogs-player-flags">
                 <span>{{ player.registered ? 'CMP registered' : 'CMP registration pending' }}</span>
                 <span>{{ player.steamId ? 'Steam linked' : 'Identity pending' }}</span>
-                <span :class="{ 'wardogs-warning': player.connected === false }">{{ player.connected === null ? 'Connection unknown' : player.connected ? 'Connected' : 'Absent' }}</span>
+                <span :class="{ 'wardogs-warning': player.connected === false || observationState === 'stale' }">{{ connectionLabel(player) }}</span>
                 <span :class="{ 'wardogs-warning': player.connected === true && player.observedFactionId && player.observedFactionId !== faction.id }">{{ alignment(player) }}</span>
                 <span :class="{ 'wardogs-ready': player.ready }">{{ player.ready ? 'Ready' : 'Waiting' }}</span>
               </div>

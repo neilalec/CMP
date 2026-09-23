@@ -111,6 +111,8 @@ from matchmaking import (
 )
 from bootstrap import start_server
 from wiring import register_http_routes, register_socket_routes
+from services.server_registry import get_game_server_adapter_for_server
+from services.wardogs_live import WardogsLivePoller
 from services.bridge import fetch_connected_server_players as fetch_connected_server_players_service
 from services.queue import has_available_server_capacity
 from services.profile import (
@@ -422,6 +424,11 @@ socketio = SocketIO(
     async_handlers=False
 )
 logger.info("SocketIO initialized")
+wardogs_live_poller = WardogsLivePoller(
+    socketio=socketio, get_db_connection=get_db_connection,
+    get_server_by_id=get_server_by_id,
+    adapter_factory=get_game_server_adapter_for_server, logger=logger,
+)
 
 # Keep the app-level names stable for existing socket/runtime wiring while routing
 # queue and lobby orchestration through the extracted matchmaking module.
@@ -770,6 +777,7 @@ if __name__ == '__main__':
                 eventlet=eventlet
             ),
             resume_lobby_tasks=resume_restored_lobby_tasks,
+            wardogs_observation_task=wardogs_live_poller.run,
             logger=logger
         ),
         save_queue=save_queue,

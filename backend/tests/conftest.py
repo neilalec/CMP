@@ -11,6 +11,7 @@ os.environ.setdefault('JWT_SECRET_KEY', 'test-secret-key-with-32-bytes-minimum')
 
 import app as backend_app
 import app_core
+from services.wardogs_lobby import clear_wardogs_observation
 from app import app, socketio, users
 from flask_jwt_extended import create_access_token
 import json
@@ -28,6 +29,7 @@ def flask_app():
 
 @pytest.fixture(scope='function', autouse=True)
 def isolated_test_database(tmp_path, monkeypatch):
+    clear_wardogs_observation()
     database_path = tmp_path / 'test_app.db'
     monkeypatch.setattr(app_core, 'DATABASE_PATH', str(database_path))
     monkeypatch.setattr(backend_app, 'DATABASE_PATH', str(database_path))

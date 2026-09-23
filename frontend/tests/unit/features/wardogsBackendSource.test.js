@@ -4,15 +4,18 @@ import { createBackendWardogsDataSource, normalizeBackendMatch } from '../../../
 import { mockWardogsDataSource } from '../../../src/features/wardogs/mock/mockDataSource';
 import { useWardogsMatchStore } from '../../../src/features/wardogs/stores/matchStore';
 import FactionRoster from '../../../src/features/wardogs/components/FactionRoster.vue';
-import { factionSummary, resultRows } from '../../../src/features/wardogs/models/match';
+import MatchOverview from '../../../src/features/wardogs/components/MatchOverview.vue';
+import ScoreAndResults from '../../../src/features/wardogs/components/ScoreAndResults.vue';
+import { factionSummary, matchSummary, resultRows } from '../../../src/features/wardogs/models/match';
 
 const backendPayload = () => ({
   success: true,
   match: {
     id: 'wd-api', phase: 'assembling', label: 'Practice',
-    server: { state: 'fresh', label: 'Server observed' },
-    observation: { state: 'fresh', observedAt: '2026-09-23T12:00:00Z' },
+    server: { state: 'fresh', name: 'Observed WARDOGS server', label: 'Server observed' },
+    observation: { state: 'fresh', pollState: 'ok', observedAt: '2026-09-23T12:00:00Z' },
     configuration: { map: 'Bakurani' },
+    serverStatus: { currentPlayers: 3, maxPlayers: 100 },
     factions: ['valkyra', 'lonestar', 'manticore'].map((id, index) => ({
       id, name: id, color: '#123456', commanderId: index === 0 ? 'alice' : null,
       groups: index === 0 ? [{
@@ -110,6 +113,71 @@ describe('WARDOGS backend data source', () => {
     expect(wrapper.text()).toContain('Connection unknown');
     expect(wrapper.text()).toContain('Waiting');
     expect(wrapper.text()).toContain('Group leader');
+  });
+
+  test('live backend view shows server, planned mismatch, scores and unexpected players', () => {
+    const match = normalizeBackendMatch(backendPayload());
+    const overview = mount(MatchOverview, { props: { match, totals: matchSummary(match) } });
+    expect(overview.text()).toContain('Observed WARDOGS server');
+    expect(overview.text()).toContain('Bakurani');
+    expect(overview.text()).toContain('3/100');
+    const faction = match.factions[0];
+    const roster = mount(FactionRoster, { props: {
+      faction, summary: factionSummary(faction), observationState: match.observation.state
+    } });
+    expect(roster.text()).toContain('Faction mismatch');
+    expect(roster.text()).toContain('Connected');
+    const scores = mount(ScoreAndResults, { props: {
+      match, summaries: Object.fromEntries(match.factions.map((item) =>
+        [item.id, factionSummary(item)])), rankedResults: resultRows(match)
+    } });
+    expect(scores.text()).toContain('Live server scores');
+    expect(scores.text()).toContain('999');
+    expect(scores.text()).toContain('Unexpected server players');
+    expect(scores.text()).toContain('Stranger');
+    expect(scores.text()).toContain('not official results');
+    expect(scores.text()).not.toContain('Sample player statistics');
+  });
+
+  test('stale read keeps last known view with an explicit warning', () => {
+    const payload = backendPayload();
+    payload.match.server.state = 'stale';
+    payload.match.server.label = 'Last server observation may be stale';
+    payload.match.observation.state = 'stale';
+    payload.match.observation.pollState = 'error';
+    const match = normalizeBackendMatch(payload);
+    const overview = mount(MatchOverview, { props: { match, totals: matchSummary(match) } });
+    expect(overview.text()).toContain('Latest read unavailable');
+    const faction = match.factions[0];
+    const roster = mount(FactionRoster, { props: {
+      faction, summary: factionSummary(faction), observationState: 'stale'
+    } });
+    expect(roster.text()).toContain('Last seen connected');
+    const scores = mount(ScoreAndResults, { props: {
+      match, summaries: Object.fromEntries(match.factions.map((item) =>
+        [item.id, factionSummary(item)])), rankedResults: []
+    } });
+    expect(scores.text()).toContain('Last known server scores');
+    expect(scores.text()).toContain('999');
+  });
+
+  test('socket-triggered refresh replaces the match and keeps last state on HTTP failure', async () => {
+    const store = useWardogsMatchStore();
+    const payload = backendPayload();
+    let fail = false;
+    const source = { loadMatch: jest.fn(async () => {
+      if (fail) throw new Error('offline-secret');
+      return normalizeBackendMatch(payload);
+    }) };
+    await store.loadBackendLobby('wd-api', source);
+    payload.match.configuration.map = 'Next map';
+    await store.refreshBackendLobby('wd-api', source);
+    expect(store.match.configuration.map).toBe('Next map');
+    fail = true;
+    await store.refreshBackendLobby('wd-api', source);
+    expect(store.match.configuration.map).toBe('Next map');
+    expect(store.error).toContain('last loaded lobby state');
+    expect(store.error).not.toContain('offline-secret');
   });
 
   test('rejects malformed payload and missing token before network access', async () => {

@@ -3,7 +3,8 @@ import { mockWardogsDataSource } from '../mock/mockDataSource';
 import { factionSummary, matchSummary, resultRows } from '../models/match';
 
 export const useWardogsMatchStore = defineStore('wardogs-match', {
-  state: () => ({ scenarioKey: 'partial', mode: 'mock', match: null, loading: false, error: null }),
+  state: () => ({ scenarioKey: 'partial', mode: 'mock', match: null, loading: false,
+    refreshing: false, error: null }),
   getters: {
     scenarioOptions: () => mockWardogsDataSource.listScenarios(),
     totals: (state) => state.match ? matchSummary(state.match) : null,
@@ -37,6 +38,19 @@ export const useWardogsMatchStore = defineStore('wardogs-match', {
         this.error = error.message;
       } finally {
         this.loading = false;
+      }
+    },
+    async refreshBackendLobby(lobbyId, source) {
+      if (this.mode !== 'backend' || this.match?.id !== lobbyId || this.refreshing) return;
+      this.refreshing = true;
+      try {
+        this.match = await source.loadMatch(lobbyId);
+        this.error = null;
+      } catch {
+        // Keep the last useful read visible through a temporary HTTP failure.
+        this.error = 'Live update unavailable. Showing the last loaded lobby state.';
+      } finally {
+        this.refreshing = false;
       }
     }
   }

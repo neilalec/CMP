@@ -43,6 +43,7 @@ Delivery is **capability-driven**. Missing natural-end or winner evidence does n
 - [x] Isolated production-shaped read-only WDRCON client for verified endpoints
 - [x] WARDOGS adapter skeleton with per-build capability gating (read-only)
 - [x] WARDOGS backend lobby/read model with CMP-owned roster persistence and observation reconciliation
+- [x] Allocated WARDOGS lobby live synchronization (single read-only worker, stale cache, private Socket.IO update, authenticated HTTP recovery)
 - [ ] Production WARDOGS adapter
 - [ ] Enable lifecycle/result automation only where verified evidence supports it
 

@@ -11,8 +11,12 @@ from types import SimpleNamespace
 from services.queue import has_available_queue_capacity
 from services.game_server_adapter import AdapterError
 from services.server_registry import _redact_wardogs, get_game_server_adapter_for_server
-from services.wardogs_lobby import build_wardogs_join_state, can_read_lobby, get_wardogs_lobby, observe_wardogs_lobby
+from services.wardogs_lobby import (
+    build_wardogs_join_state, can_read_lobby, get_or_fetch_wardogs_join_id,
+    get_wardogs_lobby, read_wardogs_lobby,
+)
 from services.wardogs_allocation import cleanup_wardogs_lobby
+from services.wardogs_live import wardogs_lobby_room
 from services.steam_auth import (
     build_frontend_callback_url,
     build_steam_login_url,
@@ -363,21 +367,17 @@ def register_http_routes(app):
                 # Missing credential/configuration is an unavailable observation,
                 # not a reason to lose the CMP-owned roster.
                 pass
-        match = observe_wardogs_lobby(lobby, adapter)
-        join_id = None
-        if adapter is not None and server_id is not None:
-            try:
-                join_id = adapter.get_join_id()
-            except AdapterError:
-                # Join lookup is an optional read; it never changes allocation.
-                pass
+        match = read_wardogs_lobby(lobby)
+        join_id = get_or_fetch_wardogs_join_id(lobby, adapter)
         match['join'] = build_wardogs_join_state(
             lobby, server if server_id is not None else None,
             join_id=join_id, observed_server_name=match.get('server', {}).get('name'))
         if server_id is not None:
+            match['server']['name'] = match['join']['serverName']
             secret = os.environ.get(server.get('wdrcon_secret_env') or '')
-            if secret:
-                match = _redact_wardogs(match, secret)
+            for sensitive in (secret, server.get('bridge_url'), server.get('wdrcon_secret_env')):
+                if isinstance(sensitive, str) and sensitive:
+                    match = _redact_wardogs(match, sensitive)
         return jsonify({'success': True, 'match': match})
 
     @app.route('/api/admin/wardogs/lobbies/<lobby_id>/allocate', methods=['POST'])
@@ -407,6 +407,7 @@ def register_http_routes(app):
             server_id = cleanup_wardogs_lobby(backend.get_db_connection, lobby_id)
         except ValueError:
             return jsonify({'success': False, 'message': 'WARDOGS lobby cleanup unavailable'}), 409
+        backend.socketio.close_room(wardogs_lobby_room(lobby_id))
         return jsonify({'success': True, 'releasedServerId': server_id})
 
     @app.route('/api/lobbies/<lobby_id>/join-link', methods=['GET'])
@@ -746,6 +747,28 @@ def register_http_routes(app):
 
 
 def register_socket_routes(socketio):
+    @socketio.on('wardogs_lobby_subscribe')
+    def subscribe_wardogs_lobby(data):
+        if not isinstance(data, dict) or not isinstance(data.get('lobbyId'), str):
+            return {'success': False}
+        lobby_id = data['lobbyId']
+        try:
+            username = decode_token(data.get('token') or '').get('sub')
+            backend = _http_backend_api()
+            lobby = get_wardogs_lobby(backend.get_db_connection, lobby_id)
+            if not lobby or not can_read_lobby(lobby, username, backend.is_admin_user(username)):
+                return {'success': False}
+        except Exception:
+            return {'success': False}
+        join_room(wardogs_lobby_room(lobby_id))
+        return {'success': True}
+
+    @socketio.on('wardogs_lobby_unsubscribe')
+    def unsubscribe_wardogs_lobby(data):
+        if isinstance(data, dict) and isinstance(data.get('lobbyId'), str):
+            leave_room(wardogs_lobby_room(data['lobbyId']))
+        return {'success': True}
+
     @socketio.on('*')
     @_socket_backend_api().handle_socket_data
     def catch_all(event, *args):

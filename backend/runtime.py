@@ -244,6 +244,7 @@ def start_periodic_tasks(
     cleanup_stale_players_task,
     runtime_state_persistence_task=None,
     resume_lobby_tasks=None,
+    wardogs_observation_task=None,
     logger
 ):
     def safe_start(task, name):
@@ -257,6 +258,8 @@ def start_periodic_tasks(
     safe_start(cleanup_stale_players_task, "stale player cleanup")
     if runtime_state_persistence_task:
         safe_start(runtime_state_persistence_task, "runtime state persistence")
+    if wardogs_observation_task:
+        safe_start(wardogs_observation_task, "WARDOGS live observation")
     if resume_lobby_tasks:
         resume_lobby_tasks()
 

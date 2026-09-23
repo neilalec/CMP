@@ -7,7 +7,7 @@ import json
 import time
 from datetime import datetime, timezone
 
-from services.wardogs_lobby import validate_lobby
+from services.wardogs_lobby import clear_wardogs_observation, validate_lobby
 
 
 HEALTH_MAX_AGE_SECONDS = 300
@@ -122,4 +122,5 @@ def cleanup_wardogs_lobby(get_db_connection, lobby_id):
             """, (server['last_health_status'] if server['enabled'] else 'disabled',
                   now, server_id))
         conn.execute('DELETE FROM wardogs_lobbies WHERE lobby_id=?', (lobby_id,))
+        clear_wardogs_observation(lobby_id, server_id)
         return server_id

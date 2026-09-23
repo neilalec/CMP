@@ -11,7 +11,7 @@ from services.game_server_adapter import AdapterError, AdapterErrorKind
 from services.game_server_contracts import PlayerSnapshot, ServerPlayer, ServerStatus
 from services.wardogs_assignment import WardogsAssignmentConfig
 from services.wardogs_finalization import finalize_wardogs_accepted_match
-from services.wardogs_lobby import get_wardogs_lobby, save_wardogs_lobby
+from services.wardogs_lobby import get_wardogs_lobby, observe_wardogs_lobby, save_wardogs_lobby
 
 
 def lobby(server_id=None):
@@ -71,14 +71,22 @@ def test_associated_server_reads_only_normalized_data_and_hides_credentials(flas
     })
     at = datetime.now(timezone.utc)
     class FakeAdapter:
+        def __init__(self):
+            self.calls = []
         def get_status(self):
-            return ServerStatus(at, server_name="Live WARDOGS display", map_id=f"Bakurani-{credential}", current_players=2, max_players=100)
+            self.calls.append('status')
+            return ServerStatus(at, server_name="Live WARDOGS display", map_id=f"Bakurani-{credential}",
+                                lighting='https://example.test', current_players=2, max_players=100)
         def get_players(self):
+            self.calls.append('players')
             return PlayerSnapshot((ServerPlayer("76561198000000001", "server-name", "Valkyra"),
                                    ServerPlayer("76561198000000099", credential, "Lonestar")), at)
         def get_join_id(self):
+            self.calls.append('join_id')
             return "dynamic-server-join-id"
-    monkeypatch.setattr(wiring, "get_game_server_adapter_for_server", lambda _server: FakeAdapter())
+    adapter = FakeAdapter()
+    observe_wardogs_lobby(get_wardogs_lobby(app_core.get_db_connection, 'wd-api'), adapter)
+    monkeypatch.setattr(wiring, "get_game_server_adapter_for_server", lambda _server: adapter)
     response = flask_app.test_client().get("/api/wardogs/lobbies/wd-api", headers=headers(flask_app, "alice"))
     assert response.status_code == 200
     body = response.get_json()["match"]
@@ -101,7 +109,12 @@ def test_associated_server_reads_only_normalized_data_and_hides_credentials(flas
     text = response.get_data(as_text=True)
     assert credential not in text and "CMP_WARDOGS_RCON_PRIVATE" not in text
     assert "bridge_url" not in text and "server-name" not in text
+    assert 'https://example.test' not in text
     assert body["unexpectedPlayers"][0]["displayName"] == "[REDACTED]"
+    assert adapter.calls == ['status', 'players', 'join_id']
+    assert flask_app.test_client().get('/api/wardogs/lobbies/wd-api',
+                                       headers=headers(flask_app, 'alice')).status_code == 200
+    assert adapter.calls == ['status', 'players', 'join_id']
 
 
 def test_join_id_read_failure_keeps_associated_server_allocated(flask_app, monkeypatch):

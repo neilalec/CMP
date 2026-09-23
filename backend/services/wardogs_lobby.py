@@ -10,6 +10,7 @@ import json
 import os
 import re
 from collections import Counter
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 
 from services.game_server_adapter import AdapterError
@@ -247,15 +248,16 @@ def build_wardogs_join_state(lobby, server=None, *, join_id=None, observed_serve
 def build_wardogs_read_model(lobby, *, players: PlayerSnapshot | None = None,
                              status: ServerStatus | None = None,
                              observed_at: datetime | None = None,
-                             now: datetime | None = None, stale=False):
+                             now: datetime | None = None, stale=False,
+                             poll_state='not_attempted', attempted_at: datetime | None = None):
     """Combine durable roster and optional normalized observations without mutation."""
     validate_lobby(lobby)
     now = now or datetime.now(timezone.utc)
     observed_at = observed_at or (players.observed_at if players else None)
-    observation_state = "none" if observed_at is None else (
+    observation_state = ("unavailable" if poll_state == "error" else "none") if observed_at is None else (
         "stale" if stale or (now - observed_at).total_seconds() > OBSERVATION_MAX_AGE_SECONDS else "fresh"
     )
-    roster_observed = players is not None and observation_state == "fresh"
+    roster_observed = players is not None
     observed_by_steam = {}
     duplicates = set()
     if roster_observed:
@@ -324,7 +326,7 @@ def build_wardogs_read_model(lobby, *, players: PlayerSnapshot | None = None,
                                    "observedFactionId": _faction_id(item.faction),
                                    "observedFactionName": item.faction})
     scores = {faction_id: None for faction_id in FACTION_IDS}
-    if status and observation_state == "fresh":
+    if status:
         for score in status.faction_scores:
             faction_id = _faction_id(score.faction)
             if faction_id:
@@ -334,51 +336,131 @@ def build_wardogs_read_model(lobby, *, players: PlayerSnapshot | None = None,
         "label": lobby.get("label") or "WARDOGS lobby", "serverId": lobby.get("serverId"),
         "join": build_wardogs_join_state(lobby),
         "server": {"state": observation_state,
-                   "name": status.server_name if status and observation_state == "fresh" else None,
+                   "name": status.server_name if status else None,
                    "label": {
             "none": "No server observation yet", "fresh": "Server observed",
-            "stale": "Server observation stale"}[observation_state]},
-        "observation": {"state": observation_state, "observedAt": _iso(observed_at)},
-        "configuration": {"map": status.map_id if status and observation_state == "fresh" else None,
-                          "experience": ", ".join(status.experiences) if status and observation_state == "fresh" else None,
-                          "lighting": status.lighting if status and observation_state == "fresh" else None,
-                          "zoneAlternator": status.alternator if status and observation_state == "fresh" else None},
+            "stale": "Last server observation may be stale",
+            "unavailable": "Server observation unavailable"}[observation_state]},
+        "observation": {"state": observation_state, "pollState": poll_state,
+                        "observedAt": _iso(observed_at), "attemptedAt": _iso(attempted_at)},
+        "configuration": {"map": status.map_id if status else None,
+                          "experience": ", ".join(status.experiences) if status else None,
+                          "lighting": status.lighting if status else None,
+                          "zoneAlternator": status.alternator if status else None},
         "serverStatus": {"currentPlayers": status.current_players,
                          "maxPlayers": status.max_players,
-                         "observedAt": _iso(status.observed_at)} if status and observation_state == "fresh" else None,
+                         "rotation": {"nowIndex": status.rotation_now_index,
+                                      "nextIndex": status.rotation_next_index},
+                         "scoreTick": {"current": status.score_tick.current,
+                                       "minimum": status.score_tick.minimum,
+                                       "maximum": status.score_tick.maximum} if status.score_tick else None,
+                         "observedAt": _iso(status.observed_at)} if status else None,
         "factions": factions, "scores": scores, "unexpectedPlayers": unexpected,
         "result": {"status": "unconfirmed", "note": "No authoritative result is available."},
         "observations": [],
     }
 
 
-# Process-local last complete read only. It is discarded at restart and never
-# written to the authoritative roster table.
-_last_observations = {}
+# Process-local observations are reconstructed after restart by the periodic
+# worker. They never enter the CMP-owned planned roster table.
+@dataclass(frozen=True)
+class WardogsObservation:
+    players: PlayerSnapshot | None = None
+    status: ServerStatus | None = None
+    observed_at: datetime | None = None
+    attempted_at: datetime | None = None
+    poll_state: str = 'not_attempted'
+
+
+_last_observations: dict[tuple[str, int], WardogsObservation] = {}
+_join_ids: dict[tuple[str, int], str] = {}
+
+
+def _observation_key(lobby):
+    return lobby['id'], lobby.get('serverId')
+
+
+def read_wardogs_lobby(lobby, *, now=None):
+    """Project the latest bounded poll; HTTP reads never start status/player reads."""
+    now = now or datetime.now(timezone.utc)
+    cached = _last_observations.get(_observation_key(lobby)) if lobby.get('serverId') else None
+    if cached is None:
+        return build_wardogs_read_model(lobby, now=now)
+    return build_wardogs_read_model(
+        lobby, players=cached.players, status=cached.status,
+        observed_at=cached.observed_at, attempted_at=cached.attempted_at,
+        poll_state=cached.poll_state, stale=cached.poll_state == 'error', now=now)
+
+
+def mark_wardogs_observation_error(lobby, *, now=None):
+    """Preserve the last complete read when a poll or adapter setup fails."""
+    if lobby.get('serverId') is None:
+        return read_wardogs_lobby(lobby, now=now)
+    now = now or datetime.now(timezone.utc)
+    key = _observation_key(lobby)
+    _last_observations[key] = replace(
+        _last_observations.get(key, WardogsObservation()),
+        attempted_at=now, poll_state='error')
+    return read_wardogs_lobby(lobby, now=now)
 
 
 def observe_wardogs_lobby(lobby, adapter, *, now=None):
-    """Perform one bounded read on demand; degrade to a stale snapshot on error."""
+    """Perform one status/player poll and retain only complete normalized reads."""
+    if lobby.get('serverId') is None:
+        return read_wardogs_lobby(lobby, now=now)
     now = now or datetime.now(timezone.utc)
-    key = (lobby["id"], lobby.get("serverId"))
     if adapter is None:
-        cached = _last_observations.get(key) if lobby.get("serverId") is not None else None
-        if cached:
-            return build_wardogs_read_model(lobby, players=cached[0], status=cached[1],
-                                            observed_at=cached[2], now=now, stale=True)
-        return build_wardogs_read_model(lobby, now=now)
+        return mark_wardogs_observation_error(lobby, now=now)
     try:
         status = adapter.get_status()
         players = adapter.get_players()
     except AdapterError:
-        # Adapter errors are intentionally not returned to clients; a failed
-        # read must not turn a registered player into an absent player.
-        cached = _last_observations.get(key)
-        if cached:
-            return build_wardogs_read_model(lobby, players=cached[0], status=cached[1],
-                                            observed_at=cached[2], now=now, stale=True)
-        return build_wardogs_read_model(lobby, now=now)
-    observed_at = min(status.observed_at, players.observed_at)
-    _last_observations[key] = (players, status, observed_at)
-    return build_wardogs_read_model(lobby, players=players, status=status,
-                                    observed_at=observed_at, now=now)
+        return mark_wardogs_observation_error(lobby, now=now)
+    _last_observations[_observation_key(lobby)] = WardogsObservation(
+        players=players, status=status,
+        observed_at=min(status.observed_at, players.observed_at),
+        attempted_at=now, poll_state='ok')
+    return read_wardogs_lobby(lobby, now=now)
+
+
+def wardogs_observation_signature(lobby):
+    """Ignore timestamps when deciding whether server-visible content changed."""
+    cached = _last_observations.get(_observation_key(lobby))
+    if cached is None:
+        return None
+    epoch = datetime(1970, 1, 1, tzinfo=timezone.utc)
+    return (
+        cached.poll_state,
+        replace(cached.status, observed_at=epoch) if cached.status else None,
+        replace(cached.players, observed_at=epoch) if cached.players else None,
+    )
+
+
+def get_or_fetch_wardogs_join_id(lobby, adapter):
+    """A Join ID is server identity; reuse a successful read for this allocation."""
+    if adapter is None or lobby.get('serverId') is None:
+        return None
+    key = _observation_key(lobby)
+    if key not in _join_ids:
+        try:
+            _join_ids[key] = adapter.get_join_id()
+        except AdapterError:
+            return None
+    return _join_ids[key]
+
+
+def clear_wardogs_observation(lobby_id=None, server_id=None):
+    """Discard process-local state after explicit lobby cleanup/release."""
+    for key in tuple(_last_observations):
+        if (lobby_id is None or key[0] == lobby_id) and (server_id is None or key[1] == server_id):
+            _last_observations.pop(key, None)
+    for key in tuple(_join_ids):
+        if (lobby_id is None or key[0] == lobby_id) and (server_id is None or key[1] == server_id):
+            _join_ids.pop(key, None)
+
+
+def prune_wardogs_observations(eligible_keys):
+    """Remove cache entries whose persisted lobby/server association disappeared."""
+    for key in set(_last_observations) | set(_join_ids):
+        if key not in eligible_keys:
+            clear_wardogs_observation(*key)
