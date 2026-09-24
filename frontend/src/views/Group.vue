@@ -412,5 +412,10 @@ button {
     flex-wrap: wrap;
     justify-content: flex-end;
   }
+
+  :global(.app.legacy-ui) .transfer-leader-button,
+  :global(.app.legacy-ui) .kick-member-button {
+    min-height: 40px;
+  }
 }
 </style>

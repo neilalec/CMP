@@ -165,8 +165,9 @@ const displayName = (player) => props.playerProfiles?.[player]?.display_name || 
   position: absolute;
   top: 3px;
   right: 6px;
-  width: 24px;
-  height: 24px;
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -178,7 +179,8 @@ const displayName = (player) => props.playerProfiles?.[player]?.display_name || 
 
 .match-accept-body {
   padding: clamp(14px, 2.5vw, 20px);
-  overflow: hidden;
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
 }
@@ -264,6 +266,9 @@ const displayName = (player) => props.playerProfiles?.[player]?.display_name || 
   color: var(--cmp-text);
   font-size: 0.78rem;
   font-weight: 700;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: center;
 }
 
 .match-player-chip.is-accepted {

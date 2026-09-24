@@ -40,10 +40,10 @@
 .wardogs-group summary b { color: var(--cmp-primary-hover); font-size: .65rem; text-transform: uppercase; }
 .wardogs-group.is-my-group { border-color: var(--cmp-primary-hover); }
 .wardogs-player-list { display: grid; gap: 5px; padding: 0 7px 7px; }.wardogs-player { padding: 7px; border: 1px solid var(--cmp-border); background: var(--cmp-surface-raised); }
-.wardogs-player > div:first-child { display: flex; justify-content: space-between; gap: 5px; font-size: .76rem; }.wardogs-player > div:first-child span { color: var(--faction-color); font-size: .67rem; font-weight: 700; }
+.wardogs-player > div:first-child { display: flex; justify-content: space-between; gap: 5px; font-size: .76rem; }.wardogs-player > div:first-child > strong { min-width: 0; overflow-wrap: anywhere; }.wardogs-player > div:first-child > span { flex: 0 0 auto; color: var(--faction-color); font-size: .67rem; font-weight: 700; }
 .wardogs-player.is-me { border-left: 3px solid var(--cmp-primary-hover); }
 .wardogs-player > div:first-child small { color: var(--cmp-primary-hover); }
-.wardogs-player-flags { display: flex; flex-wrap: wrap; gap: 4px 8px; margin-top: 4px; color: var(--cmp-text-muted); font-size: .64rem; }.wardogs-player-flags .wardogs-warning { color: var(--cmp-danger); }.wardogs-player-flags .wardogs-ready { color: var(--cmp-success); }
+.wardogs-player-flags { display: flex; flex-wrap: wrap; gap: 4px 8px; margin-top: 4px; color: var(--cmp-text-muted); font-size: .7rem; }.wardogs-player-flags .wardogs-warning { color: var(--cmp-danger); }.wardogs-player-flags .wardogs-ready { color: var(--cmp-success); }
 .wardogs-score-section { display: grid; gap: 12px; }.wardogs-result-note { margin: 0; padding: 10px 12px; background: color-mix(in srgb, var(--cmp-warning) 18%, var(--cmp-surface-raised)); color: var(--cmp-text); font-size: .8rem; }
 .wardogs-score-card { display: grid; gap: 4px; padding: 16px; }.wardogs-score-card > span:first-child { font-family: var(--cmp-font-display); font-weight: 800; }.wardogs-score-card > strong { color: var(--faction-color); font: 800 clamp(2rem, 5vw, 3rem) var(--cmp-font-display); }
 .wardogs-score-card small { color: var(--cmp-text-muted); }.wardogs-score-card .wardogs-rank { color: var(--faction-color); font: 800 .83rem var(--cmp-font-mono); }
