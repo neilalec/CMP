@@ -16,7 +16,7 @@ const scoreNote = computed(() => {
 <template>
   <section class="wardogs-score-section">
     <div class="wardogs-section-heading">
-      <div><p class="section-kicker">{{ match.source === 'cmp-backend' ? 'Live server scores' : match.phase === 'live' ? 'Observed score snapshot' : 'Three-way result layout' }}</p><h2>{{ match.label }}</h2></div>
+      <div><p class="wardogs-kicker">{{ match.source === 'cmp-backend' ? 'Live server scores' : match.phase === 'live' ? 'Observed score snapshot' : 'Three-way result layout' }}</p><h2>{{ match.label }}</h2></div>
       <span>{{ match.source === 'cmp-backend' ? 'Observed scores · not official results' : 'Mock scores · no lifecycle inference' }}</span>
     </div>
     <p class="wardogs-result-note">{{ scoreNote }}</p>
@@ -30,16 +30,16 @@ const scoreNote = computed(() => {
         </span>
       </article>
     </div>
-    <div v-if="match.source === 'cmp-backend' && match.unexpectedPlayers?.length" class="window-panel" aria-label="Unexpected server players">
-      <div class="window-titlebar"><span>Unexpected server players</span></div>
+    <div v-if="match.source === 'cmp-backend' && match.unexpectedPlayers?.length" class="cmp-surface wardogs-panel" aria-label="Unexpected server players">
+      <header class="cmp-panel-header"><h3 class="cmp-heading wardogs-panel-heading">Unexpected server players</h3></header>
       <ul class="wardogs-observations"><li v-for="(player, index) in match.unexpectedPlayers" :key="`${player.steamId || 'unknown'}-${index}`">{{ player.displayName }} · {{ player.observedFactionName || 'Faction unknown' }}</li></ul>
     </div>
-    <div v-if="match.phase === 'live' && match.source !== 'cmp-backend'" class="window-panel">
-      <div class="window-titlebar"><span>{{ match.source === 'cmp-backend' ? 'Server observations' : 'Recent demo observations' }}</span></div>
+    <div v-if="match.phase === 'live' && match.source !== 'cmp-backend'" class="cmp-surface wardogs-panel">
+      <header class="cmp-panel-header"><h3 class="cmp-heading wardogs-panel-heading">{{ match.source === 'cmp-backend' ? 'Server observations' : 'Recent demo observations' }}</h3></header>
       <ul class="wardogs-observations"><li v-for="observation in match.observations" :key="observation">{{ observation }}</li></ul>
     </div>
-    <div v-else-if="match.source !== 'cmp-backend'" class="window-panel">
-      <div class="window-titlebar"><span>Sample player statistics</span><span class="window-titlebar-meta">PRESENTATION ONLY</span></div>
+    <div v-else-if="match.source !== 'cmp-backend'" class="cmp-surface wardogs-panel">
+      <header class="cmp-panel-header"><h3 class="cmp-heading wardogs-panel-heading">Sample player statistics</h3><span class="cmp-panel-meta">PRESENTATION ONLY</span></header>
       <p v-if="!rankedResults.length" class="wardogs-result-note">Ranking withheld until a complete, confirmed result is available.</p>
       <div v-for="faction in match.factions" :key="faction.id" class="wardogs-stat-row">
         <strong>{{ faction.name }}</strong>

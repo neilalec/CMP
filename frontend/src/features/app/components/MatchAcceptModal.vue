@@ -52,13 +52,13 @@ const displayName = (player) => props.playerProfiles?.[player]?.display_name || 
 </script>
 
 <template>
-  <div v-if="active" class="match-accept-overlay">
-    <div class="match-accept-modal window-panel">
-      <div class="match-accept-header window-titlebar">
-        <span class="window-titlebar-label">{{ isCancelled ? 'Cancelled' : 'Match Found' }}</span>
-        <span v-if="!isCancelled" class="window-titlebar-meta">{{ countdown ?? 0 }}s</span>
+  <div v-if="active" class="match-accept-overlay cmp-overlay">
+    <div class="match-accept-modal cmp-surface cmp-surface--floating">
+      <div class="match-accept-header cmp-panel-header">
+        <strong class="cmp-heading">{{ isCancelled ? 'Cancelled' : 'Match Found' }}</strong>
+        <span v-if="!isCancelled" class="cmp-panel-meta">{{ countdown ?? 0 }}s</span>
         <button
-          class="match-accept-close"
+          class="match-accept-close cmp-button cmp-button--secondary"
           type="button"
           aria-label="Close match found"
           @click="emit('close')"
@@ -100,7 +100,7 @@ const displayName = (player) => props.playerProfiles?.[player]?.display_name || 
           </div>
         </div>
         <button
-          class="match-accept-button"
+          class="match-accept-button cmp-button cmp-button--primary"
           type="button"
           :disabled="!isCancelled && (loading || hasAccepted)"
           @click="isCancelled ? emit('dismiss') : emit('accept')"
@@ -122,7 +122,6 @@ const displayName = (player) => props.playerProfiles?.[player]?.display_name || 
 .match-accept-overlay {
   position: fixed;
   inset: 0;
-  background: var(--overlay);
   display: flex;
   align-items: stretch;
   justify-content: center;
@@ -140,10 +139,12 @@ const displayName = (player) => props.playerProfiles?.[player]?.display_name || 
   flex-direction: column;
   overflow: hidden;
   position: relative;
+  border-radius: var(--cmp-radius-md);
 }
 
 .match-accept-header {
   padding-right: 48px;
+  min-height: 40px;
 }
 
 .match-accept-close {
@@ -156,19 +157,9 @@ const displayName = (player) => props.playerProfiles?.[player]?.display_name || 
   align-items: center;
   justify-content: center;
   padding: 0;
-  border: 1px solid var(--button-border);
-  background: var(--button-flat-bg);
-  color: var(--button-flat-text);
-  box-shadow: var(--button-shadow);
   font-size: 0.8rem;
   font-weight: 700;
   line-height: 1;
-}
-
-.match-accept-close:hover {
-  background: var(--button-flat-bg-hover);
-  border-color: var(--button-border-hover);
-  box-shadow: var(--button-hover-shadow);
 }
 
 .match-accept-body {
@@ -183,8 +174,8 @@ const displayName = (player) => props.playerProfiles?.[player]?.display_name || 
 }
 
 .match-accept-progress {
-  color: var(--accent-strong);
-  font-family: var(--font-mono);
+  color: var(--cmp-primary-hover);
+  font-family: var(--cmp-font-mono);
   font-weight: 700;
 }
 
@@ -202,9 +193,9 @@ const displayName = (player) => props.playerProfiles?.[player]?.display_name || 
   min-height: 120px;
   max-height: min(42dvh, 360px);
   padding: 12px;
-  border-radius: var(--radius-md);
-  background: var(--panel-bg-muted);
-  border: 1px solid var(--surface-border);
+  border-radius: var(--cmp-radius-md);
+  background: var(--cmp-surface-raised);
+  border: 1px solid var(--cmp-border);
   display: flex;
   flex-wrap: wrap;
   align-content: flex-start;
@@ -215,8 +206,8 @@ const displayName = (player) => props.playerProfiles?.[player]?.display_name || 
 
 .match-player-list-label {
   width: 100%;
-  color: var(--text-muted);
-  font-family: var(--font-mono);
+  color: var(--cmp-text-muted);
+  font-family: var(--cmp-font-mono);
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.1em;
@@ -230,22 +221,22 @@ const displayName = (player) => props.playerProfiles?.[player]?.display_name || 
   justify-content: center;
   min-height: 28px;
   padding: 4px 8px;
-  border-radius: var(--radius-sm);
-  background: var(--control-bg);
-  color: var(--text-main);
+  border-radius: var(--cmp-radius-sm);
+  background: var(--cmp-surface-strong);
+  color: var(--cmp-text);
   font-size: 0.78rem;
   font-weight: 700;
 }
 
 .match-player-chip.is-accepted {
-  background: var(--success-soft);
-  color: var(--success);
+  background: color-mix(in srgb, var(--cmp-success) 18%, var(--cmp-surface-raised));
+  color: var(--cmp-success);
 }
 
 .match-player-empty {
   background: transparent;
-  border: 1px dashed var(--surface-border);
-  color: var(--text-muted);
+  border: 1px dashed var(--cmp-border);
+  color: var(--cmp-text-muted);
 }
 
 .match-accept-button {

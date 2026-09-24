@@ -34,7 +34,7 @@ const {
 </script>
 
 <template>
-  <div class="play-content cmp-page content-panel page-shell">
+  <div class="play-content cmp-page">
     <header v-if="activeView === 'queue'" class="play-heading">
       <div>
         <h1>Play</h1>
@@ -83,7 +83,9 @@ const {
 
 <style scoped>
 .play-content {
-  width: min(100%, var(--page-width));
+  width: min(100%, var(--cmp-page-width));
+  margin: clamp(6px, 1.6vw, 16px) auto 0;
+  padding: clamp(16px, 3vw, 32px);
 }
 
 .play-heading {
@@ -102,7 +104,6 @@ const {
 @media (max-width: 640px) {
   .play-content {
     margin-top: 0;
-    padding: var(--page-gutter);
   }
 }
 </style>

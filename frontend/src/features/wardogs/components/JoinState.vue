@@ -35,14 +35,14 @@ const copyJoinId = async () => {
         <p>Join ID</p>
         <div class="wardogs-join-id">
           <code>{{ joinId }}</code>
-          <button type="button" @click="copyJoinId">Copy Join ID</button>
+          <button class="cmp-button cmp-button--secondary" type="button" @click="copyJoinId">Copy Join ID</button>
         </div>
         <p v-if="copyStatus" aria-live="polite">{{ copyStatus }}</p>
         <ol v-if="Array.isArray(join.instructions)">
           <li v-for="(step, index) in join.instructions" :key="index">{{ step }}</li>
         </ol>
       </template>
-      <a v-else-if="directUrl" :href="directUrl">Join server</a>
+      <a v-else-if="directUrl" class="cmp-button cmp-button--primary" :href="directUrl">Join server</a>
       <p v-else>Server allocated. Verified player join instructions are not available yet.</p>
     </template>
   </section>

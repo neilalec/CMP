@@ -132,10 +132,10 @@ const onScenarioChange = (event) => store.selectScenario(event.target.value);
 </script>
 
 <template>
-  <main class="wardogs-demo">
+  <main class="wardogs-demo cmp-page">
     <header class="wardogs-header">
       <div>
-        <p class="eyebrow">WARDOGS / CMP feature preview</p>
+        <p class="wardogs-kicker">WARDOGS / CMP feature preview</p>
         <h1>Three-faction match room</h1>
         <p v-if="mode === 'mock'">Local mock scenarios. No WDRCON or CMP match lifecycle connection.</p>
         <p v-else>Live server observations update this lobby. Scores are not official results.</p>
@@ -144,7 +144,7 @@ const onScenarioChange = (event) => store.selectScenario(event.target.value);
       </div>
       <label v-if="mode === 'mock'" class="wardogs-selector">
         <span>Scenario</span>
-        <select :value="scenarioKey" @change="onScenarioChange">
+        <select class="cmp-input" :value="scenarioKey" @change="onScenarioChange">
           <option v-for="option in scenarioOptions" :key="option.key" :value="option.key">{{ option.label }}</option>
         </select>
       </label>
@@ -157,7 +157,7 @@ const onScenarioChange = (event) => store.selectScenario(event.target.value);
       <MatchOverview :match="match" :totals="totals" />
       <section v-if="mode === 'backend' || match.phase === 'assembling'" aria-label="Faction rosters">
         <div class="wardogs-section-heading">
-          <div><p class="section-kicker">{{ mode === 'mock' ? 'Hybrid roster assembly' : 'Planned WARDOGS roster' }}</p><h2>{{ match.label }}</h2></div>
+          <div><p class="wardogs-kicker">{{ mode === 'mock' ? 'Hybrid roster assembly' : 'Planned WARDOGS roster' }}</p><h2>{{ match.label }}</h2></div>
           <span v-if="mode === 'mock'">Groups stay together · solos fill gaps</span>
           <span v-else>Planned groups and observed server presence</span>
         </div>

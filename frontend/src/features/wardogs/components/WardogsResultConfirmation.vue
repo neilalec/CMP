@@ -131,14 +131,14 @@ const submit = () => {
 </script>
 
 <template>
-  <section v-if="match.rating" class="window-panel wardogs-player-rating" aria-label="Your WARDOGS rating">
-    <div class="window-titlebar"><span>Your WARDOGS rating</span></div>
+  <section v-if="match.rating" class="cmp-surface wardogs-panel wardogs-player-rating" aria-label="Your WARDOGS rating">
+    <header class="cmp-panel-header"><h2 class="cmp-heading wardogs-panel-heading">Your WARDOGS rating</h2></header>
     <strong>WARDOGS rating: {{ match.rating.currentRating }}</strong>
     <p v-if="match.rating.match">This match: {{ signedDelta(match.rating.match.delta) }}
       ({{ match.rating.match.before }} → {{ match.rating.match.after }})</p>
   </section>
-  <section v-if="canConfirm && (match.result?.status === 'unconfirmed' || correctionMode)" class="window-panel wardogs-result-confirmation" aria-label="Confirm WARDOGS result">
-    <div class="window-titlebar"><span>{{ correctionMode ? `Correct result · revision ${(match.result.revisionNumber || 1) + 1}` : 'Referee result confirmation' }}</span><span class="window-titlebar-meta">ADMIN</span></div>
+  <section v-if="canConfirm && (match.result?.status === 'unconfirmed' || correctionMode)" class="cmp-surface wardogs-panel wardogs-result-confirmation" aria-label="Confirm WARDOGS result">
+    <header class="cmp-panel-header"><h2 class="cmp-heading wardogs-panel-heading">{{ correctionMode ? `Correct result · revision ${(match.result.revisionNumber || 1) + 1}` : 'Referee result confirmation' }}</h2><span class="cmp-panel-meta">ADMIN</span></header>
     <p v-if="correctionMode">A new immutable revision will supersede the current result. The previous revision remains in history.</p>
     <p v-else>Live scores are evidence only. Enter the placement explicitly; CMP will not infer completion or ranking from scores.</p>
     <div v-if="successfulObservation" class="wardogs-result-note">
@@ -149,7 +149,7 @@ const submit = () => {
     <p v-else class="wardogs-result-note">No successful live score observation is available. You can enter the result manually.</p>
     <label class="wardogs-result-field">
       <span>Outcome</span>
-      <select v-model="status">
+      <select v-model="status" class="cmp-input">
         <option value="completed_win">Completed win</option>
         <option value="tie">Tie</option>
         <option value="incomplete">Incomplete / abandoned</option>
@@ -159,11 +159,11 @@ const submit = () => {
     <div v-if="status === 'completed_win' || status === 'tie'" class="wardogs-result-score-fields">
       <label v-for="faction in match.factions" :key="faction.id" class="wardogs-result-field">
         <span>{{ faction.name }} final score</span>
-        <input v-model="scores[faction.id]" type="number" min="0" step="1" required inputmode="numeric">
+        <input v-model="scores[faction.id]" class="cmp-input" type="number" min="0" step="1" required inputmode="numeric">
       </label>
       <label v-for="faction in match.factions" :key="`place-${faction.id}`" class="wardogs-result-field">
         <span>{{ faction.name }} placement group</span>
-        <select v-model="placementRanks[faction.id]" required>
+        <select v-model="placementRanks[faction.id]" class="cmp-input" required>
           <option disabled value="">Choose placement</option>
           <option value="1">1st</option>
           <option value="2">2nd</option>
@@ -172,7 +172,7 @@ const submit = () => {
       </label>
       <small>Choose the same place for factions tied together. All three factions must be placed.</small>
     </div>
-    <button v-if="correctionMode && successfulObservation && (status === 'completed_win' || status === 'tie')" type="button" @click="useObservedScores">Use latest observed scores</button>
+    <button v-if="correctionMode && successfulObservation && (status === 'completed_win' || status === 'tie')" class="cmp-button cmp-button--secondary" type="button" @click="useObservedScores">Use latest observed scores</button>
     <p v-if="differs" class="wardogs-result-note">Submitted final scores differ from the latest observed server scores.</p>
     <p v-if="completeScores && ['completed_win', 'tie'].includes(status) && placementGroups && !placementValid" class="wardogs-result-note">
       Placement and scores must agree. Tied factions need equal scores, and each higher placement group needs a higher score.
@@ -182,21 +182,21 @@ const submit = () => {
     </p>
     <label v-if="correctionMode" class="wardogs-result-field">
       <span>Required correction reason</span>
-      <textarea v-model="correctionReason" maxlength="1000" rows="2" required />
+      <textarea v-model="correctionReason" class="cmp-input" maxlength="1000" rows="2" required />
     </label>
     <label class="wardogs-result-field">
       <span>{{ correctionMode ? 'Updated referee note (optional)' : 'Referee note (optional)' }}</span>
-      <textarea v-model="note" maxlength="1000" rows="2" />
+      <textarea v-model="note" class="cmp-input" maxlength="1000" rows="2" />
     </label>
     <div class="wardogs-result-actions">
-      <button type="button" :disabled="confirming || correcting || !outcomeValid || (correctionMode && !correctionReason.trim())" @click="submit">
+      <button class="cmp-button cmp-button--primary" type="button" :disabled="confirming || correcting || !outcomeValid || (correctionMode && !correctionReason.trim())" @click="submit">
         {{ correcting ? 'Saving revision…' : correctionMode ? 'Confirm new revision' : 'Confirm authoritative result' }}
       </button>
-      <button v-if="correctionMode" type="button" :disabled="correcting" @click="cancelCorrection">Cancel</button>
+      <button v-if="correctionMode" class="cmp-button cmp-button--secondary" type="button" :disabled="correcting" @click="cancelCorrection">Cancel</button>
     </div>
   </section>
-  <section v-else-if="match.result?.status !== 'unconfirmed'" class="window-panel wardogs-confirmed-result" aria-label="Referee confirmed result">
-    <div class="window-titlebar"><span>Referee confirmed result</span><span class="window-titlebar-meta">AUTHORITATIVE · REVISION {{ match.result.revisionNumber }}</span></div>
+  <section v-else-if="match.result?.status !== 'unconfirmed'" class="cmp-surface wardogs-panel wardogs-confirmed-result" aria-label="Referee confirmed result">
+    <header class="cmp-panel-header"><h2 class="cmp-heading wardogs-panel-heading">Referee confirmed result</h2><span class="cmp-panel-meta">AUTHORITATIVE · REVISION {{ match.result.revisionNumber }}</span></header>
     <strong>{{ resultLabel(match.result.status) }}</strong>
     <div v-if="placementRows(match.result).length" class="wardogs-confirmed-placement" aria-label="Confirmed placement">
       <div v-for="row in placementRows(match.result)" :key="`${row.rank}-${row.factions.join('-')}`">
@@ -210,11 +210,11 @@ const submit = () => {
       <span v-for="faction in match.factions" :key="faction.id">{{ faction.name }}: {{ match.result.scores[faction.id] }}</span>
     </div>
     <small>Confirmed {{ match.result.confirmedAt }}</small>
-    <button v-if="canConfirm && !correctionMode" type="button" :disabled="!currentRevision" @click="beginCorrection">Correct result</button>
+    <button v-if="canConfirm && !correctionMode" class="cmp-button cmp-button--secondary" type="button" :disabled="!currentRevision" @click="beginCorrection">Correct result</button>
     <p v-if="canConfirm && !currentRevision" class="wardogs-result-note">Loading administrator revision history…</p>
   </section>
-  <section v-if="canConfirm && resultHistory.length" class="window-panel wardogs-result-history" aria-label="WARDOGS result revision history">
-    <div class="window-titlebar"><span>Result revision history</span></div>
+  <section v-if="canConfirm && resultHistory.length" class="cmp-surface wardogs-panel wardogs-result-history" aria-label="WARDOGS result revision history">
+    <header class="cmp-panel-header"><h2 class="cmp-heading wardogs-panel-heading">Result revision history</h2></header>
     <p v-if="historyError" role="alert">{{ historyError }}</p>
     <article v-for="revision in resultHistory" :key="revision.revisionId" class="wardogs-result-revision">
       <div><strong>Revision {{ revision.revisionNumber }} · {{ revision.revisionType === 'confirmation' ? 'Original confirmation' : 'Correction' }}</strong>

@@ -306,7 +306,7 @@ const {
 
 .auth-feature h2 {
   margin: 0 0 7px;
-  font-family: var(--font-display);
+  font-family: var(--cmp-font-display);
   font-size: 1.18rem;
   font-weight: 650;
   line-height: 1.25;
