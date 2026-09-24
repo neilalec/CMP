@@ -33,8 +33,10 @@ async function mountAuth() {
 test('auth page presents CMP sign-in with Steam as the primary action', async () => {
   const wrapper = await mountAuth()
 
-  expect(wrapper.get('img.auth-mark').attributes('alt')).toBe('CMP')
-  expect(wrapper.get('img.auth-mark').attributes('src')).toBe('/cmp-wordmark.svg')
+  expect(wrapper.get('.auth-mark.cmp-wordmark').attributes('role')).toBe('img')
+  expect(wrapper.get('.auth-mark.cmp-wordmark').attributes('aria-label')).toBe('CMP')
+  expect(wrapper.get('.auth-container').classes()).toContain('cmp-surface')
+  expect(wrapper.get('.steam-button').classes()).toContain('cmp-button--primary')
   expect(wrapper.text()).toContain('WARDOGS matchmaking')
   expect(wrapper.get('h1').text()).toBe('Sign in')
   expect(wrapper.get('.steam-button').text()).toContain('Continue with Steam')

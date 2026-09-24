@@ -61,7 +61,8 @@ describe('CMP product shell', () => {
     const wrapper = mount(App, { global: { plugins: [router], stubs: { MatchAcceptModal: true } } })
     await flushPromises()
 
-    expect(wrapper.find('.brand').text()).toBe('CMP')
+    expect(wrapper.get('.brand.cmp-wordmark').attributes('aria-label')).toBe('CMP home')
+    expect(wrapper.get('.app-shell').classes()).toContain('cmp-page')
     expect(wrapper.find('.primary-nav').text()).toContain('Play')
     expect(wrapper.find('.primary-nav').text()).toContain('Matches')
     expect(wrapper.find('.primary-nav').text()).toContain('Profile')
@@ -98,7 +99,18 @@ describe('CMP product shell', () => {
     await flushPromises()
 
     expect(wrapper.find('.auth-shell').exists()).toBe(true)
+    expect(wrapper.find('.auth-shell').classes()).toContain('is-auth-view')
     expect(wrapper.find('.auth-shell').text()).toContain('Screen')
+    wrapper.unmount()
+  })
+
+  test('other guest routes do not inherit the Auth artwork', async () => {
+    auth.isLoggedIn = false
+    const router = await makeRouter()
+    await router.push('/terms')
+    const wrapper = mount(App, { global: { plugins: [router], stubs: { MatchAcceptModal: true } } })
+
+    expect(wrapper.get('.auth-shell').classes()).not.toContain('is-auth-view')
     wrapper.unmount()
   })
 })

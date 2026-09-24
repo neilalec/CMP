@@ -46,6 +46,8 @@ describe('WARDOGS Play queue card', () => {
       'aria-valuetext': '4 of 9 players queued'
     })
     expect(wrapper.findAll('button.wardogs-queue-action')).toHaveLength(1)
+    expect(wrapper.get('.wardogs-queue-card').classes()).toContain('cmp-surface')
+    expect(wrapper.get('.wardogs-queue-action').classes()).toContain('cmp-button--primary')
     expect(wrapper.find('.wardogs-queue-action').text()).toBe('Join Queue')
     expect(wrapper.find('.window-titlebar').exists()).toBe(false)
     expect(wrapper.find('.queue-admin-tools').exists()).toBe(false)
@@ -60,6 +62,7 @@ describe('WARDOGS Play queue card', () => {
     await wrapper.setProps({ inQueue: true, currentQueueMode: 'wardogs_beta9' })
     expect(wrapper.find('.wardogs-queue-state').text()).toBe('Queued')
     expect(wrapper.find('.wardogs-queue-action').text()).toBe('Leave Queue')
+    expect(wrapper.get('.wardogs-queue-action').classes()).toContain('cmp-button--secondary')
     await wrapper.find('.wardogs-queue-action').trigger('click')
     expect(wrapper.emitted('leave-queue')).toEqual([['wardogs_beta9']])
   })

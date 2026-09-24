@@ -31,17 +31,17 @@ const {
 </script>
 
 <template>
-  <main class="auth-layout">
-    <section class="auth-container" aria-labelledby="auth-title">
+  <main class="auth-layout cmp-page">
+    <section class="auth-container cmp-surface cmp-surface--floating" aria-labelledby="auth-title">
       <header class="auth-brand">
-        <img class="auth-mark" src="/cmp-wordmark.svg" alt="CMP" width="294" height="74" />
+        <span class="auth-mark cmp-wordmark" role="img" aria-label="CMP"></span>
         <span class="auth-descriptor">WARDOGS matchmaking</span>
       </header>
 
       <div class="auth-content">
-        <h1 id="auth-title">Sign in</h1>
+        <h1 id="auth-title" class="cmp-heading">Sign in</h1>
         <button
-          class="steam-button"
+          class="steam-button cmp-button cmp-button--primary"
           type="button"
           aria-label="Continue with Steam"
           @click="handleSteamSignIn"
@@ -62,6 +62,7 @@ const {
             <input
               id="auth-username"
               v-model="username"
+              class="cmp-input"
               type="text"
               autocomplete="username"
               required
@@ -70,14 +71,15 @@ const {
             <input
               id="auth-password"
               v-model="password"
+              class="cmp-input"
               type="password"
               :autocomplete="formType === 'login' ? 'current-password' : 'new-password'"
               required
             />
-            <button class="local-submit" type="submit" :disabled="loading">
+            <button class="local-submit cmp-button cmp-button--secondary" type="submit" :disabled="loading">
               {{ loading ? 'Working...' : (formType === 'login' ? 'Login' : 'Register') }}
             </button>
-            <button class="form-toggle" type="button" @click="toggleForm">
+            <button class="form-toggle cmp-button" type="button" @click="toggleForm">
               {{ formType === 'login' ? 'Create account' : 'Back to login' }}
             </button>
           </form>
@@ -116,29 +118,23 @@ const {
 </template>
 
 <style scoped>
-:global(.auth-shell) {
+:global(.auth-shell.is-auth-view) {
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  background:
-    radial-gradient(ellipse 56% 50% at 29% 23%, rgba(89, 115, 133, .24), transparent 74%),
-    radial-gradient(ellipse 44% 42% at 78% 39%, rgba(35, 64, 81, .18), transparent 76%),
-    linear-gradient(158deg, #172633 0%, #0b1822 38%, #07121b 72%, #050c12 100%);
+  background: var(--cmp-bg) url('../assets/brand/cmp-auth-background.webp') center 44% / cover no-repeat;
 }
 
-:global(.auth-shell::before) {
+:global(.auth-shell.is-auth-view::before) {
   position: absolute;
   z-index: 0;
   inset: 0;
-  background:
-    linear-gradient(175deg, transparent 26%, rgba(10, 23, 29, .35) 49%, rgba(2, 8, 12, .78) 100%),
-    repeating-linear-gradient(104deg, transparent 0 59px, rgba(164, 186, 193, .015) 60px 61px, transparent 62px 121px),
-    radial-gradient(ellipse 69% 32% at 50% 76%, rgba(65, 86, 88, .12), transparent 74%);
+  background: linear-gradient(180deg, rgba(3, 9, 14, .42), rgba(3, 9, 14, .58) 56%, rgba(3, 9, 14, .83));
   content: '';
   pointer-events: none;
 }
 
-:global(.auth-shell::after) {
+:global(.auth-shell.is-auth-view::after) {
   position: absolute;
   z-index: 0;
   inset: 0;
@@ -160,10 +156,6 @@ const {
 .auth-container {
   width: min(100%, 480px);
   padding: clamp(34px, 4vw, 48px);
-  border: 1px solid rgba(165, 186, 196, .16);
-  border-radius: 9px;
-  background: linear-gradient(155deg, rgba(20, 32, 40, .87), rgba(9, 19, 27, .9));
-  box-shadow: 0 28px 80px rgba(0, 0, 0, .43), inset 0 1px 0 rgba(230, 241, 245, .045);
   text-align: center;
 }
 
@@ -176,11 +168,10 @@ const {
 
 .auth-mark {
   width: 185px;
-  height: auto;
 }
 
 .auth-descriptor {
-  color: #9aadb8;
+  color: var(--cmp-text-muted);
   font-size: .78rem;
   font-weight: 600;
   letter-spacing: .18em;
@@ -189,71 +180,54 @@ const {
 
 .auth-content h1 {
   margin: 0 0 24px;
-  color: #e6edf1;
-  font-family: var(--font-display);
   font-size: 1.95rem;
-  font-weight: 600;
   letter-spacing: -.02em;
 }
 
 .steam-button {
   width: 100%;
   min-height: 52px;
-  border: 1px solid #367bb8;
-  border-radius: 5px;
-  background: linear-gradient(180deg, #1e75bf 0%, #155d9f 100%);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, .22), inset 0 1px 0 rgba(255, 255, 255, .13);
-  color: #f4f8fb;
   font-size: 1.15rem;
-  font-weight: 700;
   letter-spacing: .01em;
-  transition: background .16s ease, box-shadow .16s ease, transform .16s ease;
-}
-
-.steam-button:hover:not(:disabled) {
-  border-color: #5f9dd0;
-  background: linear-gradient(180deg, #2884d1 0%, #1a6bad 100%);
-  box-shadow: 0 9px 22px rgba(0, 0, 0, .26), inset 0 1px 0 rgba(255, 255, 255, .16);
-  transform: translateY(-1px);
 }
 
 .steam-button:focus-visible,
 .form-toggle:focus-visible,
 .auth-local-access summary:focus-visible,
 .auth-legal-copy a:focus-visible {
-  outline: 2px solid #aac9e0;
+  outline: 2px solid var(--cmp-focus);
   outline-offset: 4px;
 }
 
 .auth-security-copy {
   margin: 18px 0 0;
-  color: #afbec8;
+  color: var(--cmp-text-secondary);
   font-size: .98rem;
 }
 
 .auth-legal-copy {
   max-width: 380px;
   margin: 24px auto 0;
-  color: #91a3ae;
+  color: var(--cmp-text-muted);
   font-size: .9rem;
   line-height: 1.6;
 }
 
 .auth-legal-copy a {
-  color: #becdd5;
+  color: var(--cmp-text-secondary);
   text-decoration: underline;
-  text-decoration-color: rgba(190, 205, 213, .4);
+  text-decoration-color: var(--cmp-border-strong);
   text-underline-offset: 3px;
 }
 
 .auth-legal-copy a:hover {
-  color: var(--text-primary);
+  color: var(--cmp-text);
 }
 
 .auth-local-access {
   width: 100%;
   margin: 28px auto 0;
-  color: #a9bbc6;
+  color: var(--cmp-text-secondary);
   font-size: .94rem;
   text-align: left;
 }
@@ -261,13 +235,13 @@ const {
 .auth-local-access summary {
   width: fit-content;
   margin: 0 auto;
-  color: #a9bbc6;
+  color: var(--cmp-text-secondary);
   cursor: pointer;
   text-underline-offset: 4px;
 }
 
 .auth-local-access summary:hover {
-  color: var(--text-primary);
+  color: var(--cmp-text);
 }
 
 .auth-local-form {
@@ -275,7 +249,7 @@ const {
   gap: 9px;
   width: 100%;
   margin: 20px auto 0;
-  color: #b9c9d2;
+  color: var(--cmp-text-secondary);
   font-size: .95rem;
 }
 
@@ -287,30 +261,17 @@ const {
 
 .auth-local-form input {
   margin-bottom: 5px;
-  border-color: rgba(149, 172, 185, .25);
-  background: #0c1a25;
-  color: #edf2f4;
 }
 
 .auth-local-form .local-submit {
   margin-top: 6px;
-  border-color: rgba(149, 172, 185, .3);
-  background: #213746;
-  color: #dbe5e9;
-  box-shadow: none;
-}
-
-.auth-local-form .local-submit:hover:not(:disabled) {
-  border-color: rgba(169, 191, 203, .45);
-  background: #2b4658;
-  box-shadow: none;
 }
 
 .auth-local-form .form-toggle {
   border-color: transparent;
   background: transparent;
   box-shadow: none;
-  color: #a9bbc6;
+  color: var(--cmp-text-secondary);
   text-decoration: underline;
   text-underline-offset: 4px;
 }
@@ -318,7 +279,7 @@ const {
 .auth-local-form .form-toggle:hover:not(:disabled) {
   border-color: transparent;
   background: transparent;
-  color: var(--text-primary);
+  color: var(--cmp-text);
 }
 
 .auth-features {
@@ -326,7 +287,7 @@ const {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: clamp(24px, 4vw, 64px);
   width: min(100%, 820px);
-  color: #dfe8ec;
+  color: var(--cmp-text);
   text-align: center;
 }
 
@@ -340,7 +301,7 @@ const {
   width: 34px;
   height: 34px;
   margin-bottom: 12px;
-  color: #a9bbc6;
+  color: var(--cmp-text-secondary);
 }
 
 .auth-feature h2 {
@@ -354,7 +315,7 @@ const {
 .auth-feature p {
   max-width: 190px;
   margin: 0;
-  color: #9aadb8;
+  color: var(--cmp-text-muted);
   font-size: .98rem;
   line-height: 1.45;
 }

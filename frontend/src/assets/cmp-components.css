@@ -1,0 +1,132 @@
+.cmp-page {
+  color: var(--cmp-text);
+}
+
+.cmp-surface {
+  border: 1px solid var(--cmp-border);
+  border-radius: var(--cmp-radius-md);
+  background: var(--cmp-surface);
+  box-shadow: var(--cmp-shadow-sm);
+}
+
+.cmp-surface--raised {
+  background: var(--cmp-surface-raised);
+  box-shadow: var(--cmp-shadow-md);
+}
+
+.cmp-surface--floating {
+  box-shadow: var(--cmp-shadow-md);
+}
+
+.cmp-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 10px 18px;
+  border: 1px solid var(--cmp-border-strong);
+  border-radius: var(--cmp-radius-sm);
+  background: var(--cmp-surface-strong);
+  box-shadow: none;
+  color: var(--cmp-text);
+  font: 700 .94rem/1.2 var(--font-display);
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background .16s ease, border-color .16s ease, transform .16s ease;
+}
+
+.cmp-button:hover:not(:disabled) {
+  border-color: var(--cmp-border-strong);
+  background: var(--cmp-surface-raised);
+  box-shadow: none;
+  color: var(--cmp-text);
+  text-decoration: none;
+}
+
+.cmp-button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.cmp-button:disabled {
+  border-color: var(--cmp-border);
+  background: var(--cmp-surface-strong);
+  box-shadow: none;
+  color: var(--cmp-text-muted);
+  cursor: not-allowed;
+}
+
+.cmp-button--primary {
+  border-color: var(--cmp-primary-hover);
+  background: linear-gradient(180deg, var(--cmp-primary), var(--cmp-primary-active));
+  box-shadow: var(--cmp-shadow-sm), inset 0 1px 0 rgba(255, 255, 255, .13);
+  color: var(--cmp-text);
+}
+
+.cmp-button--primary:hover:not(:disabled) {
+  border-color: var(--cmp-primary-hover);
+  background: var(--cmp-primary-hover);
+  box-shadow: var(--cmp-shadow-sm);
+  color: var(--cmp-text);
+}
+
+.cmp-button--primary:active:not(:disabled) {
+  border-color: var(--cmp-primary-active);
+  background: var(--cmp-primary-active);
+}
+
+.cmp-button--secondary {
+  border-color: var(--cmp-border-strong);
+  background: var(--cmp-surface-raised);
+}
+
+.cmp-button--danger {
+  border-color: var(--cmp-danger);
+  background: var(--cmp-surface-raised);
+  color: var(--cmp-danger);
+}
+
+.cmp-button--danger:hover:not(:disabled) {
+  border-color: var(--cmp-danger);
+  background: var(--cmp-surface-strong);
+  color: var(--cmp-danger);
+}
+
+.cmp-input {
+  border: 1px solid var(--cmp-border-strong);
+  border-radius: var(--cmp-radius-sm);
+  background: var(--cmp-bg-elevated);
+  box-shadow: none;
+  color: var(--cmp-text);
+  caret-color: var(--cmp-primary);
+}
+
+.cmp-input:focus {
+  border-color: var(--cmp-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cmp-primary) 30%, transparent);
+}
+
+.cmp-muted {
+  color: var(--cmp-text-muted);
+}
+
+.cmp-heading {
+  color: var(--cmp-text);
+  font-family: var(--font-display);
+  font-weight: 700;
+}
+
+.cmp-wordmark {
+  display: block;
+  aspect-ratio: 2088 / 691;
+  background: center / contain no-repeat url('./brand/cmp-wordmark.png');
+}
+
+:where(.cmp-button, .cmp-input, .cmp-wordmark):focus-visible {
+  outline: 2px solid var(--cmp-focus);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cmp-button { transition: none; }
+}

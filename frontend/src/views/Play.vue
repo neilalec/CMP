@@ -34,7 +34,7 @@ const {
 </script>
 
 <template>
-  <div class="play-content content-panel page-shell">
+  <div class="play-content cmp-page content-panel page-shell">
     <header v-if="activeView === 'queue'" class="play-heading">
       <div>
         <h1>Play</h1>
@@ -96,8 +96,8 @@ const {
 
 .play-heading .eyebrow { margin-bottom: 8px; }
 .play-heading h1 { margin: 0; font-size: clamp(2rem, 4vw, 3rem); letter-spacing: -.03em; }
-.play-group-link { color: var(--text-secondary); font-size: .84rem; font-weight: 700; }
-.play-group-link:hover { color: var(--text-primary); }
+.play-group-link { color: var(--cmp-text-secondary); font-size: .84rem; font-weight: 700; }
+.play-group-link:hover { color: var(--cmp-text); }
 
 @media (max-width: 640px) {
   .play-content {
