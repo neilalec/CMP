@@ -43,6 +43,10 @@ const props = defineProps({
   hasAccepted: {
     type: Boolean,
     required: true
+  },
+  finalizingLobby: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -56,7 +60,7 @@ const displayName = (player) => props.playerProfiles?.[player]?.display_name || 
     <div class="match-accept-modal cmp-surface cmp-surface--floating">
       <div class="match-accept-header cmp-panel-header">
         <strong class="cmp-heading">{{ isCancelled ? 'Cancelled' : 'Match Found' }}</strong>
-        <span v-if="!isCancelled" class="cmp-panel-meta">{{ countdown ?? 0 }}s</span>
+        <span v-if="!isCancelled" class="match-accept-countdown">{{ countdown ?? 0 }}s left</span>
         <button
           class="match-accept-close cmp-button cmp-button--secondary"
           type="button"
@@ -70,9 +74,15 @@ const displayName = (player) => props.playerProfiles?.[player]?.display_name || 
         <p v-if="isCancelled">
           {{ cancelReason || 'Not everyone accepted.' }}
         </p>
-        <p v-else class="match-accept-progress">
-          {{ acceptedCount }}/{{ requiredCount }} accepted
-        </p>
+        <div v-else class="match-accept-summary" aria-live="polite">
+          <strong class="match-accept-state">
+            {{ finalizingLobby ? 'Preparing match…' : (hasAccepted ? 'Accepted' : 'Match found') }}
+          </strong>
+          <span class="match-accept-progress">{{ acceptedCount }}/{{ requiredCount }} accepted</span>
+          <span v-if="hasAccepted && !finalizingLobby" class="match-accept-waiting">
+            {{ waitingPlayers.length ? `Waiting for ${waitingPlayers.length} ${waitingPlayers.length === 1 ? 'player' : 'players'}` : 'Waiting for everyone to accept' }}
+          </span>
+        </div>
         <div v-if="!isCancelled" class="match-player-groups">
           <div class="match-player-list">
             <span class="match-player-list-label">Accepted</span>
@@ -100,6 +110,7 @@ const displayName = (player) => props.playerProfiles?.[player]?.display_name || 
           </div>
         </div>
         <button
+          v-if="isCancelled || (!hasAccepted && !finalizingLobby)"
           class="match-accept-button cmp-button cmp-button--primary"
           type="button"
           :disabled="!isCancelled && (loading || hasAccepted)"
@@ -110,9 +121,12 @@ const displayName = (player) => props.playerProfiles?.[player]?.display_name || 
               ? 'OK'
               : (hasAccepted
                 ? 'Accepted'
-                : (loading ? 'Accepting...' : 'Accept'))
+                : (loading ? 'Accepting...' : 'Accept Match'))
           }}
         </button>
+        <span v-else-if="hasAccepted && !finalizingLobby" class="match-accept-confirmed" role="status">
+          Accepted
+        </span>
       </div>
     </div>
   </div>
@@ -131,7 +145,7 @@ const displayName = (player) => props.playerProfiles?.[player]?.display_name || 
 }
 
 .match-accept-modal {
-  width: min(100%, 980px);
+  width: min(100%, 680px);
   max-height: calc(100dvh - clamp(24px, 6vw, 48px));
   margin: auto;
   text-align: center;
@@ -163,7 +177,7 @@ const displayName = (player) => props.playerProfiles?.[player]?.display_name || 
 }
 
 .match-accept-body {
-  padding: clamp(16px, 3vw, 24px);
+  padding: clamp(14px, 2.5vw, 20px);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -173,33 +187,57 @@ const displayName = (player) => props.playerProfiles?.[player]?.display_name || 
   margin: 0;
 }
 
+.match-accept-summary {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.match-accept-state {
+  color: var(--cmp-text);
+  font-size: 1.25rem;
+}
+
 .match-accept-progress {
   color: var(--cmp-primary-hover);
   font-family: var(--cmp-font-mono);
   font-weight: 700;
 }
 
+.match-accept-countdown {
+  color: var(--cmp-primary-hover);
+  font-family: var(--cmp-font-mono);
+  font-weight: 700;
+}
+
+.match-accept-waiting {
+  color: var(--cmp-text-muted);
+  font-size: 0.9rem;
+}
+
 .match-player-groups {
-  margin-top: 14px;
+  margin-top: 10px;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: 10px;
   text-align: left;
   min-height: 0;
   overflow: hidden;
 }
 
 .match-player-list {
-  min-height: 120px;
-  max-height: min(42dvh, 360px);
-  padding: 12px;
+  min-height: 86px;
+  max-height: min(30dvh, 240px);
+  padding: 10px;
   border-radius: var(--cmp-radius-md);
   background: var(--cmp-surface-raised);
   border: 1px solid var(--cmp-border);
   display: flex;
   flex-wrap: wrap;
   align-content: flex-start;
-  gap: 8px;
+  gap: 6px;
   overflow-y: auto;
   scrollbar-width: thin;
 }
@@ -241,8 +279,15 @@ const displayName = (player) => props.playerProfiles?.[player]?.display_name || 
 
 .match-accept-button {
   flex: 0 0 auto;
-  margin-top: 16px;
+  margin-top: 12px;
   width: 100%;
+}
+
+.match-accept-confirmed {
+  align-self: center;
+  margin-top: 12px;
+  color: var(--cmp-success);
+  font-weight: 800;
 }
 
 @media (max-width: 480px) {

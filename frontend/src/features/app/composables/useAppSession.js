@@ -125,6 +125,9 @@ export function useAppSession({
     if (activeLobby) {
       currentLobbyId.value = activeLobby
       setCurrentLobbyId(activeLobby)
+      if (queueStore.matchAccept.players?.includes(authStore.username)) {
+        queueStore.resetQueue()
+      }
       if (!route.path.startsWith(`/lobby/${activeLobby}`)) {
         router.push(`/lobby/${activeLobby}`)
       }
@@ -147,6 +150,9 @@ export function useAppSession({
     if (activeLobby) {
       currentLobbyId.value = activeLobby
       setCurrentLobbyId(activeLobby)
+      if (queueStore.matchAccept.players?.includes(authStore.username)) {
+        queueStore.resetQueue()
+      }
       if (!route.path.startsWith(`/lobby/${activeLobby}`)) {
         router.push(`/lobby/${activeLobby}`)
       }

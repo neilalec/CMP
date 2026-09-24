@@ -1,5 +1,6 @@
 import { createPinia, setActivePinia } from 'pinia';
 import { useQueueStore } from '@/stores/queueStore';
+import { useAuthStore } from '@/stores/authStore';
 import { useSocketStore } from '@/stores/socketStore';
 import { SOCKET_EVENTS } from '@/constants/socketEvents';
 
@@ -22,7 +23,8 @@ describe('QueueStore', () => {
 
     beforeEach(() => {
         setActivePinia(createPinia());
-        store = useQueueStore();
+    store = useQueueStore();
+    useAuthStore().username = 'alpha';
         socketStore = useSocketStore();
         socketStore.isConnected = true;
         jest.clearAllMocks();
@@ -92,6 +94,28 @@ describe('QueueStore', () => {
         expect(store.serverAvailable).toBe(false);
         expect(store.queueModes.wardogs_beta9.matchmakingAvailable).toBe(true);
         expect(store.wardogsLobbyId).toBe('wardogs-lobby-1');
+    });
+
+    test('retains finalizing participants until the cancellation signal arrives', () => {
+        store.matchAccept = {
+            ...store.matchAccept,
+            active: true,
+            finalizingLobby: true,
+            players: ['alpha', 'bravo'],
+            acceptedPlayers: ['alpha', 'bravo'],
+            acceptedCount: 2,
+            requiredCount: 2
+        };
+
+        store.updateQueueState({ inQueue: false, queue: [], matchAccept: null });
+        expect(store.matchAccept.active).toBe(true);
+        expect(store.matchAccept.players).toEqual(['alpha', 'bravo']);
+
+        store.setMatchAcceptCancelled('WARDOGS lobby could not be formed.');
+        store.updateQueueState({ inQueue: false, queue: [], matchAccept: null });
+        expect(store.matchAccept.cancelled).toBe(true);
+        expect(store.matchAccept.players).toContain('alpha');
+        expect(store.matchAccept.cancelReason).toBe('WARDOGS lobby could not be formed.');
     });
 
     test('resetQueue clears store state', () => {

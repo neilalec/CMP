@@ -71,6 +71,12 @@ export const useQueueStore = defineStore('queue', {
             ? data.matchAccept.acceptedPlayers.includes(authStore.username)
             : !!data.matchAccept.hasAccepted
         }
+      } else if (
+        (this.matchAccept.cancelled || this.matchAccept.finalizingLobby)
+        && this.matchAccept.players.includes(authStore.username)
+      ) {
+        // Keep the participant and acceptance details until cancellation is
+        // delivered or the authoritative lobby-created event clears the queue.
       } else {
         this.resetMatchAccept()
       }
@@ -85,7 +91,8 @@ export const useQueueStore = defineStore('queue', {
 
     setMatchAcceptCancelled(reason = 'Match cancelled') {
       this.matchAccept = {
-        ...createDefaultMatchAcceptState(),
+        ...this.matchAccept,
+        active: false,
         cancelled: true,
         cancelReason: reason
       }

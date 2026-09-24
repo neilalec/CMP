@@ -115,6 +115,7 @@ watch(() => route.fullPath, () => { mobileNavOpen.value = false; });
         :waiting-players="waitingMatchPlayers"
         :loading="queueStore.loading"
         :has-accepted="queueStore.matchAccept.hasAccepted"
+        :finalizing-lobby="queueStore.matchAccept.finalizingLobby"
         @accept="handleAcceptMatch"
         @close="handleCloseMatchAccept"
         @dismiss="handleDismissMatchAccept"
