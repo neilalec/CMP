@@ -909,7 +909,10 @@ def build_lobby_server_presence(lobby_id, tolerate_bridge_unavailable=False):
 
 
 def start_live_roll_monitor(lobby_id):
-    from app import socketio, lobbies as lobbies_ref, logger, DEV_MODE as dev_mode
+    from app import socketio, lobbies as lobbies_ref, logger, DEV_MODE as dev_mode, DEV_GAME_TARGET
+    if dev_mode and DEV_GAME_TARGET == 'wardogs':
+        logger.info('Skipped Squad live-roll orchestration in WARDOGS development target')
+        return False
     return start_live_roll_monitor_service(
         lobby_id=lobby_id,
         lobbies=lobbies_ref,

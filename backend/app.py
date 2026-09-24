@@ -21,6 +21,7 @@ from app_state import (
     BASE_DIR,
     DATABASE_PATH,
     DEV_MODE,
+    DEV_GAME_TARGET,
     FRONTEND_ORIGINS,
     GROUP_CODE_ALPHABET,
     GROUP_CODE_LENGTH,
@@ -126,7 +127,8 @@ from runtime import (
     cleanup_stale_players as cleanup_stale_players_runtime,
     periodic_runtime_state_persistence as periodic_runtime_state_persistence_runtime,
     periodic_queue_management as periodic_queue_management_runtime,
-    start_periodic_tasks as start_periodic_tasks_runtime
+    start_periodic_tasks as start_periodic_tasks_runtime,
+    should_resume_lobby_tasks
 )
 from state.group import (
     broadcast_group_update,
@@ -485,6 +487,12 @@ def resume_restored_lobby_tasks():
     now = time.time()
     for lobby_id, lobby in list(lobbies.items()):
         step = lobby.get('step')
+        if not should_resume_lobby_tasks(
+                lobby.get('game_type', 'squad'), step, dev_mode=DEV_MODE,
+                dev_game_target=DEV_GAME_TARGET):
+            # Restored Squad map voting/live-roll orchestration is irrelevant to
+            # WARDOGS development. Finalized-lobby persistence cleanup continues.
+            continue
         if step == 2:
             eventlet.spawn(start_map_voting, lobby_id)
             restored_count += 1

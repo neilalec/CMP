@@ -1,3 +1,8 @@
+param(
+    [ValidateSet("local", "wardogs")]
+    [string]$DevelopmentTarget = "local"
+)
+
 $ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $PSScriptRoot
@@ -52,13 +57,47 @@ if (-not (Test-Command "node")) {
 
 $pythonCommand = Resolve-CmpPython
 
-if (-not (Test-PortAvailable 5173)) {
-    throw "Frontend port 5173 is already in use. Stop the existing Vite process before starting local dev."
+foreach ($port in @(5000, 5173)) {
+    if (-not (Test-PortAvailable $port)) {
+        throw "CMP local development port $port is already in use. Stop the existing process before starting."
+    }
 }
 
 $jobs = @()
+$frontendUrl = "http://127.0.0.1:5173"
+$backendUrl = "http://127.0.0.1:5000"
+
+function Test-TcpReady($port) {
+    $client = [System.Net.Sockets.TcpClient]::new()
+    try {
+        $result = $client.BeginConnect("127.0.0.1", $port, $null, $null)
+        return $result.AsyncWaitHandle.WaitOne(500) -and $client.Connected
+    }
+    catch {
+        return $false
+    }
+    finally {
+        $client.Close()
+    }
+}
+
+function Test-FrontendReady {
+    try {
+        $response = Invoke-WebRequest -Uri "$frontendUrl/auth" -UseBasicParsing -TimeoutSec 2
+        return $response.StatusCode -eq 200
+    }
+    catch {
+        return $false
+    }
+}
 
 try {
+    if ($DevelopmentTarget -eq "wardogs") {
+        Write-Host "CMP WARDOGS local development starting" -ForegroundColor Green
+        Write-Host "Target: WARDOGS | Dev harness: enabled | WARDOGS observation: enabled | Squad integration: disabled"
+        Write-Host "Frontend: $frontendUrl | Backend: $backendUrl"
+    }
+
     $jobs += Start-CmpJob "backend" $backend {
         param($workingDirectory)
         function Set-CmpUtf8Output {
@@ -69,12 +108,20 @@ try {
         Set-CmpUtf8Output
         Set-Location $workingDirectory
         $env:CMP_DEV_MODE = "1"
-        $env:DEV_SOLO_ELO_SMOKE_ENABLED = "1"
-        $env:DEV_SOLO_ELO_SMOKE_USERNAME = "neil"
-        $env:FRONTEND_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174"
-        $env:BACKEND_PUBLIC_URL = "http://localhost:5000"
+        $env:CMP_DEV_GAME = $using:DevelopmentTarget
+        $env:DEV_SOLO_ELO_SMOKE_ENABLED = if ($using:DevelopmentTarget -eq "wardogs") { "0" } else { "1" }
+        if ($using:DevelopmentTarget -ne "wardogs") {
+            $env:DEV_SOLO_ELO_SMOKE_USERNAME = "neil"
+        }
+        $env:FRONTEND_ORIGINS = "http://127.0.0.1:5173,http://localhost:5173,http://localhost:5174,http://127.0.0.1:5174"
+        $env:BACKEND_PUBLIC_URL = "http://127.0.0.1:5000"
+        $env:BACKEND_HOST = "127.0.0.1"
+        $env:BACKEND_PORT = "5000"
         $env:DATABASE_PATH = Join-Path $workingDirectory "app.db"
         $env:SQUADJS_BRIDGE_URL = "http://127.0.0.1:3001"
+        if ($using:DevelopmentTarget -eq "wardogs") {
+            $env:WARDOGS_POLL_INTERVAL_SECONDS = "5"
+        }
         & $using:pythonCommand app.py
     }
 
@@ -87,10 +134,11 @@ try {
         }
         Set-CmpUtf8Output
         Set-Location $workingDirectory
-        npm run dev -- --host 127.0.0.1 --port 5173 --strictPort
+        npm run dev
     }
 
-    if ($env:CMP_START_SQUADJS -eq "1") {
+    $startSquadJs = $DevelopmentTarget -eq "local" -and $env:CMP_START_SQUADJS -eq "1"
+    if ($startSquadJs) {
         $jobs += Start-CmpJob "squadjs" $squadjs {
             param($workingDirectory)
             function Set-CmpUtf8Output {
@@ -106,10 +154,34 @@ try {
     }
 
     Write-Host ""
-    Write-Host "CMP local dev is starting. Frontend should appear at http://127.0.0.1:5173" -ForegroundColor Green
-    if ($env:CMP_START_SQUADJS -ne "1") {
+    if ($DevelopmentTarget -eq "local") {
+        Write-Host "CMP local dev is starting. Frontend: $frontendUrl | Backend: $backendUrl" -ForegroundColor Green
+    }
+    if (-not $startSquadJs -and $DevelopmentTarget -eq "local") {
         Write-Host "SquadJS is disabled; set CMP_START_SQUADJS=1 to include it for Squad testing." -ForegroundColor Yellow
     }
+    Write-Host "Waiting for backend and frontend readiness..." -ForegroundColor Cyan
+
+    $readyDeadline = (Get-Date).AddSeconds(90)
+    $backendReady = $false
+    $frontendReady = $false
+    while ((Get-Date) -lt $readyDeadline -and (-not $backendReady -or -not $frontendReady)) {
+        foreach ($job in $jobs) {
+            if ($job.State -in @("Failed", "Stopped", "Completed")) {
+                $jobOutput = Receive-Job -Job $job -ErrorAction SilentlyContinue | Out-String
+                throw "$($job.Name) stopped before startup was ready. $jobOutput"
+            }
+        }
+        $backendReady = Test-TcpReady 5000
+        $frontendReady = (Test-TcpReady 5173) -and (Test-FrontendReady)
+        if (-not $backendReady -or -not $frontendReady) { Start-Sleep -Milliseconds 500 }
+    }
+    if (-not $backendReady -or -not $frontendReady) {
+        throw "CMP startup readiness timed out. Backend ready: $backendReady; frontend /auth ready: $frontendReady."
+    }
+
+    Write-Host "CMP backend is listening at $backendUrl" -ForegroundColor Green
+    Write-Host "Frontend /auth is responding at $frontendUrl/auth" -ForegroundColor Green
     Write-Host "Press Ctrl+C to stop all processes." -ForegroundColor Yellow
     Write-Host ""
 

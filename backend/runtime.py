@@ -1,6 +1,13 @@
 PRE_LIVE_LOBBY_STEPS = {1, 2, 3}
 
 
+def should_resume_lobby_tasks(game_type, step, *, dev_mode, dev_game_target):
+    """Avoid restoring Squad match orchestration in a WARDOGS local session."""
+    squad_orchestration_step = step in (2, 3, 4)
+    return not (dev_mode and dev_game_target == 'wardogs'
+                and game_type == 'squad' and squad_orchestration_step)
+
+
 def cleanup_player(
     username,
     *,

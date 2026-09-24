@@ -5,6 +5,7 @@
     "dev": "docker compose up --build",
     "dev:docker": "docker compose up --build",
     "dev:local": "powershell -ExecutionPolicy Bypass -File scripts/dev-local.ps1",
+    "dev:wardogs": "powershell -ExecutionPolicy Bypass -File scripts/dev-local.ps1 -DevelopmentTarget wardogs",
     "dev:down": "docker compose down"
   }
 }

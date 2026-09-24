@@ -361,6 +361,10 @@ LEGACY_QUEUE_FILE = os.path.join(BASE_DIR, 'queue.json')
 LEGACY_USERS_FILE = os.path.join(BASE_DIR, 'users.json')
 DATABASE_PATH = os.getenv('DATABASE_PATH', os.path.join(BASE_DIR, 'app.db'))
 DEV_MODE = os.getenv('CMP_DEV_MODE', '0') == '1'
+DEV_GAME_TARGET = (os.getenv('CMP_DEV_GAME', 'local').strip().lower()
+                   if DEV_MODE else 'local')
+if DEV_GAME_TARGET not in {'local', 'wardogs'}:
+    raise RuntimeError('CMP_DEV_GAME must be either "local" or "wardogs" when CMP_DEV_MODE=1')
 ADMIN_TEAM_ENFORCEMENT_BYPASS_ENABLED = os.getenv('ADMIN_TEAM_ENFORCEMENT_BYPASS_ENABLED', '1') == '1'
 LIVE_ROLL_READY_OVERRIDE_ENABLED = os.getenv('LIVE_ROLL_READY_OVERRIDE_ENABLED', '0') == '1'
 DEV_LIVE_ROLL_OVERRIDE_USERNAME = os.getenv('DEV_LIVE_ROLL_OVERRIDE_USERNAME', '').strip().lower()
