@@ -320,3 +320,61 @@ def test_predeploy_diagnostics_exposes_dependency_and_server_availability():
     assert diagnostics['adminSteamIds'] == ['76561198000000001']
     assert diagnostics['serverAvailability']['available'] is False
     assert diagnostics['serverAvailability']['reason'] == 'server_in_use'
+
+
+def test_wardogs_admin_diagnostics_are_game_aware_and_skip_disabled_squadjs():
+    should_not_probe = lambda: (_ for _ in ()).throw(AssertionError('SquadJS must not be probed'))
+    diagnostics = build_admin_diagnostics(
+        get_database_health=lambda: {'ok': True},
+        get_bridge_health=should_not_probe,
+        get_eos_runtime_status=lambda: {'configured': False},
+        get_server_connection_details=should_not_probe,
+        fetch_latest_round_result=should_not_probe,
+        fetch_lobby_audit_events=lambda limit=20: [],
+        get_history_counts=lambda: {'total': 0},
+        lobbies={},
+        queue_modes={
+            'wardogs_beta9': {
+                'id': 'wardogs_beta9', 'game_type': 'wardogs',
+                'label': 'WARDOGS Beta · 3 factions', 'max_players': 9,
+                'faction_count': 3, 'active_per_faction': 3,
+                'reserve_per_faction': 0
+            }
+        },
+        matchmaking_queue={'wardogs_beta9': ['neil']},
+        pending_match={'wardogs_beta9': None},
+        servers=[{'id': 1, 'game_type': 'squad'}],
+        squadjs_enabled=False
+    )
+
+    mode = diagnostics['queueModes']['wardogs_beta9']
+    assert mode['gameType'] == 'wardogs'
+    assert mode['requiredPlayers'] == 9
+    assert mode['factionCount'] == 3
+    assert mode['activePerFaction'] == 3
+    assert mode['reservePerFaction'] == 0
+    assert mode['teamSize'] is None
+    assert mode['size'] == 1
+    assert diagnostics['bridge'] == {'enabled': False, 'ok': None, 'url': None}
+    assert diagnostics['server']['bridgeDisabled'] is True
+    assert diagnostics['latestRoundResult'] is None
+    assert diagnostics['serverAvailabilityByGame']['wardogs']['capacity'] == 0
+
+
+def test_admin_diagnostics_keeps_squadjs_probes_when_enabled():
+    calls = []
+    diagnostics = build_admin_diagnostics(
+        get_database_health=lambda: {'ok': True},
+        get_bridge_health=lambda: calls.append('health') or {'ok': True},
+        get_eos_runtime_status=lambda: {'configured': False},
+        get_server_connection_details=lambda: calls.append('server') or {'bridgeAvailable': True},
+        fetch_latest_round_result=lambda: calls.append('round') or {'winner': 'USA'},
+        fetch_lobby_audit_events=lambda limit=20: [],
+        get_history_counts=lambda: {'total': 0},
+        lobbies={}, queue_modes={}, matchmaking_queue={}, pending_match={}, servers=[],
+        squadjs_enabled=True
+    )
+
+    assert calls == ['server', 'round', 'health']
+    assert diagnostics['bridge']['enabled'] is True
+    assert diagnostics['latestRoundResult'] == {'winner': 'USA'}

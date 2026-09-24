@@ -66,6 +66,7 @@ foreach ($port in @(5000, 5173)) {
 $jobs = @()
 $frontendUrl = "http://127.0.0.1:5173"
 $backendUrl = "http://127.0.0.1:5000"
+$startSquadJs = $DevelopmentTarget -eq "local" -and $env:CMP_START_SQUADJS -eq "1"
 
 function Test-TcpReady($port) {
     $client = [System.Net.Sockets.TcpClient]::new()
@@ -109,6 +110,7 @@ try {
         Set-Location $workingDirectory
         $env:CMP_DEV_MODE = "1"
         $env:CMP_DEV_GAME = $using:DevelopmentTarget
+        $env:CMP_SQUADJS_ENABLED = if ($using:startSquadJs) { "1" } else { "0" }
         $env:DEV_SOLO_ELO_SMOKE_ENABLED = if ($using:DevelopmentTarget -eq "wardogs") { "0" } else { "1" }
         if ($using:DevelopmentTarget -ne "wardogs") {
             $env:DEV_SOLO_ELO_SMOKE_USERNAME = "neil"
@@ -137,7 +139,6 @@ try {
         npm run dev
     }
 
-    $startSquadJs = $DevelopmentTarget -eq "local" -and $env:CMP_START_SQUADJS -eq "1"
     if ($startSquadJs) {
         $jobs += Start-CmpJob "squadjs" $squadjs {
             param($workingDirectory)

@@ -337,6 +337,7 @@ QUEUE_MODES = {
         'short_label': 'WARDOGS Beta 9',
         'game_type': 'wardogs',
         'max_players': 9,
+        'faction_count': 3,
         'active_per_faction': 3,
         'reserve_per_faction': 0,
         'allow_premade_split': False,
@@ -365,6 +366,7 @@ DEV_GAME_TARGET = (os.getenv('CMP_DEV_GAME', 'local').strip().lower()
                    if DEV_MODE else 'local')
 if DEV_GAME_TARGET not in {'local', 'wardogs'}:
     raise RuntimeError('CMP_DEV_GAME must be either "local" or "wardogs" when CMP_DEV_MODE=1')
+SQUADJS_INTEGRATION_ENABLED = os.getenv('CMP_SQUADJS_ENABLED', '1') == '1'
 ADMIN_TEAM_ENFORCEMENT_BYPASS_ENABLED = os.getenv('ADMIN_TEAM_ENFORCEMENT_BYPASS_ENABLED', '1') == '1'
 LIVE_ROLL_READY_OVERRIDE_ENABLED = os.getenv('LIVE_ROLL_READY_OVERRIDE_ENABLED', '0') == '1'
 DEV_LIVE_ROLL_OVERRIDE_USERNAME = os.getenv('DEV_LIVE_ROLL_OVERRIDE_USERNAME', '').strip().lower()

@@ -262,17 +262,24 @@ def build_admin_diagnostics(
     pending_match,
     servers,
     automation_control=None,
-    admin_steam_ids=None
+    admin_steam_ids=None,
+    squadjs_enabled=True
 ):
-    try:
-        server_details = get_server_connection_details()
-    except Exception as error:
-        server_details = {'bridgeAvailable': False, 'bridgeError': str(error)}
+    if squadjs_enabled:
+        try:
+            server_details = get_server_connection_details()
+        except Exception as error:
+            server_details = {'bridgeAvailable': False, 'bridgeError': str(error)}
 
-    try:
-        latest_round_result = fetch_latest_round_result()
-    except Exception as error:
-        latest_round_result = {'error': str(error)}
+        try:
+            latest_round_result = fetch_latest_round_result()
+        except Exception as error:
+            latest_round_result = {'error': str(error)}
+        bridge = {**get_bridge_health(), 'enabled': True}
+    else:
+        server_details = {'bridgeAvailable': None, 'bridgeDisabled': True}
+        latest_round_result = None
+        bridge = {'enabled': False, 'ok': None, 'url': None}
 
     active_lobbies = []
     for lobby_id, lobby in lobbies.items():
@@ -296,6 +303,7 @@ def build_admin_diagnostics(
         mode_pending = pending_match.get(mode_id)
         pending_payload = {
             'id': mode_pending.get('id'),
+            'gameType': config.get('game_type', 'squad'),
             'acceptedCount': len([player for player, accepted in (mode_pending.get('accepted') or {}).items() if accepted]),
             'requiredCount': len(mode_pending.get('players') or []),
             'countdown': mode_pending.get('countdown')
@@ -307,17 +315,23 @@ def build_admin_diagnostics(
                 'label': config['label']
             }
         queue_state[mode_id] = {
+            'id': mode_id,
+            'gameType': config.get('game_type', 'squad'),
             'label': config['label'],
             'size': size,
             'maxPlayers': config['max_players'],
-            'teamSize': config['team_size'],
+            'requiredPlayers': config['max_players'],
+            'teamSize': config.get('team_size'),
+            'factionCount': config.get('faction_count'),
+            'activePerFaction': config.get('active_per_faction'),
+            'reservePerFaction': config.get('reserve_per_faction'),
             'pendingMatch': pending_payload
         }
 
     return {
         'generatedAt': time.time(),
         'database': get_database_health(),
-        'bridge': get_bridge_health(),
+        'bridge': bridge,
         'eos': get_eos_runtime_status(),
         'server': server_details,
         'serverAvailability': get_server_availability(
@@ -325,6 +339,19 @@ def build_admin_diagnostics(
             pending_match,
             server_capacity=len(servers or [])
         ),
+        'serverAvailabilityByGame': {
+            game_type: get_server_availability(
+                lobbies,
+                pending_match,
+                server_capacity=sum(
+                    1 for server in (servers or [])
+                    if server.get('game_type', 'squad') == game_type
+                ),
+                game_type=game_type,
+                queue_modes=queue_modes
+            )
+            for game_type in ('squad', 'wardogs')
+        },
         'latestRoundResult': latest_round_result,
         'automation': automation_control or {'mode': 'on'},
         'adminSteamIds': sorted(admin_steam_ids or []),

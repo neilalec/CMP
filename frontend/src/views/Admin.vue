@@ -5,6 +5,7 @@ import { useRootStore } from '../stores/rootStore';
 import { useSocketStore } from '../stores/socketStore';
 import { API_BASE_URL } from '../config';
 import { SOCKET_EVENTS } from '../constants/socketEvents';
+import { formatQueueModeCapacity } from '../features/admin/diagnostics';
 import {
   formatJoinStrategy,
   formatLookupStep,
@@ -93,6 +94,7 @@ const automationModes = [
 const activeLobbies = computed(() => diagnostics.value?.activeLobbies || []);
 const recentEvents = computed(() => diagnostics.value?.recentEvents || []);
 const historyCounts = computed(() => diagnostics.value?.historyCounts || {});
+const queueModeDiagnostics = computed(() => Object.values(diagnostics.value?.queueModes || {}));
 
 const formatJson = (value) => JSON.stringify(value ?? null, null, 2);
 const isAdmin = computed(() => !!authStore.token && !!authStore.isAdmin);
@@ -444,7 +446,7 @@ onMounted(async () => {
             <p>{{ diagnostics.pendingMatch ? diagnostics.pendingMatch.label : 'Idle' }}</p>
           </article>
 
-          <article class="diagnostic-card data-card">
+          <article v-if="diagnostics.bridge?.enabled !== false" class="diagnostic-card data-card">
             <span class="data-card-label">Bridge</span>
             <strong>{{ diagnostics.bridge?.ok ? 'Healthy' : 'Degraded' }}</strong>
             <p>{{ diagnostics.bridge?.url }}</p>
@@ -471,7 +473,7 @@ onMounted(async () => {
             </p>
           </article>
 
-          <article class="diagnostic-card data-card">
+          <article v-if="diagnostics.bridge?.enabled !== false" class="diagnostic-card data-card">
             <span class="data-card-label">Verified Server</span>
             <strong>{{ getExternalServerKey(diagnostics.server) || 'Unavailable' }}</strong>
             <p>{{ diagnostics.server?.serverName || diagnostics.server?.bridge?.serverName || 'Run a health check' }}</p>
@@ -483,6 +485,25 @@ onMounted(async () => {
             <p>{{ availableServers.length }} available</p>
           </article>
         </div>
+
+        <section v-if="diagnostics" class="admin-section">
+          <div class="window-titlebar compact-titlebar">
+            <span class="window-titlebar-label">Queue modes</span>
+            <span class="window-titlebar-meta">{{ queueModeDiagnostics.length }}</span>
+          </div>
+          <div class="admin-list section-body">
+            <article v-for="mode in queueModeDiagnostics" :key="mode.id" class="admin-list-item data-card">
+              <div class="data-row">
+                <span>{{ mode.label }}</span>
+                <strong>{{ mode.size }} queued</strong>
+              </div>
+              <div class="data-row">
+                <span>{{ mode.gameType === 'wardogs' ? 'WARDOGS format' : 'Squad format' }}</span>
+                <strong>{{ formatQueueModeCapacity(mode) }}</strong>
+              </div>
+            </article>
+          </div>
+        </section>
 
         <section v-if="diagnostics" class="admin-section">
           <div class="window-titlebar compact-titlebar">

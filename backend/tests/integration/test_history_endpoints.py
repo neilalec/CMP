@@ -216,3 +216,36 @@ def test_admin_diagnostics_requires_admin(flask_app, monkeypatch):
     })
 
     assert response.status_code == 403
+
+
+def test_wardogs_admin_diagnostics_endpoint_does_not_probe_squadjs(flask_app, monkeypatch):
+    client = flask_app.test_client()
+    with flask_app.app_context():
+        token = create_access_token(identity='neil')
+
+    monkeypatch.setattr(app_core, 'is_admin_user', lambda username: True)
+    monkeypatch.setattr(backend_app, 'is_admin_user', lambda username: True)
+    monkeypatch.setattr(app_core, 'SQUADJS_INTEGRATION_ENABLED', False)
+    should_not_probe = lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError('SquadJS must not be probed'))
+    monkeypatch.setattr(app_core, 'get_bridge_health', should_not_probe)
+    monkeypatch.setattr(app_core, 'get_server_connection_details', should_not_probe)
+    monkeypatch.setattr(app_core, 'fetch_latest_round_result', should_not_probe)
+
+    original_queue = dict(backend_app.matchmaking_queue)
+    try:
+        backend_app.matchmaking_queue['wardogs_beta9'] = ['neil']
+        response = client.get('/api/admin/diagnostics', headers={
+            'Authorization': f'Bearer {token}'
+        })
+    finally:
+        backend_app.matchmaking_queue.clear()
+        backend_app.matchmaking_queue.update(original_queue)
+
+    assert response.status_code == 200
+    mode = response.get_json()['diagnostics']['queueModes']['wardogs_beta9']
+    assert mode['size'] == 1
+    assert mode['gameType'] == 'wardogs'
+    assert mode['requiredPlayers'] == 9
+    assert mode['factionCount'] == 3
+    assert mode['activePerFaction'] == 3
+    assert mode['teamSize'] is None

@@ -34,6 +34,7 @@ from app_state import (
     SQUAD_SERVER_PASSWORD,
     SQUADJS_BRIDGE_TOKEN,
     SQUADJS_BRIDGE_URL,
+    SQUADJS_INTEGRATION_ENABLED,
     bridge_status,
     disabled_queue_modes,
     groups,
@@ -777,7 +778,8 @@ def get_admin_diagnostics():
         pending_match=pending_match_ref,
         servers=list_servers(),
         automation_control=get_automation_control(),
-        admin_steam_ids=get_admin_steam_ids()
+        admin_steam_ids=get_admin_steam_ids(),
+        squadjs_enabled=SQUADJS_INTEGRATION_ENABLED
     )
 
 
