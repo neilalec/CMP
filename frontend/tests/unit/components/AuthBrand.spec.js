@@ -33,13 +33,34 @@ async function mountAuth() {
 test('auth page presents CMP sign-in with Steam as the primary action', async () => {
   const wrapper = await mountAuth()
 
-  expect(wrapper.find('.auth-mark').text()).toBe('CMP')
+  expect(wrapper.get('img.auth-mark').attributes('alt')).toBe('CMP')
+  expect(wrapper.get('img.auth-mark').attributes('src')).toBe('/cmp-wordmark.svg')
   expect(wrapper.text()).toContain('WARDOGS matchmaking')
   expect(wrapper.get('h1').text()).toBe('Sign in')
   expect(wrapper.get('.steam-button').text()).toContain('Continue with Steam')
   expect(wrapper.get('.steam-button').attributes('aria-label')).toBe('Continue with Steam')
   expect(wrapper.find('.auth-card').exists()).toBe(false)
   expect(wrapper.text()).not.toContain('Squad Comp Matchmaking')
+  expect(wrapper.text()).not.toContain('Multiple Games')
+  wrapper.unmount()
+})
+
+test('auth page has three concise WARDOGS feature sections below the login surface', async () => {
+  const wrapper = await mountAuth()
+  const features = wrapper.findAll('.auth-feature')
+
+  expect(features).toHaveLength(3)
+  expect(features.map((feature) => feature.get('h2').text())).toEqual([
+    'Organised Matches',
+    'Play Together',
+    'Live Match Rooms'
+  ])
+  expect(features.map((feature) => feature.get('p').text())).toEqual([
+    'Structured three-faction matchmaking',
+    'Queue solo or with your group',
+    'Rosters, join details and live state'
+  ])
+  expect(features.every((feature) => feature.get('svg').attributes('aria-hidden') === 'true')).toBe(true)
   wrapper.unmount()
 })
 

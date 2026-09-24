@@ -31,56 +31,86 @@ const {
 </script>
 
 <template>
-  <main class="auth-container" aria-labelledby="auth-title">
-    <header class="auth-brand" aria-label="CMP">
-      <span class="auth-mark">CMP</span>
-      <span class="auth-descriptor">WARDOGS matchmaking</span>
-    </header>
+  <main class="auth-layout">
+    <section class="auth-container" aria-labelledby="auth-title">
+      <header class="auth-brand">
+        <img class="auth-mark" src="/cmp-wordmark.svg" alt="CMP" width="294" height="74" />
+        <span class="auth-descriptor">WARDOGS matchmaking</span>
+      </header>
 
-    <section class="auth-content">
-      <h1 id="auth-title">Sign in</h1>
-      <button
-        class="steam-button"
-        type="button"
-        aria-label="Continue with Steam"
-        @click="handleSteamSignIn"
-      >
-        Continue with Steam
-      </button>
-      <p class="auth-security-copy">Sign in securely with Steam.</p>
+      <div class="auth-content">
+        <h1 id="auth-title">Sign in</h1>
+        <button
+          class="steam-button"
+          type="button"
+          aria-label="Continue with Steam"
+          @click="handleSteamSignIn"
+        >
+          Continue with Steam
+        </button>
+        <p class="auth-security-copy">Sign in securely with Steam.</p>
 
-      <p class="auth-legal-copy">
-        By continuing, you agree to the <RouterLink to="/terms">Terms</RouterLink>
-        and acknowledge the <RouterLink to="/privacy">Privacy Policy</RouterLink>.
-      </p>
+        <p class="auth-legal-copy">
+          By continuing, you agree to the <RouterLink to="/terms">Terms</RouterLink>
+          and acknowledge the <RouterLink to="/privacy">Privacy Policy</RouterLink>.
+        </p>
 
-      <details v-if="PASSWORD_AUTH_ENABLED" class="auth-local-access">
-        <summary>Use local account</summary>
-        <form class="auth-local-form" @submit.prevent="handleSubmit">
-          <label for="auth-username">Username</label>
-          <input
-            id="auth-username"
-            v-model="username"
-            type="text"
-            autocomplete="username"
-            required
-          />
-          <label for="auth-password">Password</label>
-          <input
-            id="auth-password"
-            v-model="password"
-            type="password"
-            :autocomplete="formType === 'login' ? 'current-password' : 'new-password'"
-            required
-          />
-          <button class="local-submit" type="submit" :disabled="loading">
-            {{ loading ? 'Working...' : (formType === 'login' ? 'Login' : 'Register') }}
-          </button>
-          <button class="form-toggle" type="button" @click="toggleForm">
-            {{ formType === 'login' ? 'Create account' : 'Back to login' }}
-          </button>
-        </form>
-      </details>
+        <details v-if="PASSWORD_AUTH_ENABLED" class="auth-local-access">
+          <summary>Use local account</summary>
+          <form class="auth-local-form" @submit.prevent="handleSubmit">
+            <label for="auth-username">Username</label>
+            <input
+              id="auth-username"
+              v-model="username"
+              type="text"
+              autocomplete="username"
+              required
+            />
+            <label for="auth-password">Password</label>
+            <input
+              id="auth-password"
+              v-model="password"
+              type="password"
+              :autocomplete="formType === 'login' ? 'current-password' : 'new-password'"
+              required
+            />
+            <button class="local-submit" type="submit" :disabled="loading">
+              {{ loading ? 'Working...' : (formType === 'login' ? 'Login' : 'Register') }}
+            </button>
+            <button class="form-toggle" type="button" @click="toggleForm">
+              {{ formType === 'login' ? 'Create account' : 'Back to login' }}
+            </button>
+          </form>
+        </details>
+      </div>
+    </section>
+
+    <section class="auth-features" aria-label="WARDOGS features">
+      <div class="auth-feature">
+        <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+          <rect x="4" y="7" width="24" height="21" rx="2" />
+          <path d="M10 4v6M22 4v6M4 13h24M10 18h4M18 18h4M10 23h4M18 23h4" />
+        </svg>
+        <h2>Organised Matches</h2>
+        <p>Structured three-faction matchmaking</p>
+      </div>
+      <div class="auth-feature">
+        <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+          <circle cx="16" cy="11" r="4" />
+          <path d="M8 27v-2a8 8 0 0 1 16 0v2H8ZM6 12a3 3 0 1 0 0 6M26 12a3 3 0 1 1 0 6M4 27v-2a6 6 0 0 1 4-5.7M28 27v-2a6 6 0 0 0-4-5.7" />
+        </svg>
+        <h2>Play Together</h2>
+        <p>Queue solo or with your group</p>
+      </div>
+      <div class="auth-feature">
+        <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+          <rect x="5" y="5" width="22" height="9" rx="2" />
+          <rect x="5" y="18" width="22" height="9" rx="2" />
+          <path d="M10 9.5h.01M10 22.5h.01M16 14v4M22 14v4" />
+        </svg>
+        <h2>Live Match Rooms</h2>
+        <p>Rosters, join details and live state</p>
+      </div>
     </section>
   </main>
 </template>
@@ -117,11 +147,18 @@ const {
   pointer-events: none;
 }
 
-.auth-container {
+.auth-layout {
   position: relative;
   z-index: 1;
-  width: min(100%, 480px);
+  display: grid;
+  justify-items: center;
+  gap: 44px;
+  width: min(100%, 920px);
   margin: 0 auto;
+}
+
+.auth-container {
+  width: min(100%, 480px);
   padding: clamp(34px, 4vw, 48px);
   border: 1px solid rgba(165, 186, 196, .16);
   border-radius: 9px;
@@ -138,10 +175,8 @@ const {
 }
 
 .auth-mark {
-  color: #edf2f4;
-  font: 900 clamp(4rem, 6vw, 5rem)/.95 var(--font-display);
-  letter-spacing: .085em;
-  padding-left: .085em;
+  width: 185px;
+  height: auto;
 }
 
 .auth-descriptor {
@@ -284,6 +319,51 @@ const {
   border-color: transparent;
   background: transparent;
   color: var(--text-primary);
+}
+
+.auth-features {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(24px, 4vw, 64px);
+  width: min(100%, 820px);
+  color: #dfe8ec;
+  text-align: center;
+}
+
+.auth-feature {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+}
+
+.auth-feature svg {
+  width: 34px;
+  height: 34px;
+  margin-bottom: 12px;
+  color: #a9bbc6;
+}
+
+.auth-feature h2 {
+  margin: 0 0 7px;
+  font-family: var(--font-display);
+  font-size: 1.18rem;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.auth-feature p {
+  max-width: 190px;
+  margin: 0;
+  color: #9aadb8;
+  font-size: .98rem;
+  line-height: 1.45;
+}
+
+@media (max-width: 700px) {
+  .auth-features {
+    grid-template-columns: 1fr;
+    gap: 28px;
+  }
 }
 
 @media (max-width: 480px) {
