@@ -37,9 +37,12 @@ const {
   <div class="play-content cmp-page">
     <header v-if="activeView === 'queue'" class="play-heading">
       <div>
-        <h1>Play</h1>
+        <p class="play-eyebrow">WARDOGS</p>
+        <h1>Matchmaking</h1>
       </div>
-      <RouterLink class="play-group-link" to="/group">{{ groupStore.inGroup ? 'Your group' : 'Group' }}</RouterLink>
+      <RouterLink v-if="groupStore.inGroup" class="play-group-link cmp-button cmp-button--secondary" to="/group">
+        Your group
+      </RouterLink>
     </header>
     <QueuePanel
       v-if="activeView === 'queue'"
@@ -84,26 +87,36 @@ const {
 <style scoped>
 .play-content {
   width: min(100%, var(--cmp-page-width));
-  margin: clamp(6px, 1.6vw, 16px) auto 0;
-  padding: clamp(16px, 3vw, 32px);
+  min-height: max(560px, calc(100dvh - 154px));
+  margin: 0 auto;
+  padding: clamp(24px, 4vw, 48px) var(--cmp-page-gutter);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .play-heading {
   display: flex;
-  align-items: end;
+  align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: clamp(8px, 2vw, 26px) 0 24px;
+  gap: 20px;
+  width: min(100%, 580px);
+  margin: 0 auto 18px;
 }
 
-.play-heading .eyebrow { margin-bottom: 8px; }
-.play-heading h1 { margin: 0; font-size: clamp(2rem, 4vw, 3rem); letter-spacing: -.03em; }
-.play-group-link { color: var(--cmp-text-secondary); font-size: .84rem; font-weight: 700; }
+.play-eyebrow { margin: 0 0 5px; color: var(--cmp-text-muted); font-size: .68rem; font-weight: 800; letter-spacing: .16em; }
+.play-heading h1 { margin: 0; font-size: clamp(1.7rem, 3vw, 2.2rem); letter-spacing: -.035em; }
+.play-group-link { min-height: 40px; padding: 8px 14px; color: var(--cmp-text-secondary); font-size: .8rem; }
 .play-group-link:hover { color: var(--cmp-text); }
 
 @media (max-width: 640px) {
   .play-content {
-    margin-top: 0;
+    min-height: max(500px, calc(100dvh - 132px));
+    padding-block: 28px;
+  }
+
+  .play-heading {
+    margin-bottom: 14px;
   }
 }
 </style>

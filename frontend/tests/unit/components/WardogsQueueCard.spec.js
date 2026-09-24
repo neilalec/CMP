@@ -49,6 +49,8 @@ describe('WARDOGS Play queue card', () => {
     expect(wrapper.get('.wardogs-queue-card').classes()).toContain('cmp-surface')
     expect(wrapper.get('.wardogs-queue-action').classes()).toContain('cmp-button--primary')
     expect(wrapper.find('.wardogs-queue-action').text()).toBe('Join Queue')
+    expect(wrapper.get('.wardogs-queue-card').classes()).not.toContain('is-queued')
+    expect(wrapper.find('[role="status"]').exists()).toBe(false)
     expect(wrapper.find('.window-titlebar').exists()).toBe(false)
     expect(wrapper.find('.queue-admin-tools').exists()).toBe(false)
     expect(wrapper.text().toLowerCase()).not.toContain('squad')
@@ -60,7 +62,9 @@ describe('WARDOGS Play queue card', () => {
     expect(wrapper.emitted('join-queue')).toEqual([['wardogs_beta9']])
 
     await wrapper.setProps({ inQueue: true, currentQueueMode: 'wardogs_beta9' })
+    expect(wrapper.get('.wardogs-queue-card').classes()).toContain('is-queued')
     expect(wrapper.find('.wardogs-queue-state').text()).toBe('Queued')
+    expect(wrapper.find('[role="status"]').text()).toBe('You’re in the queue.')
     expect(wrapper.find('.wardogs-queue-action').text()).toBe('Leave Queue')
     expect(wrapper.get('.wardogs-queue-action').classes()).toContain('cmp-button--secondary')
     await wrapper.find('.wardogs-queue-action').trigger('click')
