@@ -37,8 +37,7 @@ const {
   <div class="play-content content-panel page-shell">
     <header v-if="activeView === 'queue'" class="play-heading">
       <div>
-        <p class="eyebrow">WARDOGS</p>
-        <h1>Find your match</h1>
+        <h1>Play</h1>
       </div>
       <RouterLink class="play-group-link" to="/group">{{ groupStore.inGroup ? 'Your group' : 'Group' }}</RouterLink>
     </header>

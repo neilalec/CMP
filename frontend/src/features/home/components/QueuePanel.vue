@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
+import WardogsQueueCard from './WardogsQueueCard.vue'
 
 const props = defineProps({
   queueModes: {
@@ -402,21 +403,40 @@ const handleS3oSmallJoin = () => {
     </p>
     <div class="queue-grid">
       <template v-for="queueCard in queueCards" :key="queueCard.id">
+        <WardogsQueueCard
+          v-if="queueCard.type === 'standard' && queueCard.queueMode.gameType === 'wardogs'"
+          :mode="queueCard.queueMode"
+          :current-queue-mode="currentQueueMode"
+          :in-queue="inQueue"
+          :match-accept-active="matchAcceptActive"
+          :loading="loading"
+          :is-in-lobby="isInLobby"
+          :is-in-group="isInGroup"
+          :is-group-leader="isGroupLeader"
+          :has-steam-id="hasSteamId"
+          :group-member-count="groupMemberCount"
+          :can-manage-queue-tools="canManageQueueTools"
+          :wardogs-lobby-id="wardogsLobbyId"
+          :get-queue-progress-percent="getQueueProgressPercent"
+          :is-mode-queue-full="isModeQueueFull"
+          @join-queue="emit('join-queue', $event)"
+          @leave-queue="emit('leave-queue', $event)"
+          @seed-queue="emit('seed-queue', $event)"
+          @clear-queue="emit('clear-queue', $event)"
+          @set-queue-enabled="(mode, enabled) => emit('set-queue-enabled', mode, enabled)"
+        />
         <article
-          v-if="queueCard.type === 'standard'"
+          v-else-if="queueCard.type === 'standard'"
           :class="[
             'queue-card',
             'window-panel',
             {
               'is-active': currentQueueMode === queueCard.queueMode.id,
-              'is-wardogs': queueCard.queueMode.gameType === 'wardogs',
               'is-disabled': queueCard.queueMode.disabled || queueCard.queueMode.enabled === false,
               'no-dev-tools-card': !canManageQueueTools
             }
           ]"
         >
-          <router-link v-if="queueCard.queueMode.gameType === 'wardogs' && wardogsLobbyId"
-            :to="`/wardogs/lobby/${wardogsLobbyId}`">Open your WARDOGS lobby</router-link>
           <div class="window-titlebar">
             <a
               v-if="getQueueModLink(queueCard.queueMode)"
@@ -438,7 +458,7 @@ const handleS3oSmallJoin = () => {
                 :disabled="isJoinDisabled(queueCard.queueMode)"
                 @click="emit('join-queue', queueCard.queueMode.id)"
               >
-                {{ queueCard.queueMode.gameType === 'wardogs' || isJoinDisabled(queueCard.queueMode)
+                {{ isJoinDisabled(queueCard.queueMode)
                   ? getPrimaryLabel(queueCard.queueMode) : getQueueFormatLabel(queueCard.queueMode) }}
               </button>
 
@@ -477,9 +497,6 @@ const handleS3oSmallJoin = () => {
               </button>
             </div>
           </div>
-          <p v-if="queueCard.queueMode.gameType === 'wardogs'" class="wardogs-queue-format">
-            {{ getQueueFormatLabel(queueCard.queueMode) }}
-          </p>
         </article>
 
         <article
@@ -1022,55 +1039,7 @@ const handleS3oSmallJoin = () => {
 
 <style scoped>
 .queue-board.single-mode .queue-grid {
-  grid-template-columns: minmax(0, 560px);
-}
-
-.queue-card.is-wardogs,
-.queue-card.is-wardogs.no-dev-tools-card {
-  min-height: 0;
-  height: auto;
-}
-
-.queue-card.is-wardogs .queue-card-body.no-dev-tools {
-  grid-template-rows: auto auto;
-  gap: 24px;
-  padding: 26px 24px 18px;
-}
-
-.queue-card.is-wardogs .queue-action {
-  width: min(100%, 280px);
-  min-height: 48px;
-  padding: 10px 20px;
-  border-color: var(--primary);
-  background: var(--primary);
-  box-shadow: none;
-  color: #061624;
-  font-size: 1rem;
-  font-weight: 800;
-}
-
-.queue-card.is-wardogs .queue-action:hover:not(:disabled) {
-  background: var(--primary-hover);
-}
-
-.queue-card.is-wardogs .queue-action:disabled {
-  border-color: var(--border);
-  background: var(--surface-secondary);
-  color: var(--text-muted);
-}
-
-.queue-card.is-wardogs .queue-action.is-danger {
-  border-color: var(--danger);
-  background: transparent;
-  color: var(--danger);
-}
-
-.wardogs-queue-format {
-  margin: 0;
-  padding: 0 24px 20px;
-  color: var(--text-secondary);
-  font-size: .82rem;
-  text-align: center;
+  grid-template-columns: minmax(0, 620px);
 }
 
 .queue-board {

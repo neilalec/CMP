@@ -123,8 +123,8 @@ describe('QueuePanel.vue', () => {
     };
     const wrapper = mountQueuePanel({ queueModes: [wardogs], serverAvailable: false });
 
-    expect(wrapper.text()).toContain('WARDOGS Beta Queue');
-    expect(wrapper.find('.queue-action').text()).toBe('Join Queue');
+    expect(wrapper.text()).toContain('WARDOGS Beta 9');
+    expect(wrapper.find('.wardogs-queue-action').text()).toBe('Join Queue');
     expect(wrapper.text()).not.toContain('Squad');
     expect(wrapper.find('.queue-paused-message').exists()).toBe(false);
   });
@@ -138,14 +138,14 @@ describe('QueuePanel.vue', () => {
     const props = { queueModes: [...queueModes.filter((mode) =>
       ['s3osmall5', 'ocbt15', 'skirmish'].includes(mode.id)), wardogs], serverAvailable: false };
     const wrapper = mountQueuePanel(props);
-    expect(wrapper.text()).toContain('WARDOGS Beta Queue');
+    expect(wrapper.text()).toContain('WARDOGS Beta 9');
     expect(wrapper.text()).toContain('3 factions · 9 players');
-    const wardogsCard = wrapper.findAll('.queue-card').find((card) => card.text().includes('WARDOGS Beta Queue'));
-    expect(wardogsCard.find('.queue-action').attributes('disabled')).toBeUndefined();
-    await wardogsCard.find('.queue-action').trigger('click');
+    const wardogsCard = wrapper.find('.wardogs-queue-card');
+    expect(wardogsCard.find('.wardogs-queue-action').attributes('disabled')).toBeUndefined();
+    await wardogsCard.find('.wardogs-queue-action').trigger('click');
     expect(wrapper.emitted('join-queue')).toEqual([['wardogs_beta9']]);
     await wrapper.setProps({ inQueue: true, currentQueueMode: 'wardogs_beta9' });
-    await wardogsCard.find('.queue-action').trigger('click');
+    await wardogsCard.find('.wardogs-queue-action').trigger('click');
     expect(wrapper.emitted('leave-queue')).toEqual([['wardogs_beta9']]);
   });
 
