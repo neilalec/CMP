@@ -53,7 +53,7 @@ watch(() => route.fullPath, () => { mobileNavOpen.value = false; });
 </script>
 
 <template>
-  <div class="app">
+  <div class="app" :class="{ 'legacy-ui': route.meta.legacyStyles }">
     <template v-if="authStore.isLoggedIn">
       <div class="app-shell cmp-page">
         <header class="app-header">

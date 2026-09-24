@@ -1,7 +1,7 @@
 /* Transitional Squad-era globals. Older active screens still consume some of
    these classes; keep this loaded until those consumers are migrated. */
 
-:root {
+:root:has(.legacy-ui) {
   --font-body: "Verdana", "Geneva", sans-serif;
   --font-display: "Trebuchet MS", "Verdana", sans-serif;
   --font-mono: "Lucida Console", "Consolas", monospace;
@@ -140,7 +140,7 @@
     linear-gradient(180deg, var(--app-bg-soft) 0%, var(--app-bg) 100%);
 }
 
-html.dark-mode {
+html.dark-mode:has(.legacy-ui) {
   color-scheme: dark;
   --dark-readable-text: #000000;
   --dark-readable-muted: #000000;
@@ -244,13 +244,13 @@ html.dark-mode {
     linear-gradient(180deg, var(--app-bg-soft) 0%, var(--app-bg) 100%);
 }
 
-html,
-body {
+html:has(.legacy-ui),
+body:has(.legacy-ui) {
   background: var(--app-bg);
   scrollbar-color: var(--surface-border-strong) var(--app-bg);
 }
 
-body {
+body:has(.legacy-ui) {
   margin: 0;
   color: var(--text-main);
   font-family: var(--font-body);
@@ -261,29 +261,29 @@ body {
   overflow-x: hidden;
 }
 
-html.dark-mode ::-webkit-scrollbar {
+html.dark-mode:has(.legacy-ui) ::-webkit-scrollbar {
   width: 12px;
   height: 12px;
 }
 
-html.dark-mode ::-webkit-scrollbar-track {
+html.dark-mode:has(.legacy-ui) ::-webkit-scrollbar-track {
   background: var(--app-bg);
 }
 
-html.dark-mode ::-webkit-scrollbar-thumb {
+html.dark-mode:has(.legacy-ui) ::-webkit-scrollbar-thumb {
   background: var(--surface-border);
   border: 2px solid var(--app-bg);
   border-radius: var(--radius-sm);
 }
 
-button,
-input,
-select,
-textarea {
+.legacy-ui button,
+.legacy-ui input,
+.legacy-ui select,
+.legacy-ui textarea {
   font: inherit;
 }
 
-button {
+.legacy-ui button {
   min-height: 31px;
   padding: 0.42rem 0.7rem;
   border: 1px solid var(--button-border);
@@ -302,27 +302,27 @@ button {
     box-shadow 0.16s ease;
 }
 
-button:hover:not(:disabled) {
+.legacy-ui button:hover:not(:disabled) {
   background: var(--button-bg-hover);
   border-color: var(--button-border-hover);
   box-shadow: var(--button-hover-shadow);
 }
 
-button:active:not(:disabled) {
+.legacy-ui button:active:not(:disabled) {
   background: var(--button-bg-active);
   box-shadow: var(--button-active-shadow);
 }
 
-button:disabled {
+.legacy-ui button:disabled {
   cursor: not-allowed;
   background: var(--button-disabled-bg);
   color: var(--button-disabled-text);
   opacity: 0.8;
 }
 
-input,
-select,
-textarea {
+.legacy-ui input,
+.legacy-ui select,
+.legacy-ui textarea {
   min-height: 31px;
   padding: 0.42rem 0.62rem;
   border: 1px solid var(--input-border);
@@ -338,30 +338,30 @@ textarea {
     box-shadow 0.16s ease;
 }
 
-input:focus,
-select:focus,
-textarea:focus {
+.legacy-ui input:focus,
+.legacy-ui select:focus,
+.legacy-ui textarea:focus {
   border-color: var(--accent-border);
   box-shadow: var(--inset-shadow), 0 0 0 3px var(--accent-ring);
 }
 
-#app {
+#app:has(.legacy-ui) {
   max-width: 100%;
   min-height: 100vh;
   padding: 0;
 }
 
-a,
-.green {
+.legacy-ui a,
+.legacy-ui .green {
   color: var(--accent-strong);
   text-decoration: none;
 }
 
-a:hover {
+.legacy-ui a:hover {
   text-decoration: underline;
 }
 
-::selection {
+.legacy-ui ::selection {
   background: var(--accent-soft);
   color: var(--text-main);
 }

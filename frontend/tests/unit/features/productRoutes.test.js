@@ -12,6 +12,19 @@ test('participant routes stay eager while legacy routes load their styling lazil
   expect(typeof routeComponent('results')).toBe('function')
 })
 
+test('only routes that import the legacy bundle enable document-level legacy styling', () => {
+  const legacyRoutes = [
+    'lobbies', 'results', 'leaderboard', 'discord', 'about', 'terms',
+    'privacy', 'steam-auth-callback', 'lobby', 'profile', 'admin', 'group'
+  ]
+  for (const name of legacyRoutes) {
+    expect(router.getRoutes().find((route) => route.name === name)?.meta.legacyStyles).toBe(true)
+  }
+  for (const name of ['auth', 'play', 'matches', 'wardogs-prototype', 'wardogs-lobby']) {
+    expect(router.getRoutes().find((route) => route.name === name)?.meta.legacyStyles).toBeUndefined()
+  }
+})
+
 test('WARDOGS product routes work while participant legacy routes lead to Matches', async () => {
   setActivePinia(createPinia())
   const auth = useAuthStore()

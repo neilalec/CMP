@@ -31,41 +31,43 @@ const routes = [
     path: '/lobbies', 
     name: 'lobbies', 
     component: () => import('../views/LegacyLobbies.vue'),
-    meta: { requiresAuth: true, legacySquad: true }
+    meta: { requiresAuth: true, legacySquad: true, legacyStyles: true }
   },
   {
     path: '/results',
     name: 'results',
     component: () => import('../views/Results.vue'),
-    meta: { requiresAuth: true, legacySquad: true }
+    meta: { requiresAuth: true, legacySquad: true, legacyStyles: true }
   },
   {
     path: '/leaderboard',
     name: 'leaderboard',
     component: () => import('../views/Leaderboard.vue'),
-    meta: { requiresAuth: true, legacySquad: true }
+    meta: { requiresAuth: true, legacySquad: true, legacyStyles: true }
   },
   {
     path: '/discord',
     name: 'discord',
     component: () => import('../views/Discord.vue'),
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: true, legacyStyles: true }
   },
   {
     path: '/about',
     name: 'about',
     component: () => import('../views/About.vue'),
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: true, legacyStyles: true }
   },
   {
     path: '/terms',
     name: 'terms',
-    component: () => import('../views/Terms.vue')
+    component: () => import('../views/Terms.vue'),
+    meta: { legacyStyles: true }
   },
   {
     path: '/privacy',
     name: 'privacy',
-    component: () => import('../views/Privacy.vue')
+    component: () => import('../views/Privacy.vue'),
+    meta: { legacyStyles: true }
   },
   { 
     path: '/auth', 
@@ -77,26 +79,26 @@ const routes = [
     path: '/auth/steam/callback',
     name: 'steam-auth-callback',
     component: () => import('../views/SteamAuthCallback.vue'),
-    meta: { steamCallback: true }
+    meta: { steamCallback: true, legacyStyles: true }
   },
   { 
     path: '/lobby/:lobbyId', 
     name: 'lobby', 
     component: () => import('../views/Lobby.vue'),
     props: true, 
-    meta: { requiresAuth: true, legacySquad: true }
+    meta: { requiresAuth: true, legacySquad: true, legacyStyles: true }
   },
   { 
     path: '/profile', 
     name: 'profile', 
     component: () => import('../views/Profile.vue'),
-    meta: { requiresAuth: true } 
+    meta: { requiresAuth: true, legacyStyles: true }
   },
   {
     path: '/admin',
     name: 'admin',
     component: () => import('../views/Admin.vue'),
-    meta: { requiresAuth: true, requiresAdmin: true }
+    meta: { requiresAuth: true, requiresAdmin: true, legacyStyles: true }
   },
   {
     path: '/servers/add',
@@ -107,7 +109,7 @@ const routes = [
     path: '/group', 
     name: 'group', 
     component: () => import('../views/Group.vue'),
-    meta: { requiresAuth: true } 
+    meta: { requiresAuth: true, legacyStyles: true }
   },
   {
     path: '/prototype/wardogs',

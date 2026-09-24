@@ -1,7 +1,7 @@
 /* Temporary bridge for active screens that still use Squad-era class/token names.
    Do not use these names for new CMP work; use cmp-tokens.css and cmp-components.css. */
-:root,
-html.dark-mode {
+:root:has(.legacy-ui),
+html.dark-mode:has(.legacy-ui) {
   color-scheme: dark;
   --font-body: "Segoe UI", Arial, sans-serif;
   --font-display: "Segoe UI", Arial, sans-serif;
@@ -110,14 +110,14 @@ html.dark-mode {
   --app-atmosphere: radial-gradient(ellipse at 50% -24%, #1a3550 0%, transparent 58%), var(--background);
 }
 
-body { background-image: var(--app-atmosphere); background-size: auto; }
+body:has(.legacy-ui) { background-image: var(--app-atmosphere); background-size: auto; }
 .page-shell { margin-top: 0; }
 .window-panel { background: var(--surface); border-color: var(--border-muted); box-shadow: var(--shadow-card); }
 .window-titlebar { background: transparent; border-bottom-color: var(--border-muted); color: var(--text-primary); letter-spacing: .02em; text-transform: none; }
 .window-titlebar-meta { color: var(--text-muted); }
 .data-card, .surface-card { box-shadow: none; }
 .content-panel { padding: var(--page-gutter); }
-:where(a, button, input, select, textarea, summary):focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.legacy-ui :where(a, button, input, select, textarea, summary):focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 @media (max-width: 420px) {
   .content-panel { padding: var(--page-gutter); }
