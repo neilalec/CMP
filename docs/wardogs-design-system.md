@@ -24,6 +24,12 @@ On desktop, preserve useful density. At tablet widths, collapse wide content bef
 
 `cmp-empty-state`, `cmp-error-state`, and `cmp-loading-state` establish concise feedback treatments. `cmp-disclosure`, `cmp-player-row`, `cmp-page-header`, `cmp-section-header`, `cmp-meta-row`, `cmp-inset`, and `cmp-faction-marker` are the shared presentation pieces for later page passes.
 
+## Matchmaking flow
+
+Play uses one compact queue surface. Show the participant's session before the queue decision: solo actions or group size, leader and queue authority. Queue population is a discrete occupancy meter with an explicit count; it does not promise an estimated wait or imply download progress. A queued session changes the surface accent and offers Leave Queue only to someone with authority. A blocked state explains why without showing an inert primary button. An assigned match makes Open Match the primary action.
+
+Match Accept carries the same narrow top accent and state language into a focused dialog. Its timer and close control stay in the header, acceptance lists scroll independently, and the decision or resulting status stays in the footer. Pending, accepted, finalizing and cancelled are visually distinct. Finalization remains visible until authoritative lobby navigation; visual transitions never infer a lobby from the countdown.
+
 ## Migration boundary
 
-The shell and base primitives are implemented now. Play, Group, Profile, Match Accept, Match Room, Matches and Admin still have local composition and CSS rules. Migrate them feature by feature, preserving the precise distinctions between planned and observed state, connected and aligned, active and reserve, and observed scores and the latest confirmed revision. The historical Squad entry point uses its own stylesheet and shell.
+The shell, base primitives and opening Play → Match Accept journey are implemented. Group, Profile, Match Room, Matches and Admin still have local composition and CSS rules. Migrate them feature by feature, preserving the precise distinctions between planned and observed state, connected and aligned, active and reserve, and observed scores and the latest confirmed revision. The historical Squad entry point uses its own stylesheet and shell. The WARDOGS Auth page is approved and visually frozen.

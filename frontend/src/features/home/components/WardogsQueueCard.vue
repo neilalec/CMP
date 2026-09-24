@@ -32,9 +32,29 @@ const isFull = computed(() => props.isModeQueueFull(props.mode.id))
 const formatLabel = computed(() => `${Number(props.mode.factionCount) || 3} factions · ${maxPlayers.value} players`)
 const title = computed(() => {
   const shortLabel = String(props.mode.shortLabel || '').replace(/^WARDOGS\s*/i, '').trim()
-  return shortLabel ? `${shortLabel} queue` : 'Beta 9 queue'
+  return shortLabel || 'Beta 9'
 })
-const progress = computed(() => Math.min(100, Math.max(0, Number(props.getQueueProgressPercent(props.mode.id)) || 0)))
+const isBlocked = computed(() => (
+  isQueueDisabled.value || queueUnavailable.value || props.isInLobby || isQueuedElsewhere.value
+  || !props.hasSteamId || (props.isInGroup && !props.isGroupLeader) || isFull.value
+))
+const canLeave = computed(() => isQueuedHere.value && (!props.isInGroup || props.isGroupLeader))
+const canJoin = computed(() => !props.wardogsLobbyId && !props.matchAcceptActive && !isQueuedHere.value && !isBlocked.value)
+const stateLabel = computed(() => {
+  if (props.wardogsLobbyId) return 'Match ready'
+  if (props.matchAcceptActive) return 'Match found'
+  if (isQueuedHere.value) return 'In queue'
+  if (props.isInLobby || isQueuedElsewhere.value) return 'Already playing'
+  if (isQueueDisabled.value) return 'Queue paused'
+  if (queueUnavailable.value) return 'Match forming'
+  if (!props.hasSteamId) return 'Steam required'
+  if (props.isInGroup && !props.isGroupLeader) return 'Leader controls'
+  if (isFull.value) return 'Queue full'
+  return 'Open'
+})
+const stateTone = computed(() => props.wardogsLobbyId ? 'cmp-status--success'
+  : ['Queue full', 'Queue paused', 'Steam required'].includes(stateLabel.value)
+    ? 'cmp-status--warning' : '')
 
 const status = computed(() => {
   if (props.wardogsLobbyId) return 'Your match is ready.'
@@ -56,37 +76,6 @@ const status = computed(() => {
   return 'Queue open.'
 })
 
-const actionLabel = computed(() => {
-  if (props.wardogsLobbyId) return 'Open Match'
-  if (props.matchAcceptActive) return 'Match forming'
-  if (isQueuedHere.value) return props.isInGroup && !props.isGroupLeader ? 'Group leader only' : 'Leave Queue'
-  if (queueUnavailable.value) return 'Match forming'
-  if (props.loading) return 'Joining…'
-  if (isQueueDisabled.value) return 'Queue unavailable'
-  if (props.isInLobby) return 'In a lobby'
-  if (isQueuedElsewhere.value) return 'Already queued'
-  if (!props.hasSteamId) return 'Steam account required'
-  if (props.isInGroup && !props.isGroupLeader) return 'Group leader only'
-  if (isFull.value) return 'Queue full'
-  return 'Join Queue'
-})
-
-const actionDisabled = computed(() => {
-  if (props.wardogsLobbyId) return false
-  if (props.matchAcceptActive) return true
-  if (isQueuedHere.value) return props.loading || (props.isInGroup && !props.isGroupLeader)
-  return (
-    props.loading
-    || isQueueDisabled.value
-    || props.isInLobby
-    || isQueuedElsewhere.value
-    || queueUnavailable.value
-    || !props.hasSteamId
-    || (props.isInGroup && !props.isGroupLeader)
-    || isFull.value
-  )
-})
-
 const handleAction = () => {
   if (props.wardogsLobbyId) return
   if (isQueuedHere.value) {
@@ -98,13 +87,14 @@ const handleAction = () => {
 </script>
 
 <template>
-  <article class="wardogs-queue-card cmp-surface" :class="{ 'is-queued': isQueuedHere }">
+  <article class="wardogs-queue-card cmp-surface" :class="{ 'is-queued': isQueuedHere, 'has-match': wardogsLobbyId }">
     <header class="wardogs-queue-heading">
       <div>
+        <p class="cmp-kicker">Queue</p>
         <h2 class="cmp-heading">{{ title }}</h2>
         <p class="wardogs-queue-format">{{ formatLabel }}</p>
       </div>
-      <span v-if="isQueuedHere" class="wardogs-queue-state">Queued</span>
+      <span class="cmp-status wardogs-queue-state" :class="stateTone">{{ stateLabel }}</span>
     </header>
 
     <WardogsPlayGroup
@@ -113,43 +103,25 @@ const handleAction = () => {
       :is-group-leader="isGroupLeader"
     />
 
-    <div class="wardogs-queue-population">
-      <p class="wardogs-queue-label">Players queued</p>
-      <p class="wardogs-queue-count">
-        <span>{{ playersQueued }}</span><span aria-hidden="true"> / </span><span>{{ maxPlayers }}</span>
-      </p>
-      <div
-        class="wardogs-queue-progress"
-        role="progressbar"
-        aria-label="Queue population"
-        aria-valuemin="0"
-        :aria-valuemax="maxPlayers"
-        :aria-valuenow="Math.min(playersQueued, maxPlayers)"
-        :aria-valuetext="`${playersQueued} of ${maxPlayers} players queued`"
-      >
-        <span :style="{ width: `${progress}%` }"></span>
+    <div class="wardogs-queue-bottom">
+      <div class="wardogs-queue-population">
+        <div class="wardogs-queue-population-heading">
+          <p class="cmp-kicker">Players in queue</p>
+          <p class="wardogs-queue-count"><strong>{{ playersQueued }}</strong><span> / {{ maxPlayers }}</span></p>
+        </div>
+        <div class="wardogs-queue-slots" role="meter" aria-label="Queue occupancy" aria-valuemin="0" :aria-valuemax="maxPlayers" :aria-valuenow="Math.min(playersQueued, maxPlayers)" :aria-valuetext="`${playersQueued} of ${maxPlayers} players queued`">
+          <span v-for="slot in maxPlayers" :key="slot" :class="{ 'is-filled': slot <= playersQueued }" aria-hidden="true"></span>
+        </div>
+      </div>
+      <div class="wardogs-queue-decision">
+        <p class="wardogs-queue-status" :class="{ 'is-blocking': isBlocked && !isQueuedHere }" role="status">{{ status }}</p>
+        <RouterLink v-if="wardogsLobbyId" class="wardogs-queue-action cmp-button cmp-button--primary" :to="`/wardogs/lobby/${wardogsLobbyId}`">Open Match</RouterLink>
+        <button v-else-if="canLeave" class="wardogs-queue-action cmp-button cmp-button--secondary is-leave" type="button" :disabled="loading" :aria-busy="loading" @click="handleAction">{{ loading ? 'Leaving…' : 'Leave Queue' }}</button>
+        <button v-else-if="canJoin" class="wardogs-queue-action cmp-button cmp-button--primary" type="button" :disabled="loading" :aria-busy="loading" @click="handleAction">{{ loading ? 'Joining…' : 'Join Queue' }}</button>
       </div>
     </div>
 
-    <p v-if="status" class="wardogs-queue-status" :class="{ 'is-blocking': actionDisabled }" role="status">
-      {{ status }}
-    </p>
-
-    <RouterLink v-if="wardogsLobbyId" class="wardogs-queue-action cmp-button cmp-button--primary" :to="`/wardogs/lobby/${wardogsLobbyId}`">
-      {{ actionLabel }}
-    </RouterLink>
-    <button
-      v-else
-      class="wardogs-queue-action cmp-button"
-      :class="isQueuedHere ? 'cmp-button--secondary is-leave' : 'cmp-button--primary'"
-      type="button"
-      :disabled="actionDisabled"
-      @click="handleAction"
-    >
-      {{ actionLabel }}
-    </button>
-
-    <details v-if="canManageQueueTools" class="wardogs-queue-admin-tools">
+    <details v-if="canManageQueueTools" class="wardogs-queue-admin-tools cmp-disclosure">
       <summary>Queue tools</summary>
       <div class="queue-dev-actions">
         <button class="cmp-button cmp-button--secondary" type="button" :disabled="loading" @click="emit('seed-queue', mode.id)">Fill WARDOGS beta queue</button>
@@ -164,53 +136,47 @@ const handleAction = () => {
 
 <style scoped>
 .wardogs-queue-card {
-  width: min(100%, 760px);
+  width: 100%;
   min-width: 0;
   margin: 0 auto;
-  padding: clamp(16px, 2vw, 22px);
+  padding: var(--cmp-space-5);
   display: grid;
-  gap: 12px;
-  border-color: color-mix(in srgb, var(--cmp-border-strong) 78%, transparent);
-  background: linear-gradient(145deg, color-mix(in srgb, var(--cmp-surface-raised) 38%, var(--cmp-surface)) 0%, var(--cmp-surface) 64%);
-  box-shadow: var(--cmp-shadow-md);
+  gap: var(--cmp-space-5);
+  border-top: 3px solid var(--cmp-border-strong);
 }
-
-.wardogs-queue-card.is-queued {
-  border-color: color-mix(in srgb, var(--cmp-primary) 52%, var(--cmp-border));
-  background: linear-gradient(145deg, color-mix(in srgb, var(--cmp-primary) 10%, var(--cmp-surface-raised)) 0%, var(--cmp-surface) 68%);
-}
-
-.wardogs-queue-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }
-.wardogs-queue-label { margin: 0; color: var(--cmp-text-muted); font-size: .68rem; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
-.wardogs-queue-heading h2 { margin: 0; font-size: clamp(1.15rem, 2.2vw, 1.45rem); letter-spacing: -.035em; line-height: 1.12; }
-.wardogs-queue-format { margin: 0; color: var(--cmp-text-secondary); font-size: .9rem; }
-.wardogs-queue-state { flex: 0 0 auto; padding: 6px 10px; border: 1px solid color-mix(in srgb, var(--cmp-primary) 48%, transparent); border-radius: var(--cmp-radius-sm); background: color-mix(in srgb, var(--cmp-primary) 13%, transparent); color: #a9d5f5; font-size: .72rem; font-weight: 800; letter-spacing: .04em; }
-.wardogs-queue-population { display: grid; grid-template-columns: auto minmax(90px, 1fr); align-items: center; gap: 4px 14px; }
-.wardogs-queue-label { grid-column: 1 / -1; }
-.wardogs-queue-count { margin: 0; color: var(--cmp-text); font-size: clamp(1.8rem, 4vw, 2.4rem); font-variant-numeric: tabular-nums; font-weight: 700; letter-spacing: -.055em; line-height: 1; }
-.wardogs-queue-count span:nth-child(2) { color: var(--cmp-text-muted); font-size: .68em; font-weight: 500; }
-.wardogs-queue-progress { height: 6px; overflow: hidden; border-radius: 999px; background: color-mix(in srgb, var(--cmp-surface-strong) 76%, #050b12); }
-.wardogs-queue-progress span { display: block; height: 100%; border-radius: inherit; background: var(--cmp-primary); transition: width .3s ease; }
-.wardogs-queue-status { margin: 0; color: var(--cmp-text-secondary); font-size: .84rem; line-height: 1.4; }
+.wardogs-queue-card.is-queued { border-top-color: var(--cmp-primary); }
+.wardogs-queue-card.has-match { border-top-color: var(--cmp-success); }
+.wardogs-queue-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--cmp-space-4); }
+.wardogs-queue-heading h2 { margin: var(--cmp-space-1) 0 0; font-size: 1.5rem; letter-spacing: -.03em; line-height: 1.15; }
+.wardogs-queue-format { margin: var(--cmp-space-1) 0 0; color: var(--cmp-text-secondary); font-size: .875rem; }
+.wardogs-queue-state { flex: none; margin-top: 2px; white-space: nowrap; }
+.wardogs-queue-card.is-queued .wardogs-queue-state::before { background: var(--cmp-primary); }
+.wardogs-queue-bottom { display: grid; grid-template-columns: minmax(0, 1fr) 200px; align-items: end; gap: var(--cmp-space-5); }
+.wardogs-queue-population { min-width: 0; }
+.wardogs-queue-population-heading { display: flex; align-items: baseline; justify-content: space-between; gap: var(--cmp-space-3); }
+.wardogs-queue-count { margin: 0; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.wardogs-queue-count strong { font-size: 1.5rem; font-weight: 700; letter-spacing: -.04em; }
+.wardogs-queue-count span { color: var(--cmp-text-muted); font-size: .875rem; }
+.wardogs-queue-slots { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; margin-top: var(--cmp-space-3); }
+.wardogs-queue-slots span { display: block; height: 9px; border: 1px solid var(--cmp-border-strong); border-radius: 2px; background: var(--cmp-surface-inset); }
+.wardogs-queue-slots span.is-filled { border-color: var(--cmp-primary); background: var(--cmp-primary); }
+.wardogs-queue-decision { display: grid; gap: var(--cmp-space-2); align-content: end; }
+.wardogs-queue-status { margin: 0; min-height: 2.6em; color: var(--cmp-text-secondary); font-size: .8125rem; line-height: 1.3; }
 .wardogs-queue-status.is-blocking { color: var(--cmp-warning); }
-.wardogs-queue-action { width: 100%; min-height: 46px; padding: 10px 18px; font-size: .96rem; }
-.wardogs-queue-action.is-leave { min-height: 48px; }
-.wardogs-queue-action.is-leave:hover:not(:disabled) { border-color: color-mix(in srgb, var(--cmp-danger) 55%, var(--cmp-border)); background: color-mix(in srgb, var(--cmp-danger) 8%, var(--cmp-surface-raised)); color: var(--cmp-danger); }
-.wardogs-queue-admin-tools { padding-top: 12px; border-top: 1px solid var(--cmp-border); }
-.wardogs-queue-admin-tools summary { width: fit-content; color: var(--cmp-text-muted); font-size: .75rem; cursor: pointer; }
-.queue-dev-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap: 8px; margin-top: 12px; }
-.queue-dev-actions button { min-height: 40px; padding: 8px 10px; font-size: .75rem; }
-
-@media (max-width: 520px) {
-  .wardogs-queue-card { width: 100%; padding: 14px; gap: 10px; }
-  .wardogs-queue-heading { gap: 12px; }
-  .wardogs-queue-state { padding: 5px 8px; font-size: .67rem; }
-  .wardogs-queue-population { grid-template-columns: auto minmax(56px, 1fr); gap: 4px 10px; }
-  .wardogs-queue-action { min-height: 48px; font-size: 1rem; }
+.wardogs-queue-action { width: 100%; min-height: 44px; }
+.wardogs-queue-action.is-leave:hover:not(:disabled) { border-color: var(--cmp-danger); color: var(--cmp-danger); }
+.wardogs-queue-admin-tools { padding-top: var(--cmp-space-2); }
+.wardogs-queue-admin-tools summary { width: fit-content; font-size: .8125rem; }
+.queue-dev-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap: var(--cmp-space-2); margin-top: var(--cmp-space-3); }
+.queue-dev-actions button { min-height: 42px; padding-inline: var(--cmp-space-2); font-size: .75rem; }
+@media (max-width: 600px) {
+  .wardogs-queue-card { padding: var(--cmp-space-4); gap: var(--cmp-space-4); }
+  .wardogs-queue-bottom { grid-template-columns: 1fr; gap: var(--cmp-space-4); }
+  .wardogs-queue-status { min-height: 0; }
 }
-
-@media (prefers-reduced-motion: reduce) {
-  .wardogs-queue-progress span,
-  .wardogs-queue-action { transition: none; }
+@media (max-width: 375px) {
+  .wardogs-queue-heading { gap: var(--cmp-space-2); }
+  .wardogs-queue-heading h2 { font-size: 1.3rem; }
+  .wardogs-queue-state { font-size: .75rem; }
 }
 </style>

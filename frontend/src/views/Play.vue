@@ -33,12 +33,16 @@ const {
 </script>
 
 <template>
-  <div class="play-content cmp-page">
-    <header v-if="activeView === 'queue'" class="play-heading">
-      <h1>Play WARDOGS</h1>
+  <div class="play-content cmp-page cmp-page-content">
+    <header v-if="activeView === 'queue'" class="play-heading cmp-page-header">
+      <p class="cmp-kicker">Matchmaking</p>
+      <h1>Play</h1>
+      <p>One queue. Three factions. Queue solo or with your group.</p>
     </header>
+    <p v-if="activeView === 'queue' && queueStore.error" class="play-feedback cmp-error-state" role="alert">{{ queueStore.error }}</p>
+    <p v-if="activeView === 'queue' && !queueModes.length" class="play-feedback cmp-loading-state" role="status">Checking queue availability…</p>
     <QueuePanel
-      v-if="activeView === 'queue'"
+      v-if="activeView === 'queue' && queueModes.length"
       :in-queue="queueStore.inQueue"
       :current-queue-mode="currentQueueMode"
       :queue-modes="queueModes"
@@ -79,30 +83,18 @@ const {
 
 <style scoped>
 .play-content {
-  width: min(100%, var(--cmp-page-width));
-  min-height: 0;
-  margin: 0 auto;
-  padding: clamp(20px, 3vw, 32px) var(--cmp-page-gutter);
-  display: flex;
-  flex-direction: column;
+  display: block;
 }
 
 .play-heading {
-  display: flex;
-  align-items: baseline;
-  width: min(100%, 760px);
-  margin: 0 auto 12px;
+  width: min(100%, 620px);
+  margin: 0 auto var(--cmp-space-5);
 }
 
-.play-heading h1 { margin: 0; font-size: clamp(1.45rem, 2.5vw, 1.8rem); letter-spacing: -.035em; }
+.play-heading > p:last-child { font-size: .9rem; }
+.play-feedback { width: min(100%, 620px); margin: 0 auto var(--cmp-space-4); }
 
 @media (max-width: 640px) {
-  .play-content {
-    padding-block: 20px;
-  }
-
-  .play-heading {
-    margin-bottom: 14px;
-  }
+  .play-heading { margin-bottom: var(--cmp-space-4); }
 }
 </style>
