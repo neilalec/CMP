@@ -1,4 +1,5 @@
 import { mount } from '@vue/test-utils';
+import { createTestingPinia } from '@pinia/testing';
 import QueuePanel from '@/features/home/components/QueuePanel.vue';
 
 const queueModes = [
@@ -111,6 +112,10 @@ const mountQueuePanel = (props = {}) => mount(QueuePanel, {
     getQueueProgressPercent: jest.fn((modeId) => modeId === 'skirmish' ? 12.5 : 0),
     isModeQueueFull: jest.fn(() => false),
     ...props
+  },
+  global: {
+    plugins: [createTestingPinia({ createSpy: jest.fn })],
+    stubs: { RouterLink: { template: '<a :href="to"><slot /></a>', props: ['to'] } }
   }
 });
 
@@ -123,7 +128,7 @@ describe('QueuePanel.vue', () => {
     };
     const wrapper = mountQueuePanel({ queueModes: [wardogs], serverAvailable: false });
 
-    expect(wrapper.text()).toContain('WARDOGS Beta 9');
+    expect(wrapper.text()).toContain('Beta 9 queue');
     expect(wrapper.find('.wardogs-queue-action').text()).toBe('Join Queue');
     expect(wrapper.text()).not.toContain('Squad');
     expect(wrapper.find('.queue-paused-message').exists()).toBe(false);
@@ -138,7 +143,7 @@ describe('QueuePanel.vue', () => {
     const props = { queueModes: [...queueModes.filter((mode) =>
       ['s3osmall5', 'ocbt15', 'skirmish'].includes(mode.id)), wardogs], serverAvailable: false };
     const wrapper = mountQueuePanel(props);
-    expect(wrapper.text()).toContain('WARDOGS Beta 9');
+    expect(wrapper.text()).toContain('Beta 9 queue');
     expect(wrapper.text()).toContain('3 factions · 9 players');
     const wardogsCard = wrapper.find('.wardogs-queue-card');
     expect(wardogsCard.find('.wardogs-queue-action').attributes('disabled')).toBeUndefined();

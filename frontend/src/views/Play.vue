@@ -1,5 +1,4 @@
 <script setup>
-import { RouterLink } from 'vue-router';
 import QueuePanel from '../features/home/components/QueuePanel.vue';
 import LobbiesPanel from '../features/home/components/LobbiesPanel.vue';
 import { useHomeView } from '../features/home/composables/useHomeView';
@@ -36,13 +35,7 @@ const {
 <template>
   <div class="play-content cmp-page">
     <header v-if="activeView === 'queue'" class="play-heading">
-      <div>
-        <p class="play-eyebrow">WARDOGS</p>
-        <h1>Matchmaking</h1>
-      </div>
-      <RouterLink v-if="groupStore.inGroup" class="play-group-link cmp-button cmp-button--secondary" to="/group">
-        Your group
-      </RouterLink>
+      <h1>Play WARDOGS</h1>
     </header>
     <QueuePanel
       v-if="activeView === 'queue'"
@@ -87,32 +80,25 @@ const {
 <style scoped>
 .play-content {
   width: min(100%, var(--cmp-page-width));
-  min-height: max(560px, calc(100dvh - 154px));
+  min-height: 0;
   margin: 0 auto;
-  padding: clamp(24px, 4vw, 48px) var(--cmp-page-gutter);
+  padding: clamp(20px, 3vw, 32px) var(--cmp-page-gutter);
   display: flex;
   flex-direction: column;
-  justify-content: center;
 }
 
 .play-heading {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  width: min(100%, 580px);
-  margin: 0 auto 18px;
+  align-items: baseline;
+  width: min(100%, 760px);
+  margin: 0 auto 12px;
 }
 
-.play-eyebrow { margin: 0 0 5px; color: var(--cmp-text-muted); font-size: .68rem; font-weight: 800; letter-spacing: .16em; }
-.play-heading h1 { margin: 0; font-size: clamp(1.7rem, 3vw, 2.2rem); letter-spacing: -.035em; }
-.play-group-link { min-height: 40px; padding: 8px 14px; color: var(--cmp-text-secondary); font-size: .8rem; }
-.play-group-link:hover { color: var(--cmp-text); }
+.play-heading h1 { margin: 0; font-size: clamp(1.45rem, 2.5vw, 1.8rem); letter-spacing: -.035em; }
 
 @media (max-width: 640px) {
   .play-content {
-    min-height: max(500px, calc(100dvh - 132px));
-    padding-block: 28px;
+    padding-block: 20px;
   }
 
   .play-heading {
