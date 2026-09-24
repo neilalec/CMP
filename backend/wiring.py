@@ -17,6 +17,12 @@ from services.wardogs_lobby import (
 )
 from services.wardogs_allocation import cleanup_wardogs_lobby
 from services.wardogs_live import wardogs_lobby_room
+from services.wardogs_dev import (
+    MODE as WARDOGS_DEV_MODE_ID, fill_queue as fill_wardogs_dev_queue,
+    set_simulated as set_wardogs_dev_simulated, clear_simulation as clear_wardogs_dev_simulation,
+    is_synthetic as is_wardogs_dev_synthetic,
+)
+from services.wardogs_lobby import latest_wardogs_lobby_for_user
 from services.wardogs_results import (
     StaleWardogsRevisionError, confirm_wardogs_result, correct_wardogs_result,
     get_wardogs_result, get_wardogs_result_history,
@@ -271,6 +277,82 @@ def _countdown_socket_dependencies(backend, socketio):
 
 
 def register_http_routes(app):
+    def wardogs_dev_admin():
+        import app as backend_app
+        username = get_jwt_identity()
+        return backend_app if backend_app.DEV_MODE and backend_app.is_admin_user(username) else None
+
+    @app.route('/api/admin/dev/wardogs', methods=['GET'])
+    @jwt_required()
+    def api_wardogs_dev_status():
+        backend = wardogs_dev_admin()
+        if backend is None:
+            return jsonify({'success': False, 'message': 'Unavailable'}), 404
+        return jsonify({'success': True, 'queueMode': WARDOGS_DEV_MODE_ID,
+                        'queue': list(backend.matchmaking_queue[WARDOGS_DEV_MODE_ID]),
+                        'pendingMatch': bool(backend.pending_match.get(WARDOGS_DEV_MODE_ID)),
+                        'lobbyId': latest_wardogs_lobby_for_user(backend.get_db_connection, get_jwt_identity())})
+
+    @app.route('/api/admin/dev/wardogs/fill', methods=['POST'])
+    @jwt_required()
+    def api_wardogs_dev_fill():
+        backend = wardogs_dev_admin()
+        if backend is None:
+            return jsonify({'success': False, 'message': 'Unavailable'}), 404
+        try:
+            seeded = fill_wardogs_dev_queue(
+                enabled=backend.DEV_MODE, username=get_jwt_identity(), users=backend.users,
+                matchmaking_queue=backend.matchmaking_queue, queue_lock=backend.queue_lock,
+                upsert_player_activity=backend.upsert_player_activity,
+                save_users=backend.save_users, save_queue=backend.save_queue,
+                check_queue_and_start_countdown=backend.check_queue_and_start_countdown,
+                pending_match=backend.pending_match, broadcast_queue_update=backend.broadcast_queue_update)
+        except ValueError as error:
+            return jsonify({'success': False, 'message': str(error)}), 400
+        return jsonify({'success': True, 'seeded': seeded,
+                        'queue': list(backend.matchmaking_queue[WARDOGS_DEV_MODE_ID])})
+
+    @app.route('/api/admin/dev/wardogs/simulate', methods=['POST'])
+    @jwt_required()
+    def api_wardogs_dev_simulate():
+        backend = wardogs_dev_admin()
+        if backend is None:
+            return jsonify({'success': False, 'message': 'Unavailable'}), 404
+        body = request.get_json(silent=True) or {}
+        lobby_id = body.get('lobbyId')
+        if not isinstance(lobby_id, str) or not lobby_id:
+            return jsonify({'success': False, 'message': 'Lobby ID required'}), 400
+        lobby = get_wardogs_lobby(backend.get_db_connection, lobby_id)
+        if not lobby:
+            return jsonify({'success': False, 'message': 'WARDOGS lobby not found'}), 404
+        try:
+            set_wardogs_dev_simulated(lobby, body.get('enabled') is True, dev_mode=backend.DEV_MODE)
+        except ValueError as error:
+            return jsonify({'success': False, 'message': str(error)}), 400
+        backend.socketio.emit('wardogs_lobby_update', {'lobbyId': lobby_id},
+                              room=wardogs_lobby_room(lobby_id))
+        return jsonify({'success': True, 'enabled': body.get('enabled') is True})
+
+    @app.route('/api/admin/dev/wardogs/reset', methods=['POST'])
+    @jwt_required()
+    def api_wardogs_dev_reset():
+        backend = wardogs_dev_admin()
+        if backend is None:
+            return jsonify({'success': False, 'message': 'Unavailable'}), 404
+        # Leave completed lobbies and rating history intact; explicit lobby cleanup
+        # remains the existing admin operation.
+        backend.cancel_pending_match('WARDOGS dev reset', queue_mode=WARDOGS_DEV_MODE_ID)
+        with backend.queue_lock:
+            queue = backend.matchmaking_queue[WARDOGS_DEV_MODE_ID]
+            removed = [name for name in queue if is_wardogs_dev_synthetic(name)]
+            queue[:] = [name for name in queue if not is_wardogs_dev_synthetic(name)]
+            for name in removed:
+                backend.upsert_player_activity(name, status='authenticated')
+            backend.save_queue()
+        clear_wardogs_dev_simulation()
+        backend.broadcast_queue_update()
+        return jsonify({'success': True, 'removed': removed})
+
     @app.route('/')
     def index():
         backend = _http_backend_api()

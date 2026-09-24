@@ -112,7 +112,7 @@ from matchmaking import (
 from bootstrap import start_server
 from wiring import register_http_routes, register_socket_routes
 from services.server_registry import get_game_server_adapter_for_server
-from services.wardogs_live import WardogsLivePoller
+from services.wardogs_live import WardogsLivePoller, poll_interval_seconds
 from services.bridge import fetch_connected_server_players as fetch_connected_server_players_service
 from services.queue import has_available_server_capacity
 from services.profile import (
@@ -428,6 +428,7 @@ wardogs_live_poller = WardogsLivePoller(
     socketio=socketio, get_db_connection=get_db_connection,
     get_server_by_id=get_server_by_id,
     adapter_factory=get_game_server_adapter_for_server, logger=logger,
+    interval=poll_interval_seconds(os.getenv('WARDOGS_POLL_INTERVAL_SECONDS'), dev_mode=DEV_MODE),
 )
 
 # Keep the app-level names stable for existing socket/runtime wiring while routing

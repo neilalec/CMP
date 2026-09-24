@@ -39,6 +39,23 @@ const backendPayload = () => ({
 describe('WARDOGS backend data source', () => {
   beforeEach(() => setActivePinia(createPinia()));
 
+  test('preserves dev simulation labels without changing real observation metadata', () => {
+    const payload = backendPayload();
+    payload.match.devSimulation = { enabled: true, label: 'Synthetic participants simulated' };
+    payload.match.factions[0].groups[0].players[1].devSynthetic = true;
+    payload.match.factions[0].groups[0].players[1].devSimulated = true;
+    const match = normalizeBackendMatch(payload);
+    expect(match.devSimulation.enabled).toBe(true);
+    expect(match.observation.state).toBe('fresh');
+    const player = match.factions[0].groups[0].players[1];
+    expect(player.devSynthetic).toBe(true);
+    expect(player.devSimulated).toBe(true);
+    const roster = mount(FactionRoster, { props: {
+      faction: match.factions[0], summary: factionSummary(match.factions[0]), observationState: 'fresh'
+    } });
+    expect(roster.text()).toContain('DEV simulated presence');
+  });
+
   test('shows the current WARDOGS rating and signed match delta only when rated', () => {
     const payload = backendPayload();
     payload.match.result = { status: 'completed_win', revisionNumber: 1,

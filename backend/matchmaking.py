@@ -24,6 +24,7 @@ from services.queue import (
 from services.wardogs_finalization import finalize_wardogs_accepted_match
 from services.wardogs_assignment import WardogsAssignmentConfig
 from services.wardogs_lobby import latest_wardogs_lobby_for_user
+from services.wardogs_dev import autoaccept_synthetic
 from state.group import get_player_groups, get_user_group
 from state.lobby import emit_active_lobby_sync, get_player_sids, is_user_in_any_lobby, upsert_player_activity
 from state.runtime import is_countdown_paused, pause_aware_sleep, with_retry
@@ -324,6 +325,8 @@ def start_match_acceptance(players, queue_mode):
         cancel_pending_match=cancel_wrapper
     )
     if success:
+        if app.DEV_MODE and autoaccept_synthetic(new_pending_match, enabled=True, users=app.users):
+            broadcast_queue_update()
         app.countdown_active = False
         app.logger.info(
             "Pending match stored: mode=%s id=%s players=%s countdown=%s",

@@ -42,6 +42,8 @@ const connectionLabel = (player) => {
               <div><strong>{{ player.displayName }}</strong><span v-if="player.id === group.leaderId">Group leader</span></div>
               <div class="wardogs-player-flags">
                 <span>{{ player.registered ? 'CMP registered' : 'CMP registration pending' }}</span>
+                <span v-if="player.devSimulated">DEV simulated presence</span>
+                <span v-else-if="player.devSynthetic">DEV test account</span>
                 <span>{{ player.steamId ? 'Steam linked' : 'Identity pending' }}</span>
                 <span :class="{ 'wardogs-warning': player.connected === false || observationState === 'stale' }">{{ connectionLabel(player) }}</span>
                 <span :class="{ 'wardogs-warning': player.connected === true && player.observedFactionId && player.observedFactionId !== faction.id }">{{ alignment(player) }}</span>

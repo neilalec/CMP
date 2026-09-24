@@ -25,6 +25,51 @@ const error = ref('');
 const healthResults = ref({});
 const automationLoading = ref(false);
 const adminModeLoading = ref(false);
+const wardogsDev = ref(null);
+const wardogsDevError = ref('');
+const wardogsDevBusy = ref(false);
+const wardogsDevAvailable = computed(() => import.meta.env.DEV && isAdmin.value && wardogsDev.value !== null);
+
+const loadWardogsDev = async () => {
+  if (!import.meta.env.DEV || !isAdmin.value) return;
+  try {
+    wardogsDev.value = await apiFetch('/admin/dev/wardogs');
+    wardogsDevError.value = '';
+  } catch (err) {
+    wardogsDev.value = null;
+    wardogsDevError.value = err.message || 'WARDOGS dev tools unavailable';
+  }
+};
+
+const wardogsDevAction = async (path, body = {}) => {
+  wardogsDevBusy.value = true;
+  wardogsDevError.value = '';
+  try {
+    await apiFetch(`/admin/dev/wardogs/${path}`, { method: 'POST', body: JSON.stringify(body) });
+    await loadWardogsDev();
+  } catch (err) {
+    wardogsDevError.value = err.message || 'WARDOGS dev action failed';
+  } finally {
+    wardogsDevBusy.value = false;
+  }
+};
+
+const wardogsLobbyAction = async (action) => {
+  const lobbyId = wardogsDev.value?.lobbyId;
+  if (!lobbyId) return;
+  if (action === 'cleanup' && !window.confirm('Delete this WARDOGS test lobby and release its server allocation?')) return;
+  wardogsDevBusy.value = true;
+  wardogsDevError.value = '';
+  try {
+    await apiFetch(`/admin/wardogs/lobbies/${encodeURIComponent(lobbyId)}${action === 'allocate' ? '/allocate' : ''}`,
+      { method: action === 'allocate' ? 'POST' : 'DELETE' });
+    await loadWardogsDev();
+  } catch (err) {
+    wardogsDevError.value = err.message || 'WARDOGS lobby action failed';
+  } finally {
+    wardogsDevBusy.value = false;
+  }
+};
 
 const automationMode = computed(() => diagnostics.value?.automation?.mode || 'on');
 const automationModes = [
@@ -288,6 +333,7 @@ onMounted(async () => {
   await authStore.syncProfile();
   await loadDiagnostics();
   await loadServers();
+  await loadWardogsDev();
 });
 </script>
 
@@ -310,6 +356,27 @@ onMounted(async () => {
         </div>
 
         <p v-if="error" class="admin-error">{{ error }}</p>
+
+        <section v-if="wardogsDevAvailable" class="automation-section" aria-label="WARDOGS developer tools">
+          <div>
+            <p class="eyebrow">Local development only</p>
+            <strong class="admin-heading">WARDOGS beta test</strong>
+            <p class="automation-summary">Join WARDOGS Beta 9 on Play first, then fill remaining slots. Synthetic players auto-accept; you accept normally.</p>
+            <p v-if="wardogsDev.lobbyId"><RouterLink :to="`/wardogs/lobby/${wardogsDev.lobbyId}`">Open my WARDOGS lobby</RouterLink></p>
+            <p v-if="wardogsDevError" role="alert">{{ wardogsDevError }}</p>
+          </div>
+          <div class="automation-controls">
+            <button type="button" :disabled="wardogsDevBusy" @click="wardogsDevAction('fill')">Fill WARDOGS beta queue</button>
+            <button type="button" :disabled="wardogsDevBusy || !wardogsDev.lobbyId" @click="wardogsDevAction('simulate', { lobbyId: wardogsDev.lobbyId, enabled: true })">Simulate test players connected</button>
+            <button type="button" :disabled="wardogsDevBusy || !wardogsDev.lobbyId" @click="wardogsDevAction('simulate', { lobbyId: wardogsDev.lobbyId, enabled: false })">Show real observations only</button>
+            <button type="button" :disabled="wardogsDevBusy || !wardogsDev.lobbyId" @click="wardogsLobbyAction('allocate')">Retry WARDOGS allocation</button>
+            <button type="button" :disabled="wardogsDevBusy" @click="authStore.wardogsParticipantPreview = !authStore.wardogsParticipantPreview">
+              {{ authStore.wardogsParticipantPreview ? 'View as admin' : 'View as participant' }}
+            </button>
+            <button type="button" :disabled="wardogsDevBusy" @click="wardogsDevAction('reset')">Reset queued test players / overlay</button>
+            <button type="button" :disabled="wardogsDevBusy || !wardogsDev.lobbyId" @click="wardogsLobbyAction('cleanup')">Delete test lobby / release server</button>
+          </div>
+        </section>
 
         <section v-if="canAccessAdminPage" class="automation-section">
           <div>

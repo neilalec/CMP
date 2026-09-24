@@ -90,21 +90,26 @@ try {
         npm run dev -- --host 127.0.0.1 --port 5173 --strictPort
     }
 
-    $jobs += Start-CmpJob "squadjs" $squadjs {
-        param($workingDirectory)
-        function Set-CmpUtf8Output {
-            $utf8 = [System.Text.UTF8Encoding]::new()
-            [Console]::OutputEncoding = $utf8
-            $script:OutputEncoding = $utf8
+    if ($env:CMP_START_SQUADJS -eq "1") {
+        $jobs += Start-CmpJob "squadjs" $squadjs {
+            param($workingDirectory)
+            function Set-CmpUtf8Output {
+                $utf8 = [System.Text.UTF8Encoding]::new()
+                [Console]::OutputEncoding = $utf8
+                $script:OutputEncoding = $utf8
+            }
+            Set-CmpUtf8Output
+            Set-Location $workingDirectory
+            $env:CMP_DEV_MODE = "1"
+            node index.js
         }
-        Set-CmpUtf8Output
-        Set-Location $workingDirectory
-        $env:CMP_DEV_MODE = "1"
-        node index.js
     }
 
     Write-Host ""
-    Write-Host "CMP local dev is starting. Frontend should appear at http://localhost:5173" -ForegroundColor Green
+    Write-Host "CMP local dev is starting. Frontend should appear at http://127.0.0.1:5173" -ForegroundColor Green
+    if ($env:CMP_START_SQUADJS -ne "1") {
+        Write-Host "SquadJS is disabled; set CMP_START_SQUADJS=1 to include it for Squad testing." -ForegroundColor Yellow
+    }
     Write-Host "Press Ctrl+C to stop all processes." -ForegroundColor Yellow
     Write-Host ""
 

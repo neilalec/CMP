@@ -47,6 +47,8 @@ export const normalizeBackendMatch = (payload) => {
             observedFactionId: player.observedFactionId ?? null,
             observedFactionName: player.observedFactionName ?? null,
             alignmentState: player.alignmentState || 'unknown',
+            devSimulated: player.devSimulated === true,
+            devSynthetic: player.devSynthetic === true,
             isLeader: player.isLeader === true,
             stats: { kills: null, deaths: null, assists: null }
           }))
@@ -57,7 +59,8 @@ export const normalizeBackendMatch = (payload) => {
     result: match.result || { status: 'unconfirmed' },
     rating: match.rating || null,
     observations: match.observations || [],
-    unexpectedPlayers: match.unexpectedPlayers || []
+    unexpectedPlayers: match.unexpectedPlayers || [],
+    devSimulation: match.devSimulation || null
   };
 };
 

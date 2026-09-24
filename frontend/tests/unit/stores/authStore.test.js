@@ -27,6 +27,18 @@ describe('AuthStore', () => {
         expect(store.isLoggedIn).toBe(false);
         expect(store.token).toBeNull();
         expect(store.username).toBeNull();
+        expect(store.wardogsParticipantPreview).toBe(false);
+    });
+
+    test('WARDOGS participant preview never changes persisted admin role', () => {
+        const store = useAuthStore();
+        store.updateProfile({ is_admin: true });
+        store.wardogsParticipantPreview = true;
+        expect(store.isAdmin).toBe(true);
+        expect(localStorage.getItem('isAdmin')).toBe('true');
+        expect(localStorage.getItem('wardogsParticipantPreview')).toBeNull();
+        store.logout();
+        expect(store.wardogsParticipantPreview).toBe(false);
     });
 
     test('setAuth sets auth state', async () => {

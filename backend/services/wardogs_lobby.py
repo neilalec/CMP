@@ -385,11 +385,15 @@ def read_wardogs_lobby(lobby, *, now=None):
     now = now or datetime.now(timezone.utc)
     cached = _last_observations.get(_observation_key(lobby)) if lobby.get('serverId') else None
     if cached is None:
-        return build_wardogs_read_model(lobby, now=now)
-    return build_wardogs_read_model(
-        lobby, players=cached.players, status=cached.status,
-        observed_at=cached.observed_at, attempted_at=cached.attempted_at,
-        poll_state=cached.poll_state, stale=cached.poll_state == 'error', now=now)
+        model = build_wardogs_read_model(lobby, now=now)
+    else:
+        model = build_wardogs_read_model(
+            lobby, players=cached.players, status=cached.status,
+            observed_at=cached.observed_at, attempted_at=cached.attempted_at,
+            poll_state=cached.poll_state, stale=cached.poll_state == 'error', now=now)
+    from app_state import DEV_MODE
+    from services.wardogs_dev import decorate_read_model
+    return decorate_read_model(lobby, model, dev_mode=DEV_MODE)
 
 
 def mark_wardogs_observation_error(lobby, *, now=None):
@@ -457,6 +461,8 @@ def clear_wardogs_observation(lobby_id=None, server_id=None):
     for key in tuple(_join_ids):
         if (lobby_id is None or key[0] == lobby_id) and (server_id is None or key[1] == server_id):
             _join_ids.pop(key, None)
+    from services.wardogs_dev import clear_simulation
+    clear_simulation(lobby_id)
 
 
 def prune_wardogs_observations(eligible_keys):

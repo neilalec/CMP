@@ -17,6 +17,19 @@ FRESHNESS_EMIT_SECONDS = 60
 WARDOGS_LOBBY_UPDATE_EVENT = 'wardogs_lobby_update'
 
 
+def poll_interval_seconds(configured=None, *, dev_mode=False):
+    default = 5 if dev_mode else POLL_INTERVAL_SECONDS
+    if configured in (None, ''):
+        return default
+    try:
+        interval = float(configured)
+    except (TypeError, ValueError) as exc:
+        raise ValueError('WARDOGS_POLL_INTERVAL_SECONDS must be numeric') from exc
+    if not 2 <= interval <= 3600:
+        raise ValueError('WARDOGS_POLL_INTERVAL_SECONDS must be between 2 and 3600')
+    return interval
+
+
 def wardogs_lobby_room(lobby_id):
     return f'wardogs:{lobby_id}'
 

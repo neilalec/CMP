@@ -39,6 +39,7 @@ export const useAuthStore = defineStore('auth', {
     isAdmin: localStorage.getItem('isAdmin') === 'true',
     canToggleAdmin: localStorage.getItem('canToggleAdmin') === 'true',
     adminTestModeDisabled: localStorage.getItem('adminTestModeDisabled') === 'true',
+    wardogsParticipantPreview: false,
     isLoggedIn: !!localStorage.getItem('token')
   }),
 
@@ -62,6 +63,7 @@ export const useAuthStore = defineStore('auth', {
       this.isAdmin = false;
       this.canToggleAdmin = false;
       this.adminTestModeDisabled = false;
+      this.wardogsParticipantPreview = false;
     },
 
     clearPersistedAuth() {

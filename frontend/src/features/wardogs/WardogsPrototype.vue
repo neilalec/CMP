@@ -16,6 +16,7 @@ import './wardogs.css';
 
 const store = useWardogsMatchStore();
 const authStore = useAuthStore();
+const participantPreview = computed(() => import.meta.env.DEV && authStore.wardogsParticipantPreview);
 const socketStore = useSocketStore();
 const route = useRoute();
 const { match, mode, scenarioKey, scenarioOptions, totals, factionSummaries, rankedResults, loading, error } = storeToRefs(store);
@@ -30,14 +31,14 @@ const correctingResult = ref(false);
 const resultHistory = ref([]);
 const resultHistoryError = ref('');
 const loadResultHistory = async (lobbyId) => {
-  if (!lobbyId || !authStore.isAdmin) {
+  if (!lobbyId || !authStore.isAdmin || participantPreview.value) {
     resultHistory.value = [];
     resultHistoryError.value = '';
     return;
   }
   try {
     const revisions = await backendSource.loadResultHistory(lobbyId);
-    if (backendLobbyId.value !== lobbyId || !authStore.isAdmin) return;
+    if (backendLobbyId.value !== lobbyId || !authStore.isAdmin || participantPreview.value) return;
     resultHistory.value = revisions;
     resultHistoryError.value = '';
   } catch {
@@ -124,8 +125,8 @@ watch(backendLobbyId, (lobbyId) => {
     store.selectScenario(scenarioKey.value);
   }
 }, { immediate: true });
-watch(() => [backendLobbyId.value, authStore.isAdmin, match.value?.result?.revisionNumber],
-  ([lobbyId, isAdmin]) => { if (lobbyId && isAdmin) loadResultHistory(lobbyId); }, { immediate: true });
+watch(() => [backendLobbyId.value, authStore.isAdmin, participantPreview.value, match.value?.result?.revisionNumber],
+  ([lobbyId, isAdmin, preview]) => { if (lobbyId && isAdmin && !preview) loadResultHistory(lobbyId); }, { immediate: true });
 onUnmounted(detach);
 const onScenarioChange = (event) => store.selectScenario(event.target.value);
 </script>
@@ -138,6 +139,8 @@ const onScenarioChange = (event) => store.selectScenario(event.target.value);
         <h1>Three-faction match room</h1>
         <p v-if="mode === 'mock'">Local mock scenarios. No WDRCON or CMP match lifecycle connection.</p>
         <p v-else>Live server observations update this lobby. Scores are not official results.</p>
+        <p v-if="match?.devSimulation?.enabled">{{ match.devSimulation.label }}</p>
+        <p v-if="participantPreview">Developer participant preview — your admin role is unchanged.</p>
       </div>
       <label v-if="mode === 'mock'" class="wardogs-selector">
         <span>Scenario</span>
@@ -163,7 +166,7 @@ const onScenarioChange = (event) => store.selectScenario(event.target.value);
         </div>
       </section>
       <ScoreAndResults v-if="mode === 'backend' || match.phase !== 'assembling'" :match="match" :summaries="factionSummaries" :ranked-results="rankedResults" />
-      <WardogsResultConfirmation v-if="mode === 'backend'" :match="match" :can-confirm="authStore.isAdmin" :confirming="confirmingResult" :correcting="correctingResult" :result-history="resultHistory" :history-error="resultHistoryError" @confirm="confirmResult" @correct="correctResult" />
+      <WardogsResultConfirmation v-if="mode === 'backend'" :match="match" :can-confirm="authStore.isAdmin && !participantPreview" :confirming="confirmingResult" :correcting="correctingResult" :result-history="resultHistory" :history-error="resultHistoryError" @confirm="confirmResult" @correct="correctResult" />
     </template>
   </main>
 </template>

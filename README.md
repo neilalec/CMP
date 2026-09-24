@@ -104,6 +104,52 @@ npm run dev
 
 The frontend dev server proxies API requests to the backend. Keep real secrets in local `.env` files only.
 
+For local WARDOGS testing, `npm run dev:local` starts the CMP backend and Vite frontend at
+`http://127.0.0.1:5173`; WARDOGS has no extra process. SquadJS is not started by
+default. Set `CMP_START_SQUADJS=1` before running the command if you also need
+Squad integration. The script enables backend `CMP_DEV_MODE=1`, local password
+auth, and the WARDOGS poller's five-second default. Production remains at 20
+seconds. `WARDOGS_POLL_INTERVAL_SECONDS` can override either default (2–3600
+seconds). The Vite frontend proxies `/api` and `/socket.io` to port 5000.
+
+To test a WARDOGS match with one person:
+
+1. Install backend requirements for Python 3.12 and frontend npm dependencies;
+   from the repository root run `npm run dev:local`.
+2. Open `http://127.0.0.1:5173/auth` and sign in with a local test account or
+   Steam. Link your real Steam ID in Profile. The account must have admin access
+   for the developer tools (`ADMIN_STEAM_IDS` for a Steam account).
+3. Open `http://127.0.0.1:5173/play`, choose **WARDOGS Beta 9**, and join as
+   the real account. Open `/admin` and click **Fill WARDOGS beta queue**.
+4. Eight deterministic `__dev_wardogs_…` accounts fill the remaining slots.
+   Normal matchmaking opens acceptance; only those test accounts auto-accept.
+   Accept the match yourself in the normal Play UI. The finalized lobby contains
+   three factions of three; use **Open my WARDOGS lobby** on the admin page.
+5. If a configured, enabled WARDOGS server is available, allocation runs
+   automatically. Otherwise use **Retry WARDOGS allocation** on `/admin`.
+   The lobby shows the verified Join By ID when the backend
+   can read `/v1/server-id`; enter it in WARDOGS under Deploy → Community →
+   Join By ID. Join the server with your real Steam account.
+6. CMP polls read-only `/v1/status` and `/v1/players`. On `/admin`, click
+   **Simulate test players connected** to project the synthetic accounts as
+   aligned in the UI. They are explicitly marked DEV simulated; your own real
+   WDRCON observation, server scores, and observation freshness remain real.
+7. Click **View as participant**, then revisit the lobby to inspect its
+   participant controls. The switch only affects this browser session's
+   WARDOGS UI; your persisted admin role is unchanged. Return to `/admin` and
+   click **View as admin** to restore result controls.
+8. At any point, confirm a manual test result on the lobby page. A completed
+   win or tie produces rating changes shown in the lobby; no natural match end
+   or WDRCON write is required. For another test, use **Reset queued test
+   players / overlay**, then **Delete test lobby / release server** on `/admin`.
+   Completed result/rating history is retained.
+
+The developer endpoints are JWT/admin protected and return 404 unless the
+backend has `CMP_DEV_MODE=1`. Keep local test data in a separate SQLite database.
+For real allocation, register an enabled WARDOGS server with its backend-only
+`wdrcon_secret_env` referencing a `CMP_WARDOGS_RCON_…` environment variable;
+the credential and WDRCON URL must never be placed in frontend variables.
+
 ## Docker
 
 Copy the example environment files and replace placeholders with your own local or server values:
