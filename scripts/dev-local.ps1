@@ -1,7 +1,8 @@
 param(
     [ValidateSet("local", "wardogs", "squad")]
     [string]$DevelopmentTarget = "local",
-    [string]$SquadJsConfigPath = "config.dev-local.json"
+    [string]$SquadJsConfigPath = "config.dev-local.json",
+    [switch]$EnableSquadLiveLogs
 )
 
 $ErrorActionPreference = "Stop"
@@ -64,6 +65,7 @@ if ($DevelopmentTarget -eq "squad") {
 } elseif ($DevelopmentTarget -eq "local") {
     $startSquadJs = $env:CMP_START_SQUADJS -eq "1"
 }
+$enableSquadLiveLogs = $DevelopmentTarget -eq "squad" -and $startSquadJs -and $EnableSquadLiveLogs
 
 if ($startSquadJs) {
     $squadJsConfigResolvedPath = if ([System.IO.Path]::IsPathRooted($SquadJsConfigPath)) {
@@ -73,6 +75,16 @@ if ($startSquadJs) {
     }
     if (-not (Test-Path -LiteralPath $squadJsConfigResolvedPath -PathType Leaf)) {
         throw "SquadJS config file was not found: $squadJsConfigResolvedPath (relative config paths are resolved from the squadjs directory)."
+    }
+    if ($enableSquadLiveLogs) {
+        try {
+            $squadJsConfig = Get-Content -LiteralPath $squadJsConfigResolvedPath -Raw | ConvertFrom-Json
+        } catch {
+            throw "Unable to read SquadJS config for live-log validation at $squadJsConfigResolvedPath. $($_.Exception.Message)"
+        }
+        if ($squadJsConfig.server.disableLogParser) {
+            throw "Squad live-log ingestion was requested, but disableLogParser is true in $squadJsConfigResolvedPath. Set server.disableLogParser to false."
+        }
     }
 }
 
@@ -174,6 +186,7 @@ try {
             Set-CmpUtf8Output
             Set-Location $workingDirectory
             $env:CMP_DEV_MODE = "1"
+            $env:CMP_SQUAD_LIVE_LOGS = if ($using:enableSquadLiveLogs) { "1" } else { "0" }
             node index.js $using:squadJsConfigResolvedPath 2>&1
             $nodeExitCode = $LASTEXITCODE
             if ($nodeExitCode -ne 0) {
@@ -198,6 +211,11 @@ try {
             Write-Host "Using the loopback-only config; it will not connect to a game server." -ForegroundColor Cyan
         } else {
             Write-Host "This explicitly selected config may connect to its configured game server." -ForegroundColor Yellow
+        }
+        if ($enableSquadLiveLogs) {
+            Write-Host "Squad live log ingestion ENABLED -- real server round events may be processed." -ForegroundColor Yellow
+        } else {
+            Write-Host "Squad live log ingestion: disabled by default; use -EnableSquadLiveLogs for full live-lifecycle testing." -ForegroundColor Cyan
         }
     }
     Write-Host "Waiting for backend and frontend readiness..." -ForegroundColor Cyan

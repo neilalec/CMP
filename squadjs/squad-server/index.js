@@ -13,15 +13,16 @@ import Rcon from './rcon.js';
 import { SQUADJS_VERSION } from './utils/constants.js';
 
 import fetchAdminLists from './utils/admin-lists.js';
+import {
+  getLogParserDisableReason,
+  isLogParserDisabled,
+  shouldSuppressLogParsingInDev
+} from './utils/log-parser-policy.js';
 import { isPlayerID, anyIDToPlayer, anyIDsToPlayers } from './utils/any-id.js';
 import { playerIdNames } from 'core/id-parser';
 
 function isLocalDevRconOffline(server) {
   return process.env.CMP_DEV_MODE === '1' && (!server.rcon?.connected || !server.rcon?.loggedin);
-}
-
-function isLogParserDisabled(server) {
-  return server.options.disableLogParser || process.env.CMP_DEV_MODE === '1';
 }
 
 function formatLocalDevConnectionError(err) {
@@ -121,7 +122,7 @@ export default class SquadServer extends EventEmitter {
     await this.updateA2SInformation();
 
     if (isLogParserDisabled(this)) {
-      const source = process.env.CMP_DEV_MODE === '1' ? 'local dev mode' : 'config';
+      const source = getLogParserDisableReason(this.options);
       Logger.verbose('SquadServer', 1, `Log parser disabled by ${source}; skipping log watch.`);
     } else {
       await this.logParser.watch();
@@ -387,6 +388,11 @@ export default class SquadServer extends EventEmitter {
   }
 
   async restartLogParser() {
+    if (shouldSuppressLogParsingInDev()) {
+      Logger.verbose('SquadServer', 1, 'Skipping log parser restart; disabled by local dev mode.');
+      return false;
+    }
+
     try {
       await this.logParser.unwatch();
     } catch (err) {
@@ -396,6 +402,7 @@ export default class SquadServer extends EventEmitter {
     Logger.verbose('SquadServer', 1, 'Setting up new LogParser instance...');
     this.setupLogParser();
     await this.logParser.watch();
+    return true;
   }
 
   /**
