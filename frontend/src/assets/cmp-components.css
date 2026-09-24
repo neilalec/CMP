@@ -1,5 +1,5 @@
 body {
-  background: radial-gradient(ellipse at 50% -24%, #1a3550 0%, transparent 58%), var(--cmp-bg);
+  background: var(--cmp-bg);
   color: var(--cmp-text);
   font-family: var(--cmp-font-body);
 }
@@ -13,12 +13,10 @@ body {
   border: 1px solid var(--cmp-border);
   border-radius: var(--cmp-radius-md);
   background: var(--cmp-surface);
-  box-shadow: var(--cmp-shadow-sm);
 }
 
 .cmp-surface--raised {
   background: var(--cmp-surface-raised);
-  box-shadow: var(--cmp-shadow-md);
 }
 
 .cmp-surface--floating {
@@ -33,14 +31,14 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 10px 12px;
+  gap: var(--cmp-space-3);
+  padding: var(--cmp-space-3) var(--cmp-space-4);
   border-bottom: 1px solid var(--cmp-border);
 }
 
 .cmp-panel-meta {
   color: var(--cmp-text-muted);
-  font: 700 .72rem var(--cmp-font-mono);
+  font: 600 var(--cmp-type-meta)/1.4 var(--cmp-font-body);
   white-space: nowrap;
 }
 
@@ -48,30 +46,30 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 44px;
-  padding: 10px 18px;
+  min-height: 42px;
+  padding: 9px 16px;
   border: 1px solid var(--cmp-border-strong);
   border-radius: var(--cmp-radius-sm);
-  background: var(--cmp-surface-strong);
+  background: var(--cmp-surface-raised);
   box-shadow: none;
   color: var(--cmp-text);
-  font: 700 .94rem/1.2 var(--cmp-font-display);
+  font: 650 .875rem/1.25 var(--cmp-font-body);
   text-align: center;
   text-decoration: none;
   cursor: pointer;
-  transition: background .16s ease, border-color .16s ease, transform .16s ease;
+  transition: background .16s ease, border-color .16s ease, color .16s ease;
 }
 
 .cmp-button:hover:not(:disabled) {
-  border-color: var(--cmp-border-strong);
-  background: var(--cmp-surface-raised);
+  border-color: var(--cmp-text-muted);
+  background: var(--cmp-surface-strong);
   box-shadow: none;
   color: var(--cmp-text);
   text-decoration: none;
 }
 
 .cmp-button:active:not(:disabled) {
-  transform: translateY(1px);
+  background: var(--cmp-surface-inset);
 }
 
 .cmp-button:disabled {
@@ -83,17 +81,15 @@ body {
 }
 
 .cmp-button--primary {
-  border-color: var(--cmp-primary-hover);
-  background: linear-gradient(180deg, var(--cmp-primary), var(--cmp-primary-active));
-  box-shadow: var(--cmp-shadow-sm), inset 0 1px 0 rgba(255, 255, 255, .13);
-  color: var(--cmp-text);
+  border-color: var(--cmp-primary);
+  background: var(--cmp-primary);
+  color: #07131c;
 }
 
 .cmp-button--primary:hover:not(:disabled) {
   border-color: var(--cmp-primary-hover);
   background: var(--cmp-primary-hover);
-  box-shadow: var(--cmp-shadow-sm);
-  color: var(--cmp-text);
+  color: #07131c;
 }
 
 .cmp-button--primary:active:not(:disabled) {
@@ -103,27 +99,27 @@ body {
 
 .cmp-button--secondary {
   border-color: var(--cmp-border-strong);
-  background: var(--cmp-surface-raised);
+  background: transparent;
 }
 
 .cmp-button--danger {
-  border-color: var(--cmp-danger);
-  background: var(--cmp-surface-raised);
+  border-color: color-mix(in srgb, var(--cmp-danger) 55%, var(--cmp-border));
+  background: transparent;
   color: var(--cmp-danger);
 }
 
 .cmp-button--danger:hover:not(:disabled) {
   border-color: var(--cmp-danger);
-  background: var(--cmp-surface-strong);
+  background: color-mix(in srgb, var(--cmp-danger) 12%, var(--cmp-surface));
   color: var(--cmp-danger);
 }
 
 .cmp-input {
-  min-height: 31px;
-  padding: .42rem .62rem;
+  min-height: 42px;
+  padding: 9px 12px;
   border: 1px solid var(--cmp-border-strong);
   border-radius: var(--cmp-radius-sm);
-  background: var(--cmp-bg-elevated);
+  background: var(--cmp-surface-inset);
   box-shadow: none;
   color: var(--cmp-text);
   caret-color: var(--cmp-primary);
@@ -135,6 +131,52 @@ body {
   border-color: var(--cmp-primary);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--cmp-primary) 30%, transparent);
 }
+
+.cmp-input::placeholder { color: var(--cmp-text-muted); }
+.cmp-input:disabled { opacity: .58; cursor: not-allowed; }
+.cmp-button[aria-busy="true"] { cursor: progress; }
+
+/* The following primitives are available to feature pages as they migrate. */
+.cmp-page-content {
+  width: min(100%, var(--cmp-page-width));
+  margin-inline: auto;
+  padding: var(--cmp-page-top) var(--cmp-page-gutter) var(--cmp-space-7);
+}
+
+.cmp-page-header { display: grid; gap: var(--cmp-space-2); margin-bottom: var(--cmp-section-gap); }
+.cmp-page-header h1 { margin: 0; font-size: var(--cmp-type-page); line-height: 1.15; letter-spacing: -.035em; }
+.cmp-page-header p { max-width: 62ch; margin: 0; color: var(--cmp-text-secondary); }
+.cmp-section-header { display: flex; align-items: baseline; justify-content: space-between; gap: var(--cmp-space-4); margin-bottom: var(--cmp-space-4); }
+.cmp-section-header h2 { margin: 0; font-size: var(--cmp-type-section); line-height: 1.3; letter-spacing: -.02em; }
+.cmp-section-header p { margin: 0; color: var(--cmp-text-muted); font-size: var(--cmp-type-meta); }
+.cmp-kicker { margin: 0; color: var(--cmp-text-muted); font-size: var(--cmp-type-label); font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.cmp-inset { background: var(--cmp-surface-inset); }
+.cmp-divider { border: 0; border-top: 1px solid var(--cmp-border); }
+.cmp-meta-row { display: flex; flex-wrap: wrap; gap: var(--cmp-space-2) var(--cmp-space-4); color: var(--cmp-text-muted); font-size: var(--cmp-type-meta); }
+.cmp-empty-state, .cmp-error-state, .cmp-loading-state { margin: 0; padding: var(--cmp-space-5); border: 1px solid var(--cmp-border); border-radius: var(--cmp-radius-md); color: var(--cmp-text-secondary); background: var(--cmp-surface); }
+.cmp-error-state { border-left: 3px solid var(--cmp-danger); color: var(--cmp-text); }
+.cmp-loading-state { border-style: dashed; }
+.cmp-disclosure { border-top: 1px solid var(--cmp-border); }
+.cmp-disclosure summary { min-height: 42px; display: flex; align-items: center; cursor: pointer; color: var(--cmp-text-secondary); }
+.cmp-disclosure summary:hover { color: var(--cmp-text); }
+.cmp-player-row { display: flex; align-items: center; justify-content: space-between; gap: var(--cmp-space-3); min-width: 0; padding: var(--cmp-space-3) 0; border-bottom: 1px solid var(--cmp-border); }
+.cmp-player-row > :first-child { min-width: 0; overflow-wrap: anywhere; }
+
+.cmp-status { display: inline-flex; align-items: center; gap: 7px; color: var(--cmp-text-secondary); font-size: var(--cmp-type-meta); font-weight: 600; }
+.cmp-status::before { content: ''; width: 6px; height: 6px; flex: none; border-radius: 50%; background: var(--cmp-neutral); }
+.cmp-status--success::before { background: var(--cmp-success); }
+.cmp-status--warning::before { background: var(--cmp-warning); }
+.cmp-status--danger::before { background: var(--cmp-danger); }
+.cmp-status--stale::before { background: transparent; border: 1px solid var(--cmp-neutral); }
+.cmp-status--quiet::before { display: none; }
+.cmp-status--danger { color: var(--cmp-danger); }
+.cmp-status--warning { color: var(--cmp-warning); }
+
+.cmp-faction--valkyra { --cmp-faction-color: var(--cmp-faction-valkyra); }
+.cmp-faction--lonestar { --cmp-faction-color: var(--cmp-faction-lonestar); }
+.cmp-faction--manticore { --cmp-faction-color: var(--cmp-faction-manticore); }
+.cmp-faction-marker { display: inline-flex; align-items: center; gap: 8px; }
+.cmp-faction-marker::before { content: ''; width: 3px; height: 1.1em; flex: none; background: var(--cmp-faction-color, var(--cmp-neutral)); }
 
 .cmp-muted {
   color: var(--cmp-text-muted);
@@ -152,11 +194,17 @@ body {
   background: center / contain no-repeat url('./brand/cmp-wordmark.png');
 }
 
-:where(.cmp-button, .cmp-input, .cmp-wordmark):focus-visible {
+:where(.cmp-button, .cmp-input, .cmp-wordmark, .cmp-disclosure summary, .cmp-player-row a):focus-visible {
   outline: 2px solid var(--cmp-focus);
   outline-offset: 3px;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .cmp-button { transition: none; }
+}
+
+@media (max-width: 640px) {
+  .cmp-page-content { padding-bottom: var(--cmp-space-6); }
+  .cmp-section-header { align-items: flex-start; flex-direction: column; gap: var(--cmp-space-1); }
+  .cmp-empty-state, .cmp-error-state, .cmp-loading-state { padding: var(--cmp-space-4); }
 }

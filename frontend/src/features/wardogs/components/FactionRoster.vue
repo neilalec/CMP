@@ -23,7 +23,7 @@ const connectionLabel = (player) => {
 </script>
 
 <template>
-  <article class="wardogs-faction-card" :style="{ '--faction-color': faction.color }">
+  <article class="wardogs-faction-card" :class="`cmp-faction--${faction.id}`">
     <header class="wardogs-faction-header">
       <div><h3>{{ faction.name }}</h3><span>{{ summary.active }} active · {{ summary.reserves }} reserves<span v-if="faction.mockCapacity"> · mock target {{ faction.mockCapacity }}</span></span></div>
       <strong>{{ summary.ready }}/{{ summary.active }} ready</strong>

@@ -32,8 +32,11 @@ const makeRouter = async () => {
   const screen = { template: '<div>Screen</div>' }
   const router = createRouter({
     history: createMemoryHistory(),
-    routes: ['/play', '/matches', '/profile', '/admin', '/group', '/about', '/discord', '/terms', '/privacy', '/auth']
-      .map((path) => ({ path, component: screen }))
+    routes: [
+      ...['/play', '/matches', '/profile', '/admin', '/group', '/about', '/discord', '/terms', '/privacy', '/auth']
+        .map((path) => ({ path, component: screen })),
+      { path: '/wardogs/lobby/:lobbyId', component: screen }
+    ]
   })
   await router.push('/play')
   await router.isReady()
@@ -50,7 +53,7 @@ describe('CMP product shell', () => {
     useRootStore.mockReturnValue({ globalError: null, globalErrorDetails: null })
     useLobbyStore.mockReturnValue({})
     useQueueStore.mockReturnValue({
-      matchAccept: { acceptedPlayers: [], players: [], acceptedCount: 0, requiredCount: 0, countdown: 0 },
+      matchAccept: { acceptedPlayers: [], players: [], acceptedCount: 0, requiredCount: 0, countdown: 0, hasAccepted: false },
       loading: false
     })
     useGroupStore.mockReturnValue({})
@@ -61,14 +64,16 @@ describe('CMP product shell', () => {
     const wrapper = mount(App, { global: { plugins: [router], stubs: { MatchAcceptModal: true } } })
     await flushPromises()
 
-    expect(wrapper.get('.brand.cmp-wordmark').attributes('aria-label')).toBe('CMP home')
+    expect(wrapper.get('.brand').attributes('aria-label')).toBe('CMP home')
+    expect(wrapper.get('.brand-product').text()).toBe('WARDOGS')
     expect(wrapper.get('.app-shell').classes()).toContain('cmp-page')
     expect(wrapper.find('.primary-nav').text()).toContain('Play')
     expect(wrapper.find('.primary-nav').text()).toContain('Matches')
+    expect(wrapper.find('.primary-nav').text()).toContain('Group')
     expect(wrapper.find('.primary-nav').text()).toContain('Profile')
     expect(wrapper.find('.primary-nav').text()).not.toContain('Admin')
     expect(wrapper.text()).not.toContain('Squad')
-    expect(wrapper.find('.account-menu-items').text()).toContain('Group')
+    expect(wrapper.find('.account-menu-items').text()).toContain('Profile')
     expect(wrapper.find('.app-left').exists()).toBe(false)
     expect(wrapper.find('.app-right').exists()).toBe(false)
 
@@ -88,6 +93,23 @@ describe('CMP product shell', () => {
     auth.canToggleAdmin = true
     await nextTick()
     expect(wrapper.find('.primary-nav').text()).toContain('Admin')
+    wrapper.unmount()
+  })
+
+  test('current match remains directly reachable when one is assigned', async () => {
+    const queue = reactive({
+      wardogsLobbyId: 'match-123',
+      matchAccept: { acceptedPlayers: [], players: [], acceptedCount: 0, requiredCount: 0, countdown: 0, hasAccepted: false },
+      loading: false
+    })
+    useQueueStore.mockReturnValue(queue)
+    const router = await makeRouter()
+    const wrapper = mount(App, { global: { plugins: [router], stubs: { MatchAcceptModal: true } } })
+
+    expect(wrapper.get('.current-match-link').attributes('href')).toBe('/wardogs/lobby/match-123')
+    queue.wardogsLobbyId = null
+    await nextTick()
+    expect(wrapper.find('.current-match-link').exists()).toBe(false)
     wrapper.unmount()
   })
 

@@ -26,8 +26,8 @@
 .wardogs-section-heading { margin-bottom: 12px; }.wardogs-section-heading h2 { font-size: 1.2rem; }
 .wardogs-section-heading > span { color: var(--cmp-text-muted); font: 700 .67rem var(--cmp-font-mono); text-transform: uppercase; }
 .wardogs-faction-grid, .wardogs-score-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 13px; }
-.wardogs-faction-card, .wardogs-score-card { min-width: 0; border: 1px solid var(--cmp-border); border-top: 5px solid var(--faction-color); background: var(--cmp-surface); box-shadow: var(--cmp-shadow-sm); }
-.wardogs-faction-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 12px; background: color-mix(in srgb, var(--faction-color) 18%, var(--cmp-surface-raised)); }
+.wardogs-faction-card, .wardogs-score-card { min-width: 0; border: 1px solid var(--cmp-border); border-top: 3px solid var(--cmp-faction-color); background: var(--cmp-surface); }
+.wardogs-faction-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 12px; background: color-mix(in srgb, var(--cmp-faction-color) 8%, var(--cmp-surface)); }
 .wardogs-faction-header h3 { margin: 0; font-family: var(--cmp-font-display); }.wardogs-faction-header span { color: var(--cmp-text-muted); font-size: .72rem; }.wardogs-faction-header strong { white-space: nowrap; font: 800 .72rem var(--cmp-font-mono); }
 .wardogs-faction-meta { display: flex; flex-wrap: wrap; gap: 6px; padding: 9px; border-bottom: 1px solid var(--cmp-border); }
 .wardogs-faction-meta span { padding: 4px 6px; background: var(--cmp-surface-raised); border: 1px solid var(--cmp-border); font-size: .65rem; font-weight: 700; }
@@ -40,13 +40,13 @@
 .wardogs-group summary b { color: var(--cmp-primary-hover); font-size: .65rem; text-transform: uppercase; }
 .wardogs-group.is-my-group { border-color: var(--cmp-primary-hover); }
 .wardogs-player-list { display: grid; gap: 5px; padding: 0 7px 7px; }.wardogs-player { padding: 7px; border: 1px solid var(--cmp-border); background: var(--cmp-surface-raised); }
-.wardogs-player > div:first-child { display: flex; justify-content: space-between; gap: 5px; font-size: .76rem; }.wardogs-player > div:first-child > strong { min-width: 0; overflow-wrap: anywhere; }.wardogs-player > div:first-child > span { flex: 0 0 auto; color: var(--faction-color); font-size: .67rem; font-weight: 700; }
+.wardogs-player > div:first-child { display: flex; justify-content: space-between; gap: 5px; font-size: .76rem; }.wardogs-player > div:first-child > strong { min-width: 0; overflow-wrap: anywhere; }.wardogs-player > div:first-child > span { flex: 0 0 auto; color: var(--cmp-faction-color); font-size: .67rem; font-weight: 700; }
 .wardogs-player.is-me { border-left: 3px solid var(--cmp-primary-hover); }
 .wardogs-player > div:first-child small { color: var(--cmp-primary-hover); }
 .wardogs-player-flags { display: flex; flex-wrap: wrap; gap: 4px 8px; margin-top: 4px; color: var(--cmp-text-muted); font-size: .7rem; }.wardogs-player-flags .wardogs-warning { color: var(--cmp-danger); }.wardogs-player-flags .wardogs-ready { color: var(--cmp-success); }
 .wardogs-score-section { display: grid; gap: 12px; }.wardogs-result-note { margin: 0; padding: 10px 12px; background: color-mix(in srgb, var(--cmp-warning) 18%, var(--cmp-surface-raised)); color: var(--cmp-text); font-size: .8rem; }
-.wardogs-score-card { display: grid; gap: 4px; padding: 16px; }.wardogs-score-card > span:first-child { font-family: var(--cmp-font-display); font-weight: 800; }.wardogs-score-card > strong { color: var(--faction-color); font: 800 clamp(2rem, 5vw, 3rem) var(--cmp-font-display); }
-.wardogs-score-card small { color: var(--cmp-text-muted); }.wardogs-score-card .wardogs-rank { color: var(--faction-color); font: 800 .83rem var(--cmp-font-mono); }
+.wardogs-score-card { display: grid; gap: 4px; padding: 16px; }.wardogs-score-card > span:first-child { font-family: var(--cmp-font-display); font-weight: 800; }.wardogs-score-card > strong { color: var(--cmp-faction-color); font: 800 clamp(2rem, 5vw, 3rem) var(--cmp-font-display); }
+.wardogs-score-card small { color: var(--cmp-text-muted); }.wardogs-score-card .wardogs-rank { color: var(--cmp-faction-color); font: 800 .83rem var(--cmp-font-mono); }
 .wardogs-player-rating, .wardogs-result-confirmation, .wardogs-confirmed-result, .wardogs-result-history { padding: 12px; }
 .wardogs-player-rating > .cmp-panel-header, .wardogs-result-confirmation > .cmp-panel-header, .wardogs-confirmed-result > .cmp-panel-header, .wardogs-result-history > .cmp-panel-header { margin: -12px -12px 0; }
 .wardogs-result-confirmation, .wardogs-confirmed-result { display: grid; gap: 10px; }

@@ -22,7 +22,7 @@ const scoreNote = computed(() => {
     </div>
     <p class="wardogs-result-note">{{ scoreNote }}</p>
     <div class="wardogs-score-grid">
-      <article v-for="faction in match.factions" :key="faction.id" class="wardogs-score-card" :style="{ '--faction-color': faction.color }">
+      <article v-for="faction in match.factions" :key="faction.id" class="wardogs-score-card" :class="`cmp-faction--${faction.id}`">
         <span>{{ faction.name }}</span>
         <strong>{{ match.scores[faction.id] ?? '—' }}</strong>
         <small v-if="match.source === 'cmp-backend' && ['none', 'unavailable'].includes(match.observation?.state)">Presence unknown</small>
