@@ -1,6 +1,7 @@
 param(
     [ValidateSet("local", "wardogs", "squad")]
-    [string]$DevelopmentTarget = "local"
+    [string]$DevelopmentTarget = "local",
+    [string]$SquadJsConfigPath = "config.dev-local.json"
 )
 
 $ErrorActionPreference = "Stop"
@@ -57,7 +58,15 @@ if (-not (Test-Command "node")) {
 
 $pythonCommand = Resolve-CmpPython
 
-foreach ($port in @(5000, 5173)) {
+$startSquadJs = $false
+if ($DevelopmentTarget -eq "squad") {
+    $startSquadJs = $env:CMP_START_SQUADJS -ne "0"
+} elseif ($DevelopmentTarget -eq "local") {
+    $startSquadJs = $env:CMP_START_SQUADJS -eq "1"
+}
+
+$requiredPorts = if ($DevelopmentTarget -eq "squad" -and $startSquadJs) { @(5000, 5173, 3001) } else { @(5000, 5173) }
+foreach ($port in $requiredPorts) {
     if (-not (Test-PortAvailable $port)) {
         throw "CMP local development port $port is already in use. Stop the existing process before starting."
     }
@@ -66,8 +75,6 @@ foreach ($port in @(5000, 5173)) {
 $jobs = @()
 $frontendUrl = "http://127.0.0.1:5173"
 $backendUrl = "http://127.0.0.1:5000"
-$startSquadJs = $DevelopmentTarget -ne "wardogs" -and $env:CMP_START_SQUADJS -eq "1"
-
 function Test-TcpReady($port) {
     $client = [System.Net.Sockets.TcpClient]::new()
     try {
@@ -100,7 +107,7 @@ try {
     }
     if ($DevelopmentTarget -eq "squad") {
         Write-Host "CMP Squad local development starting" -ForegroundColor Green
-        Write-Host "Target: SQUAD | Legacy participant UI: enabled | SquadJS: $(if ($startSquadJs) { 'enabled' } else { 'disabled (local bridge opt-in)' })"
+        Write-Host "Target: SQUAD | Legacy participant UI: enabled | SquadJS: $(if ($startSquadJs) { 'enabled' } else { 'disabled' })"
         Write-Host "Frontend: $frontendUrl | Backend: $backendUrl"
     }
 
@@ -156,7 +163,7 @@ try {
             Set-CmpUtf8Output
             Set-Location $workingDirectory
             $env:CMP_DEV_MODE = "1"
-            node index.js
+            node index.js $using:SquadJsConfigPath
         }
     }
 
@@ -165,17 +172,26 @@ try {
         Write-Host "CMP local dev is starting. Frontend: $frontendUrl | Backend: $backendUrl" -ForegroundColor Green
     }
     if ($DevelopmentTarget -eq "squad" -and -not $startSquadJs) {
-        Write-Host "Squad UI is available for comparison. Live Squad queues need a local SquadJS bridge and server; set CMP_START_SQUADJS=1 only with a local config." -ForegroundColor Yellow
+        Write-Host "Squad UI is available for comparison. SquadJS is disabled by CMP_START_SQUADJS=0." -ForegroundColor Yellow
     }
     if (-not $startSquadJs -and $DevelopmentTarget -eq "local") {
         Write-Host "SquadJS is disabled; set CMP_START_SQUADJS=1 to include it for Squad testing." -ForegroundColor Yellow
+    }
+    if ($DevelopmentTarget -eq "squad" -and $startSquadJs) {
+        Write-Host "SquadJS config: $SquadJsConfigPath" -ForegroundColor Cyan
+        if ($SquadJsConfigPath -eq "config.dev-local.json") {
+            Write-Host "Using the loopback-only config; it will not connect to a game server." -ForegroundColor Cyan
+        } else {
+            Write-Host "This explicitly selected config may connect to its configured game server." -ForegroundColor Yellow
+        }
     }
     Write-Host "Waiting for backend and frontend readiness..." -ForegroundColor Cyan
 
     $readyDeadline = (Get-Date).AddSeconds(90)
     $backendReady = $false
     $frontendReady = $false
-    while ((Get-Date) -lt $readyDeadline -and (-not $backendReady -or -not $frontendReady)) {
+    $squadJsReady = -not $startSquadJs
+    while ((Get-Date) -lt $readyDeadline -and (-not $backendReady -or -not $frontendReady -or -not $squadJsReady)) {
         foreach ($job in $jobs) {
             if ($job.State -in @("Failed", "Stopped", "Completed")) {
                 $jobOutput = Receive-Job -Job $job -ErrorAction SilentlyContinue | Out-String
@@ -184,14 +200,16 @@ try {
         }
         $backendReady = Test-TcpReady 5000
         $frontendReady = (Test-TcpReady 5173) -and (Test-FrontendReady)
-        if (-not $backendReady -or -not $frontendReady) { Start-Sleep -Milliseconds 500 }
+        if ($startSquadJs) { $squadJsReady = Test-TcpReady 3001 }
+        if (-not $backendReady -or -not $frontendReady -or -not $squadJsReady) { Start-Sleep -Milliseconds 500 }
     }
-    if (-not $backendReady -or -not $frontendReady) {
-        throw "CMP startup readiness timed out. Backend ready: $backendReady; frontend /auth ready: $frontendReady."
+    if (-not $backendReady -or -not $frontendReady -or -not $squadJsReady) {
+        throw "CMP startup readiness timed out. Backend ready: $backendReady; frontend /auth ready: $frontendReady; SquadJS bridge ready: $squadJsReady."
     }
 
     Write-Host "CMP backend is listening at $backendUrl" -ForegroundColor Green
     Write-Host "Frontend /auth is responding at $frontendUrl/auth" -ForegroundColor Green
+    if ($startSquadJs) { Write-Host "SquadJS bridge is listening at http://127.0.0.1:3001" -ForegroundColor Green }
     Write-Host "Press Ctrl+C to stop all processes." -ForegroundColor Yellow
     Write-Host ""
 
