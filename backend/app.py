@@ -786,7 +786,8 @@ if __name__ == '__main__':
                 eventlet=eventlet
             ),
             resume_lobby_tasks=resume_restored_lobby_tasks,
-            wardogs_observation_task=wardogs_live_poller.run,
+            wardogs_observation_task=(wardogs_live_poller.run
+                                      if not (DEV_MODE and DEV_GAME_TARGET == 'squad') else None),
             logger=logger
         ),
         save_queue=save_queue,

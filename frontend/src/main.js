@@ -1,14 +1,23 @@
-import './assets/main.css';
 import { createApp } from 'vue';
 import { createPinia } from 'pinia';
 import App from './App.vue';
+import SquadApp from './SquadApp.vue';
 import router from './router';
+import { developmentTarget } from './devTarget';
 
 
 
-const app = createApp(App); // Create the app instance
-const pinia = createPinia();
+async function start() {
+  if (developmentTarget === 'squad') {
+    await import('./assets/legacy/squad-baseline.css');
+  } else {
+    await import('./assets/main.css');
+  }
 
-app.use(router)
-app.use(pinia)
-app.mount('#app');
+  const app = createApp(developmentTarget === 'squad' ? SquadApp : App);
+  app.use(createPinia());
+  app.use(router);
+  app.mount('#app');
+}
+
+start();

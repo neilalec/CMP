@@ -7,6 +7,9 @@ def test_wardogs_target_skips_squad_lobby_tasks_but_keeps_wardogs_and_shared_tas
     assert should_resume_lobby_tasks('wardogs', 3, dev_mode=True, dev_game_target='wardogs')
     assert should_resume_lobby_tasks('squad', 3, dev_mode=True, dev_game_target='local')
     assert should_resume_lobby_tasks('squad', 3, dev_mode=False, dev_game_target='local')
+    assert should_resume_lobby_tasks('squad', 3, dev_mode=True, dev_game_target='squad')
+    assert not should_resume_lobby_tasks('wardogs', 3, dev_mode=True, dev_game_target='squad')
+    assert should_resume_lobby_tasks('wardogs', 5, dev_mode=True, dev_game_target='squad')
 
     scheduled = []
 

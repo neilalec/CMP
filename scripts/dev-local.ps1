@@ -1,5 +1,5 @@
 param(
-    [ValidateSet("local", "wardogs")]
+    [ValidateSet("local", "wardogs", "squad")]
     [string]$DevelopmentTarget = "local"
 )
 
@@ -66,7 +66,7 @@ foreach ($port in @(5000, 5173)) {
 $jobs = @()
 $frontendUrl = "http://127.0.0.1:5173"
 $backendUrl = "http://127.0.0.1:5000"
-$startSquadJs = $DevelopmentTarget -eq "local" -and $env:CMP_START_SQUADJS -eq "1"
+$startSquadJs = $DevelopmentTarget -ne "wardogs" -and $env:CMP_START_SQUADJS -eq "1"
 
 function Test-TcpReady($port) {
     $client = [System.Net.Sockets.TcpClient]::new()
@@ -96,6 +96,11 @@ try {
     if ($DevelopmentTarget -eq "wardogs") {
         Write-Host "CMP WARDOGS local development starting" -ForegroundColor Green
         Write-Host "Target: WARDOGS | Dev harness: enabled | WARDOGS observation: enabled | Squad integration: disabled"
+        Write-Host "Frontend: $frontendUrl | Backend: $backendUrl"
+    }
+    if ($DevelopmentTarget -eq "squad") {
+        Write-Host "CMP Squad local development starting" -ForegroundColor Green
+        Write-Host "Target: SQUAD | Legacy participant UI: enabled | SquadJS: $(if ($startSquadJs) { 'enabled' } else { 'disabled (local bridge opt-in)' })"
         Write-Host "Frontend: $frontendUrl | Backend: $backendUrl"
     }
 
@@ -136,6 +141,7 @@ try {
         }
         Set-CmpUtf8Output
         Set-Location $workingDirectory
+        $env:VITE_CMP_DEV_TARGET = $using:DevelopmentTarget
         npm run dev
     }
 
@@ -157,6 +163,9 @@ try {
     Write-Host ""
     if ($DevelopmentTarget -eq "local") {
         Write-Host "CMP local dev is starting. Frontend: $frontendUrl | Backend: $backendUrl" -ForegroundColor Green
+    }
+    if ($DevelopmentTarget -eq "squad" -and -not $startSquadJs) {
+        Write-Host "Squad UI is available for comparison. Live Squad queues need a local SquadJS bridge and server; set CMP_START_SQUADJS=1 only with a local config." -ForegroundColor Yellow
     }
     if (-not $startSquadJs -and $DevelopmentTarget -eq "local") {
         Write-Host "SquadJS is disabled; set CMP_START_SQUADJS=1 to include it for Squad testing." -ForegroundColor Yellow

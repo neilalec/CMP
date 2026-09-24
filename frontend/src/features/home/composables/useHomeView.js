@@ -8,6 +8,7 @@ import { useSocketStore } from '../../../stores/socketStore';
 import { SOCKET_EVENTS } from '../../../constants/socketEvents';
 import { getCurrentLobbyId, setCurrentLobbyId } from '../../../utils/lobbyPersistence';
 import { visibleProductQueues } from '../utils/productQueues';
+import { developmentTarget } from '../../../devTarget';
 
 export function useHomeView() {
   const router = useRouter();
@@ -22,7 +23,7 @@ export function useHomeView() {
   let isDisposed = false;
   const isDev = import.meta.env.DEV;
   const canManageQueueTools = computed(() => !!authStore.isAdmin);
-  const queueModes = computed(() => visibleProductQueues(queueStore.queueModes));
+  const queueModes = computed(() => visibleProductQueues(queueStore.queueModes, developmentTarget));
 
   const isInLobby = computed(() => !!getCurrentLobbyId());
   const isInGroup = computed(() => groupStore.inGroup);
@@ -101,7 +102,9 @@ export function useHomeView() {
       return;
     }
     if (!authStore.hasSteamId && !canBypassSteamIdForLocalDev.value) {
-      rootStore.setError('Sign in with Steam before joining the queue.');
+      rootStore.setError(developmentTarget === 'squad'
+        ? 'Set your Steam ID in your profile before joining the queue.'
+        : 'Sign in with Steam before joining the queue.');
       return;
     }
     if (isInGroup.value && !isGroupLeader.value) {

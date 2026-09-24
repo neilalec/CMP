@@ -1050,7 +1050,7 @@ const handleS3oSmallJoin = () => {
 .queue-paused-message {
   margin: 0 auto 14px;
   max-width: 780px;
-  color: var(--cmp-primary-hover);
+  color: var(--cmp-primary-hover, var(--accent-strong));
   text-align: center;
   font-weight: 650;
   line-height: 1.35;

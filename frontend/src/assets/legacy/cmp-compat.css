@@ -111,14 +111,14 @@ html.dark-mode:has(.legacy-ui) {
 }
 
 body:has(.legacy-ui) { background-image: var(--app-atmosphere); background-size: auto; }
-.page-shell { margin-top: 0; }
-.window-panel { background: var(--surface); border-color: var(--border-muted); box-shadow: var(--shadow-card); }
-.window-titlebar { background: transparent; border-bottom-color: var(--border-muted); color: var(--text-primary); letter-spacing: .02em; text-transform: none; }
-.window-titlebar-meta { color: var(--text-muted); }
-.data-card, .surface-card { box-shadow: none; }
-.content-panel { padding: var(--page-gutter); }
+.legacy-ui .page-shell { margin-top: 0; }
+.legacy-ui .window-panel { background: var(--surface); border-color: var(--border-muted); box-shadow: var(--shadow-card); }
+.legacy-ui .window-titlebar { background: transparent; border-bottom-color: var(--border-muted); color: var(--text-primary); letter-spacing: .02em; text-transform: none; }
+.legacy-ui .window-titlebar-meta { color: var(--text-muted); }
+.legacy-ui .data-card, .legacy-ui .surface-card { box-shadow: none; }
+.legacy-ui .content-panel { padding: var(--page-gutter); }
 .legacy-ui :where(a, button, input, select, textarea, summary):focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 @media (max-width: 420px) {
-  .content-panel { padding: var(--page-gutter); }
+  .legacy-ui .content-panel { padding: var(--page-gutter); }
 }
