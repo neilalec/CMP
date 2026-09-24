@@ -8,11 +8,13 @@ import { socketService } from '../../services/socketService';
 import { createBackendWardogsDataSource } from './api/backendDataSource';
 import { useWardogsMatchStore } from './stores/matchStore';
 import MatchOverview from './components/MatchOverview.vue';
+import MatchStateHeader from './components/MatchStateHeader.vue';
 import FactionRoster from './components/FactionRoster.vue';
 import ScoreAndResults from './components/ScoreAndResults.vue';
 import JoinState from './components/JoinState.vue';
 import WardogsResultConfirmation from './components/WardogsResultConfirmation.vue';
 import './wardogs.css';
+import { findParticipant, matchRoomState } from './models/presentation';
 
 const store = useWardogsMatchStore();
 const authStore = useAuthStore();
@@ -20,6 +22,8 @@ const participantPreview = computed(() => import.meta.env.DEV && authStore.wardo
 const socketStore = useSocketStore();
 const route = useRoute();
 const { match, mode, scenarioKey, scenarioOptions, totals, factionSummaries, rankedResults, loading, error } = storeToRefs(store);
+const participant = computed(() => findParticipant(match.value, authStore.username));
+const roomState = computed(() => match.value ? matchRoomState(match.value, participant.value) : null);
 const backendLobbyId = computed(() => route.name === 'wardogs-lobby' || route.query.source === 'backend'
   ? (typeof route.params.lobbyId === 'string' ? route.params.lobbyId
     : (typeof route.query.lobby === 'string' ? route.query.lobby : '')) : '');
@@ -133,15 +137,9 @@ const onScenarioChange = (event) => store.selectScenario(event.target.value);
 
 <template>
   <main class="wardogs-demo cmp-page">
-    <header class="wardogs-header">
-      <div>
-        <p class="wardogs-kicker">WARDOGS / CMP feature preview</p>
-        <h1>Three-faction match room</h1>
-        <p v-if="mode === 'mock'">Local mock scenarios. No WDRCON or CMP match lifecycle connection.</p>
-        <p v-else>Live server observations update this lobby. Scores are not official results.</p>
-        <p v-if="match?.devSimulation?.enabled">{{ match.devSimulation.label }}</p>
-        <p v-if="participantPreview">Developer participant preview — your admin role is unchanged.</p>
-      </div>
+    <header v-if="mode === 'mock' || participantPreview" class="wardogs-header">
+      <p v-if="mode === 'mock'">Local mock scenarios · no CMP match lifecycle connection</p>
+      <p v-if="participantPreview">Developer participant preview — your admin role is unchanged.</p>
       <label v-if="mode === 'mock'" class="wardogs-selector">
         <span>Scenario</span>
         <select class="cmp-input" :value="scenarioKey" @change="onScenarioChange">
@@ -153,20 +151,21 @@ const onScenarioChange = (event) => store.selectScenario(event.target.value);
     <p v-if="loading" role="status">Loading WARDOGS lobby…</p>
     <p v-if="error" role="alert">{{ error }}</p>
     <template v-if="match">
-      <JoinState v-if="mode === 'backend'" :join="match.join" />
-      <MatchOverview :match="match" :totals="totals" />
-      <section v-if="mode === 'backend' || match.phase === 'assembling'" aria-label="Faction rosters">
+      <MatchStateHeader :match="match" :participant="participant" />
+      <JoinState v-if="mode === 'backend' && match.join.state !== 'waiting_for_server'" :join="match.join" :prominent="roomState.joinProminent" />
+      <WardogsResultConfirmation v-if="mode === 'backend' && roomState.resultProminent" :match="match" :can-confirm="authStore.isAdmin && !participantPreview" :confirming="confirmingResult" :correcting="correctingResult" :result-history="resultHistory" :history-error="resultHistoryError" @confirm="confirmResult" @correct="correctResult" />
+      <section aria-label="Faction rosters">
         <div class="wardogs-section-heading">
-          <div><p class="wardogs-kicker">{{ mode === 'mock' ? 'Hybrid roster assembly' : 'Planned WARDOGS roster' }}</p><h2>{{ match.label }}</h2></div>
-          <span v-if="mode === 'mock'">Groups stay together · solos fill gaps</span>
-          <span v-else>Planned groups and observed server presence</span>
+          <div><p class="wardogs-kicker">Planned assignment</p><h2>Faction rosters</h2></div>
+          <span>Observed server presence appears within each roster</span>
         </div>
         <div class="wardogs-faction-grid">
-          <FactionRoster v-for="faction in match.factions" :key="faction.id" :faction="faction" :summary="factionSummaries[faction.id]" :observation-state="match.observation?.state" />
+          <FactionRoster v-for="faction in match.factions" :key="faction.id" :faction="faction" :summary="factionSummaries[faction.id]" :observation-state="match.observation?.state || (mode === 'mock' ? 'demo' : 'none')" :my-group-id="participant?.group.id" :my-player-id="participant?.player.id" />
         </div>
       </section>
+      <MatchOverview :match="match" :totals="totals" />
       <ScoreAndResults v-if="mode === 'backend' || match.phase !== 'assembling'" :match="match" :summaries="factionSummaries" :ranked-results="rankedResults" />
-      <WardogsResultConfirmation v-if="mode === 'backend'" :match="match" :can-confirm="authStore.isAdmin && !participantPreview" :confirming="confirmingResult" :correcting="correctingResult" :result-history="resultHistory" :history-error="resultHistoryError" @confirm="confirmResult" @correct="correctResult" />
+      <WardogsResultConfirmation v-if="mode === 'backend' && !roomState.resultProminent" :match="match" :can-confirm="authStore.isAdmin && !participantPreview" :confirming="confirmingResult" :correcting="correctingResult" :result-history="resultHistory" :history-error="resultHistoryError" @confirm="confirmResult" @correct="correctResult" />
     </template>
   </main>
 </template>

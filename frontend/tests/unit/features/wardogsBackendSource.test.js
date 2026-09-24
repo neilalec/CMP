@@ -184,11 +184,11 @@ describe('WARDOGS backend data source', () => {
       match, summaries: Object.fromEntries(match.factions.map((item) =>
         [item.id, factionSummary(item)])), rankedResults: resultRows(match)
     } });
-    expect(scores.text()).toContain('Live server scores');
+    expect(scores.text()).toContain('Server score observation');
     expect(scores.text()).toContain('999');
     expect(scores.text()).toContain('Unexpected server players');
     expect(scores.text()).toContain('Stranger');
-    expect(scores.text()).toContain('not official results');
+    expect(scores.text()).toContain('Not an official result');
     expect(scores.text()).not.toContain('Sample player statistics');
   });
 

@@ -142,7 +142,7 @@ const submit = () => {
     <p v-if="correctionMode">A new immutable revision will supersede the current result. The previous revision remains in history.</p>
     <p v-else>Live scores are evidence only. Enter the placement explicitly; CMP will not infer completion or ranking from scores.</p>
     <div v-if="successfulObservation" class="wardogs-result-note">
-      <strong>Latest live observation · {{ match.observation.state }}</strong>
+      <strong>Last successful observation · {{ match.observation.state }}</strong>
       <small>{{ match.observation.observedAt }}</small>
       <span v-for="faction in match.factions" :key="faction.id">{{ faction.name }}: {{ observedScores[faction.id] ?? '—' }}</span>
     </div>
