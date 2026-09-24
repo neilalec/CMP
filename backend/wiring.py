@@ -23,6 +23,7 @@ from services.wardogs_dev import (
     is_synthetic as is_wardogs_dev_synthetic,
 )
 from services.wardogs_lobby import latest_wardogs_lobby_for_user
+from services.wardogs_history import get_current_wardogs_match, get_participant_wardogs_history
 from services.wardogs_results import (
     StaleWardogsRevisionError, confirm_wardogs_result, correct_wardogs_result,
     get_wardogs_result, get_wardogs_result_history,
@@ -427,6 +428,21 @@ def register_http_routes(app):
                 'success': False,
                 'message': str(e)
             }), 502
+
+    @app.route('/api/wardogs/matches/current', methods=['GET'])
+    @jwt_required()
+    def api_wardogs_current_match():
+        backend = _http_backend_api()
+        return jsonify({'success': True, 'match': get_current_wardogs_match(
+            backend.get_db_connection, get_jwt_identity())})
+
+    @app.route('/api/wardogs/matches/history', methods=['GET'])
+    @jwt_required()
+    def api_wardogs_match_history():
+        backend = _http_backend_api()
+        limit = request.args.get('limit', default=30, type=int) or 30
+        return jsonify({'success': True, 'matches': get_participant_wardogs_history(
+            backend.get_db_connection, get_jwt_identity(), limit=max(1, min(limit, 100)))})
 
     @app.route('/api/wardogs/lobbies/<lobby_id>', methods=['GET'])
     @jwt_required()
