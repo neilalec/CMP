@@ -31,7 +31,12 @@ const {
 </script>
 
 <template>
-  <div class="auth-container window-panel">
+  <div class="auth-container">
+    <div class="auth-brand">
+      <strong>CMP</strong>
+      <span>WARDOGS matchmaking</span>
+    </div>
+    <section class="auth-card window-panel">
     <div class="window-titlebar">
       <span class="window-titlebar-label">{{ formType === 'login' ? 'Login' : 'Register' }}</span>
       <span class="window-titlebar-meta">Access</span>
@@ -44,7 +49,7 @@ const {
         You will be redirected to Steam's official sign-in page. We never see or store your Steam password.
       </p>
       <p class="auth-copy steam-security-copy">
-        Steam only confirms your SteamID to us, which lets Squad Comp Matchmaking match your account to your player slot when you join a server.
+        Steam confirms your Steam ID so CMP can identify your player slot when you join a WARDOGS server.
       </p>
       <p class="auth-legal-copy">
         By continuing, you agree to the <RouterLink to="/terms">Terms</RouterLink> and acknowledge the <RouterLink to="/privacy">Privacy Policy</RouterLink>.
@@ -76,6 +81,7 @@ const {
         </a>
       </div>
     </div>
+    </section>
   </div>
 </template>
 
@@ -83,6 +89,27 @@ const {
 .auth-container {
   width: min(100%, 420px);
   margin: 0 auto;
+}
+
+.auth-brand {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 24px;
+  text-align: center;
+}
+
+.auth-brand strong {
+  color: var(--text-primary);
+  font: 850 2.4rem/1 var(--font-display);
+  letter-spacing: .16em;
+}
+
+.auth-brand span {
+  color: var(--text-secondary);
+  font-size: .84rem;
+}
+
+.auth-card {
   overflow: hidden;
 }
 
@@ -104,6 +131,14 @@ const {
 
 .steam-button {
   width: 100%;
+  min-height: 44px;
+  border-color: var(--primary);
+  background: var(--primary);
+  color: #061624;
+}
+
+.steam-button:hover:not(:disabled) {
+  background: var(--primary-hover);
 }
 
 .steam-security-copy {

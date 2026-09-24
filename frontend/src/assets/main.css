@@ -1012,3 +1012,152 @@ button.is-selected-control:focus-visible:not(:disabled) {
     max-width: 100%;
   }
 }
+
+/* WARDOGS-era CMP foundation. Legacy component variables map to these tokens
+   while individual screens move away from their window-panel styling. */
+:root,
+html.dark-mode {
+  color-scheme: dark;
+  --font-body: "Segoe UI", Arial, sans-serif;
+  --font-display: "Segoe UI", Arial, sans-serif;
+  --font-mono: "Cascadia Code", Consolas, monospace;
+  --background: #080f1b;
+  --surface: #101c2c;
+  --surface-raised: #17263a;
+  --surface-secondary: #203249;
+  --border: #30465f;
+  --border-muted: #23364b;
+  --text-primary: #f3f8ff;
+  --text-secondary: #b9c8d9;
+  --text-muted: #8fa3ba;
+  --primary: #38bdf8;
+  --primary-hover: #75d5ff;
+  --success: #67d6a1;
+  --danger: #ff8b96;
+  --warning: #f2c46d;
+  --faction-valkyra: #d997a9;
+  --faction-lonestar: #82b8d9;
+  --faction-manticore: #b4c88b;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --radius-sm: 4px;
+  --radius-md: 7px;
+  --radius-lg: 10px;
+  --shadow-card: 0 10px 28px rgba(0, 0, 0, .13);
+  --shadow-menu: 0 18px 40px rgba(0, 0, 0, .35);
+  --content-max: 1280px;
+  --page-width: 1240px;
+  --page-width-narrow: 760px;
+  --page-gutter: clamp(16px, 3vw, 32px);
+
+  --app-bg: var(--background);
+  --app-bg-soft: #101e30;
+  --panel-bg: var(--surface);
+  --panel-bg-strong: var(--surface-raised);
+  --panel-bg-muted: var(--surface-secondary);
+  --surface-border: var(--border);
+  --surface-border-strong: var(--border);
+  --surface-highlight: rgba(255, 255, 255, .08);
+  --surface-shadow: none;
+  --control-shadow: none;
+  --window-shadow: var(--shadow-card);
+  --inset-shadow: none;
+  --window-inset: none;
+  --accent: var(--primary);
+  --accent-strong: var(--primary);
+  --accent-soft: #173c56;
+  --accent-border: #2d8cb7;
+  --accent-ring: rgba(56, 189, 248, .28);
+  --success-soft: #173d35;
+  --danger-soft: #472630;
+  --warning-soft: #443a24;
+  --gold: var(--warning);
+  --gold-strong: var(--warning);
+  --gold-soft: #403722;
+  --gold-border: #8c7140;
+  --text-main: var(--text-primary);
+  --text-soft: var(--text-muted);
+  --dark-readable-text: var(--text-primary);
+  --dark-readable-muted: var(--text-secondary);
+  --dark-readable-soft: var(--text-muted);
+  --lobby-phase-title-text: var(--text-primary);
+  --lobby-card-value-text: var(--text-primary);
+  --lobby-card-muted-text: var(--text-secondary);
+  --dark-embedded-text: var(--text-primary);
+  --lobby-emphasis-text: var(--primary);
+  --match-summary-info-text: var(--primary);
+  --phase-check-text: var(--text-primary);
+  --lobby-player-name-text: var(--text-primary);
+  --lobby-player-status-text: var(--text-secondary);
+  --lobby-player-status-connected: var(--success);
+  --lobby-player-status-missing: var(--danger);
+  --lobby-player-status-warning: var(--warning);
+  --lobby-player-current-bg: var(--accent-soft);
+  --lobby-player-current-border: var(--accent-border);
+  --lobby-player-current-text: var(--text-primary);
+  --control-bg: var(--surface-raised);
+  --control-bg-hover: var(--surface-secondary);
+  --control-bg-active: #25425c;
+  --control-border: var(--border);
+  --button-bg: var(--surface-raised);
+  --button-bg-hover: var(--surface-secondary);
+  --button-bg-active: var(--control-bg-active);
+  --button-border: var(--border);
+  --button-border-hover: var(--primary);
+  --button-shadow: none;
+  --button-hover-shadow: none;
+  --button-active-shadow: none;
+  --button-text: var(--text-primary);
+  --button-disabled-bg: var(--surface-secondary);
+  --button-disabled-text: var(--text-muted);
+  --button-flat-bg: var(--surface-raised);
+  --button-flat-bg-hover: var(--surface-secondary);
+  --button-flat-text: var(--text-primary);
+  --button-accent-bg: var(--primary);
+  --button-accent-bg-hover: var(--primary-hover);
+  --button-accent-border: var(--primary);
+  --button-accent-text: #061624;
+  --footer-text: var(--text-muted);
+  --footer-link-text: var(--text-secondary);
+  --input-bg: var(--surface-raised);
+  --input-border: var(--border);
+  --overlay: rgba(2, 7, 15, .74);
+  --titlebar-bg: var(--surface-raised);
+  --titlebar-text: var(--text-primary);
+  --blue-banner-text: var(--text-primary);
+  --titlebar-divider: var(--border-muted);
+  --card-bg: var(--surface);
+  --card-border: var(--border-muted);
+  --card-shadow: var(--shadow-card);
+  --card-inner-bg: var(--surface-raised);
+  --card-inner-border: var(--border-muted);
+  --card-inner-shadow: none;
+  --selected-control-bg: var(--accent-soft);
+  --selected-control-border: var(--accent-border);
+  --selected-control-shadow: none;
+  --selected-control-text: var(--text-primary);
+  --queue-meter-bg: var(--surface-secondary);
+  --queue-meter-border: var(--border);
+  --queue-meter-fill-bg: var(--primary);
+  --queue-meter-label-text: var(--text-primary);
+  --queue-meter-label-shadow: none;
+  --app-atmosphere: radial-gradient(ellipse at 50% -24%, #1a3550 0%, transparent 58%), var(--background);
+}
+
+body { background-image: var(--app-atmosphere); background-size: auto; }
+.page-shell { margin-top: 0; }
+.window-panel { background: var(--surface); border-color: var(--border-muted); box-shadow: var(--shadow-card); }
+.window-titlebar { background: transparent; border-bottom-color: var(--border-muted); color: var(--text-primary); letter-spacing: .02em; text-transform: none; }
+.window-titlebar-meta { color: var(--text-muted); }
+.data-card, .surface-card { box-shadow: none; }
+.content-panel { padding: var(--page-gutter); }
+:where(a, button, input, select, textarea, summary):focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+@media (max-width: 420px) {
+  .content-panel { padding: var(--page-gutter); }
+}

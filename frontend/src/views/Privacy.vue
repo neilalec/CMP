@@ -5,23 +5,23 @@
         <span class="window-titlebar-label">Privacy Policy</span>
       </div>
       <div class="static-body">
-        <p class="updated static-copy">Last updated: 29 July 2026</p>
+        <p class="updated static-copy">Last updated: 24 September 2026</p>
 
         <section class="static-section">
           <h2 class="static-section-title">What We Collect</h2>
           <p>
             We collect the information needed to run matchmaking: your SteamID64, Steam display
-            name or app display name, app username, queue and lobby participation, team assignment,
-            map votes, match results, admin actions, and technical logs created by the app,
-            server bridge, web server, or hosting provider.
+            name or app display name, app username, queue and match participation, faction assignment,
+            match results, admin actions, and technical logs created by the app,
+            game server integration, web server, or hosting provider.
           </p>
         </section>
 
         <section class="static-section">
           <h2 class="static-section-title">Why We Use It</h2>
           <p>
-            We use this information to sign you in, identify you on the Squad server, place you in
-            queues and lobbies, assign teams, run match automation, record results, troubleshoot
+            We use this information to sign you in, identify you on a WARDOGS server, place you in
+            queues and matches, assign factions, record results, troubleshoot
             bugs, protect the service, and moderate abuse or disruption.
           </p>
         </section>
@@ -49,8 +49,8 @@
           <p>
             Player names, lobby membership, team assignments, map choices, match status, and
             results may be visible to other players or admins. Technical data may be processed by
-            infrastructure providers used to host the app, database, domain, web server, or Squad
-            bridge. We do not sell player data.
+            infrastructure providers used to host the app, database, domain, web server, or game
+            server integration. We do not sell player data.
           </p>
         </section>
 

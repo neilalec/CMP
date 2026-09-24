@@ -1,4 +1,5 @@
 <script setup>
+import { RouterLink } from 'vue-router';
 import QueuePanel from '../features/home/components/QueuePanel.vue';
 import LobbiesPanel from '../features/home/components/LobbiesPanel.vue';
 import { useHomeView } from '../features/home/composables/useHomeView';
@@ -34,6 +35,13 @@ const {
 
 <template>
   <div class="play-content content-panel page-shell">
+    <header v-if="activeView === 'queue'" class="play-heading">
+      <div>
+        <p class="eyebrow">WARDOGS</p>
+        <h1>Find your match</h1>
+      </div>
+      <RouterLink class="play-group-link" to="/group">{{ groupStore.inGroup ? 'Your group' : 'Group' }}</RouterLink>
+    </header>
     <QueuePanel
       v-if="activeView === 'queue'"
       :in-queue="queueStore.inQueue"
@@ -79,10 +87,23 @@ const {
   width: min(100%, var(--page-width));
 }
 
+.play-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+  padding: clamp(8px, 2vw, 26px) 0 24px;
+}
+
+.play-heading .eyebrow { margin-bottom: 8px; }
+.play-heading h1 { margin: 0; font-size: clamp(2rem, 4vw, 3rem); letter-spacing: -.03em; }
+.play-group-link { color: var(--text-secondary); font-size: .84rem; font-weight: 700; }
+.play-group-link:hover { color: var(--text-primary); }
+
 @media (max-width: 640px) {
   .play-content {
     margin-top: 0;
-    padding: 18px 14px;
+    padding: var(--page-gutter);
   }
 }
 </style>

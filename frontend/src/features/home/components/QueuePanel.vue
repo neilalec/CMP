@@ -290,7 +290,7 @@ const getPrimaryLabel = (queueMode) => {
   if (props.isInLobby) return "You're in a lobby"
   if (queueMode.disabled || queueMode.enabled === false) return 'Queue disabled'
   if (!isQueueAvailable(queueMode)) return queueMode.gameType === 'wardogs' ? 'Match forming' : getServerUnavailableLabel()
-  if (!props.hasSteamId) return 'Set Steam ID in Profile'
+  if (!props.hasSteamId) return queueMode.gameType === 'wardogs' ? 'Sign in with Steam to play' : 'Set Steam ID in Profile'
   if (props.isInGroup && !props.isGroupLeader) return 'Group leader only'
   if (props.inQueue && props.currentQueueMode !== queueMode.id) return 'Queued elsewhere'
   if (props.isModeQueueFull(queueMode.id)) return 'Queue is full'
@@ -307,6 +307,7 @@ const getServerUnavailableLabel = () => {
 }
 
 const serverPausedMessage = computed(() => {
+  if (!props.queueModes.some((mode) => mode.gameType !== 'wardogs')) return ''
   if (props.serverAvailable) return ''
   if (props.queueModes.some((mode) => mode.gameType === 'wardogs')) {
     return 'Squad queue fulfilment is paused while its match server is unavailable.'
@@ -395,7 +396,7 @@ const handleS3oSmallJoin = () => {
 </script>
 
 <template>
-  <section class="queue-board">
+  <section class="queue-board" :class="{ 'single-mode': queueModes.length === 1 }">
     <p v-if="serverPausedMessage" class="queue-paused-message">
       {{ serverPausedMessage }}
     </p>
@@ -408,6 +409,7 @@ const handleS3oSmallJoin = () => {
             'window-panel',
             {
               'is-active': currentQueueMode === queueCard.queueMode.id,
+              'is-wardogs': queueCard.queueMode.gameType === 'wardogs',
               'is-disabled': queueCard.queueMode.disabled || queueCard.queueMode.enabled === false,
               'no-dev-tools-card': !canManageQueueTools
             }
@@ -436,7 +438,8 @@ const handleS3oSmallJoin = () => {
                 :disabled="isJoinDisabled(queueCard.queueMode)"
                 @click="emit('join-queue', queueCard.queueMode.id)"
               >
-                {{ isJoinDisabled(queueCard.queueMode) ? getPrimaryLabel(queueCard.queueMode) : getQueueFormatLabel(queueCard.queueMode) }}
+                {{ queueCard.queueMode.gameType === 'wardogs' || isJoinDisabled(queueCard.queueMode)
+                  ? getPrimaryLabel(queueCard.queueMode) : getQueueFormatLabel(queueCard.queueMode) }}
               </button>
 
               <button
@@ -474,6 +477,9 @@ const handleS3oSmallJoin = () => {
               </button>
             </div>
           </div>
+          <p v-if="queueCard.queueMode.gameType === 'wardogs'" class="wardogs-queue-format">
+            {{ getQueueFormatLabel(queueCard.queueMode) }}
+          </p>
         </article>
 
         <article
@@ -1015,6 +1021,58 @@ const handleS3oSmallJoin = () => {
 </template>
 
 <style scoped>
+.queue-board.single-mode .queue-grid {
+  grid-template-columns: minmax(0, 560px);
+}
+
+.queue-card.is-wardogs,
+.queue-card.is-wardogs.no-dev-tools-card {
+  min-height: 0;
+  height: auto;
+}
+
+.queue-card.is-wardogs .queue-card-body.no-dev-tools {
+  grid-template-rows: auto auto;
+  gap: 24px;
+  padding: 26px 24px 18px;
+}
+
+.queue-card.is-wardogs .queue-action {
+  width: min(100%, 280px);
+  min-height: 48px;
+  padding: 10px 20px;
+  border-color: var(--primary);
+  background: var(--primary);
+  box-shadow: none;
+  color: #061624;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.queue-card.is-wardogs .queue-action:hover:not(:disabled) {
+  background: var(--primary-hover);
+}
+
+.queue-card.is-wardogs .queue-action:disabled {
+  border-color: var(--border);
+  background: var(--surface-secondary);
+  color: var(--text-muted);
+}
+
+.queue-card.is-wardogs .queue-action.is-danger {
+  border-color: var(--danger);
+  background: transparent;
+  color: var(--danger);
+}
+
+.wardogs-queue-format {
+  margin: 0;
+  padding: 0 24px 20px;
+  color: var(--text-secondary);
+  font-size: .82rem;
+  text-align: center;
+}
+
 .queue-board {
   width: 100%;
   padding-block: 6px;

@@ -338,10 +338,7 @@ export function useAppSession({
 
   watch(
     [() => route.path, activeLobbyId],
-    ([path, lobbyId]) => {
-      if ((path === '/queue' || path === '/play') && lobbyId) {
-        router.replace(`/lobby/${lobbyId}`)
-      }
+    () => {
       if (authStore.isLoggedIn && authStore.username && socketStore.isConnected) {
         syncQueuePresence()
       }

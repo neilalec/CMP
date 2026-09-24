@@ -115,6 +115,20 @@ const mountQueuePanel = (props = {}) => mount(QueuePanel, {
 });
 
 describe('QueuePanel.vue', () => {
+  test('a WARDOGS-only Play queue does not show Squad server state', () => {
+    const wardogs = {
+      id: 'wardogs_beta9', gameType: 'wardogs', label: 'WARDOGS Beta',
+      shortLabel: 'WARDOGS', maxPlayers: 9, playersInQueue: 1,
+      matchmakingAvailable: true
+    };
+    const wrapper = mountQueuePanel({ queueModes: [wardogs], serverAvailable: false });
+
+    expect(wrapper.text()).toContain('WARDOGS Beta Queue');
+    expect(wrapper.find('.queue-action').text()).toBe('Join Queue');
+    expect(wrapper.text()).not.toContain('Squad');
+    expect(wrapper.find('.queue-paused-message').exists()).toBe(false);
+  });
+
   test('shows WARDOGS beta without a Squad server and supports join and leave', async () => {
     const wardogs = {
       id: 'wardogs_beta9', gameType: 'wardogs', label: 'WARDOGS Beta',

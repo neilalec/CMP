@@ -1,5 +1,18 @@
 # WARDOGS product model
 
+## Active CMP presentation
+
+CMP presents WARDOGS as its participant product. Squad queue, lobby, result, and
+leaderboard code remains in the repository for legacy operation and admin diagnosis,
+but is not in the primary navigation or Play queue list. The primary routes are Play,
+Matches, and Profile, with Admin shown only to authorized accounts. Group is available
+from Play, Profile, and the account menu; About and Discord are secondary links.
+
+The shell uses a dark navy foundation, a blue primary action, and semantic green,
+red, and amber for match states. Its shared spacing, surface, text, border, and
+focus tokens live in `frontend/src/assets/main.css`. Matches currently links to
+the user's WARDOGS lobby; a participant match archive is deferred.
+
 ## Confirmed decisions (2026-09-23)
 
 - WARDOGS v1 matchmaking is **Hybrid**: the beta queue accepts solos and CMP parties of up to three, then assigns them to Valkyra, Lonestar, and Manticore. Larger clan/team detachments need a later queue capacity policy.

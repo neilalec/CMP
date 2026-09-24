@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import Play from '../views/Play.vue';
+import Matches from '../views/Matches.vue';
 import Auth from '../views/Auth.vue';
 import Lobby from '../views/Lobby.vue';
 import Profile from '../views/Profile.vue';
@@ -15,7 +16,6 @@ import SteamAuthCallback from '../views/SteamAuthCallback.vue';
 import WardogsPrototype from '../features/wardogs/WardogsPrototype.vue';
 import { useAuthStore } from '@/stores/authStore';
 import { useRootStore } from '@/stores/rootStore';
-import { getCurrentLobbyId } from '../utils/lobbyPersistence';
 
 const routes = [
   {
@@ -28,6 +28,12 @@ const routes = [
     component: Play, 
     meta: { requiresAuth: true } 
   },
+  {
+    path: '/matches',
+    name: 'matches',
+    component: Matches,
+    meta: { requiresAuth: true }
+  },
   { 
     path: '/queue', 
     redirect: '/play'
@@ -36,19 +42,19 @@ const routes = [
     path: '/lobbies', 
     name: 'lobbies', 
     component: Play, 
-    meta: { requiresAuth: true } 
+    meta: { requiresAuth: true, legacySquad: true }
   },
   {
     path: '/results',
     name: 'results',
     component: Results,
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: true, legacySquad: true }
   },
   {
     path: '/leaderboard',
     name: 'leaderboard',
     component: Leaderboard,
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: true, legacySquad: true }
   },
   {
     path: '/discord',
@@ -89,7 +95,7 @@ const routes = [
     name: 'lobby', 
     component: Lobby, 
     props: true, 
-    meta: { requiresAuth: true } 
+    meta: { requiresAuth: true, legacySquad: true }
   },
   { 
     path: '/profile', 
@@ -142,7 +148,6 @@ router.beforeEach((to, from, next) => {
   const authStore = useAuthStore();
   const rootStore = useRootStore();
   const isAuthenticated = authStore.isLoggedIn;
-  const currentLobby = getCurrentLobbyId();
 
   // Clear any existing errors when changing routes
   rootStore.clearError();
@@ -154,8 +159,8 @@ router.beforeEach((to, from, next) => {
     next('/auth');
   } else if (to.meta.requiresAdmin && !authStore.isAdmin && !authStore.canToggleAdmin) {
     next('/play');
-  } else if ((to.path === '/queue' || to.path === '/play') && currentLobby) {
-    next(`/lobby/${currentLobby}`);
+  } else if (to.meta.legacySquad && !authStore.isAdmin && !authStore.canToggleAdmin) {
+    next('/matches');
   } else if (to.meta.guest && isAuthenticated) {
     next('/play');
   } else {
