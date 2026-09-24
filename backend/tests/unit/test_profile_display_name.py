@@ -26,6 +26,30 @@ def test_get_user_profile_prefers_display_name_then_steam_persona_then_username(
     assert profile['elo_matches'] == 0
 
 
+def test_development_mode_grants_toggleable_admin_but_production_does_not():
+    record = {'steam_id': '76561198124553635', 'display_name': 'neil'}
+    args = ('neil', lambda username: record, [], lambda username: False)
+
+    development_profile = get_user_profile(*args, development_mode=True)
+    production_profile = get_user_profile(*args, development_mode=False)
+
+    assert development_profile['is_admin'] is True
+    assert development_profile['can_toggle_admin'] is True
+    assert production_profile['is_admin'] is False
+    assert production_profile['can_toggle_admin'] is False
+
+
+def test_development_admin_opt_out_can_be_reenabled():
+    record = {'steam_id': '76561198124553635', 'admin_test_mode_disabled': True}
+    profile = get_user_profile(
+        'neil', lambda username: record, [], lambda username: False,
+        development_mode=True
+    )
+
+    assert profile['is_admin'] is False
+    assert profile['can_toggle_admin'] is True
+
+
 def test_update_display_name_saves_manual_display_name():
     records = {
         'steam_24553635': {

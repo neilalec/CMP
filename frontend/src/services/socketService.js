@@ -9,7 +9,7 @@ export class SocketService {
   }
 
   async connect(token = null, username = null) {
-    console.log('SocketService connect called with:', { token, username });
+    console.log('SocketService connect requested:', { authenticated: !!token, hasUsername: !!username });
 
     if (this.socket?.connected) {
       console.log('Socket already connected, returning existing connection');
@@ -24,7 +24,7 @@ export class SocketService {
 
     // Prepare auth object
     const auth = username ? { username, ...(token && { token }) } : {};
-    console.log('Connecting with auth:', auth);
+    console.log('Connecting socket:', { authenticated: !!token, hasUsername: !!username });
 
     return new Promise((resolve, reject) => {
       let settled = false;

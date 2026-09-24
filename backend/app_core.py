@@ -452,7 +452,8 @@ def get_user_profile(username):
         get_user_record,
         queued_users,
         is_user_in_any_lobby,
-        ADMIN_STEAM_IDS
+        ADMIN_STEAM_IDS,
+        development_mode=DEV_MODE
     )
 
 

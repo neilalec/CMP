@@ -1,3 +1,7 @@
+<script>
+let callbackStarted = false;
+</script>
+
 <script setup>
 import '../assets/legacy/legacy-bundle.css';
 import { onMounted, ref } from 'vue';
@@ -25,6 +29,10 @@ const decodePayload = () => {
 };
 
 onMounted(async () => {
+  // App.vue swaps its logged-out and logged-in RouterViews when setAuth runs.
+  // The callback component can therefore mount twice for the same URL.
+  if (callbackStarted) return;
+  callbackStarted = true;
   try {
     const payload = decodePayload();
     if (!payload.success || !payload.access_token || !payload.username) {
@@ -32,6 +40,9 @@ onMounted(async () => {
     }
 
     await authStore.setAuth(payload.access_token, payload.username, payload.profile);
+    // The fragment carries the bearer token. Remove it once it is safely
+    // persisted, so remounts/history entries cannot replay the callback.
+    window.history.replaceState(window.history.state, '', `${window.location.pathname}${window.location.search}`);
 
     if (payload.active_lobby) {
       setCurrentLobbyId(payload.active_lobby);

@@ -26,13 +26,13 @@ def _int_profile_value(record, key, default):
         return default
 
 
-def get_user_profile(username, get_user_record, matchmaking_queue, is_user_in_any_lobby, admin_steam_ids=None):
+def get_user_profile(username, get_user_record, matchmaking_queue, is_user_in_any_lobby, admin_steam_ids=None, development_mode=False):
     record = get_user_record(username)
     if not record:
         return None
     steam_id = str(record.get('steam_id', '') or '').strip()
     admin_steam_ids = admin_steam_ids or set()
-    is_base_admin = bool(steam_id and steam_id in admin_steam_ids) or bool(record.get('is_admin'))
+    is_base_admin = bool(steam_id and steam_id in admin_steam_ids) or bool(record.get('is_admin')) or bool(development_mode)
     admin_test_mode_disabled = bool(record.get('admin_test_mode_disabled'))
     return {
         'username': username,

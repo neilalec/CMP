@@ -15,7 +15,7 @@ export const useSocketStore = defineStore('socket', {
     async initSocket(token = null, username = null) {
       const rootStore = useRootStore();
       
-      console.log('SocketStore initSocket called with:', { token, username });
+      console.log('SocketStore initializing:', { authenticated: !!token, hasUsername: !!username });
       
       try {
         this.loading = true;

@@ -43,6 +43,7 @@ export function useAppSession({
   const isMatchAcceptCancelled = computed(() => queueStore.matchAccept.cancelled)
   const lobbySyncPending = ref(false)
   const finalizingLobbySyncTimer = ref(null)
+  let skipNextAuthWatch = false
 
   const handleQueueUpdate = (data) => {
     queueStore.updateQueueState(data)
@@ -275,6 +276,10 @@ export function useAppSession({
     console.log('App mounted, initializing base socket connection...')
     try {
       const isAuthenticated = authStore.restoreAuth()
+      // A Steam callback can set auth before this parent mount hook runs. The
+      // initial restore below owns socket startup in that case; skip the
+      // reactive auth watcher for the same transition.
+      skipNextAuthWatch = isAuthenticated
 
       if (isAuthenticated) {
         try {
@@ -308,6 +313,10 @@ export function useAppSession({
 
   watch(() => authStore.isLoggedIn, async (isLoggedIn) => {
     if (isSessionlessRoute()) return
+    if (skipNextAuthWatch) {
+      skipNextAuthWatch = false
+      return
+    }
     if (isLoggedIn && authStore.token) {
       try {
         rootStore.setLoading(true)
