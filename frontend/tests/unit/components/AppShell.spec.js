@@ -32,7 +32,7 @@ const makeRouter = async () => {
   const screen = { template: '<div>Screen</div>' }
   const router = createRouter({
     history: createMemoryHistory(),
-    routes: ['/play', '/matches', '/profile', '/admin', '/group', '/about', '/discord', '/terms', '/privacy']
+    routes: ['/play', '/matches', '/profile', '/admin', '/group', '/about', '/discord', '/terms', '/privacy', '/auth']
       .map((path) => ({ path, component: screen }))
   })
   await router.push('/play')
@@ -87,6 +87,18 @@ describe('CMP product shell', () => {
     auth.canToggleAdmin = true
     await nextTick()
     expect(wrapper.find('.primary-nav').text()).toContain('Admin')
+    wrapper.unmount()
+  })
+
+  test('guest state keeps the Auth RouterView mounted inside the guest shell', async () => {
+    auth.isLoggedIn = false
+    const router = await makeRouter()
+    await router.push('/auth')
+    const wrapper = mount(App, { global: { plugins: [router], stubs: { MatchAcceptModal: true } } })
+    await flushPromises()
+
+    expect(wrapper.find('.auth-shell').exists()).toBe(true)
+    expect(wrapper.find('.auth-shell').text()).toContain('Screen')
     wrapper.unmount()
   })
 })

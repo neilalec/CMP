@@ -33,3 +33,22 @@ test('WARDOGS product routes work while participant legacy routes lead to Matche
   await router.push('/profile')
   expect(router.currentRoute.value.path).toBe('/auth')
 })
+
+test('guest auth route stays visible and authenticated users are redirected to Play', async () => {
+  localStorage.clear()
+  setActivePinia(createPinia())
+  const auth = useAuthStore()
+
+  auth.isLoggedIn = false
+  await router.push('/terms')
+  await router.push('/auth')
+  expect(router.currentRoute.value.path).toBe('/auth')
+
+  auth.token = 'test-token'
+  auth.username = 'testuser'
+  auth.isLoggedIn = true
+  await router.push('/terms')
+  await router.push('/auth')
+  expect(router.currentRoute.value.path).toBe('/play')
+  expect(router.currentRoute.value.name).toBe('play')
+})

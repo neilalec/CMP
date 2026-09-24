@@ -95,7 +95,7 @@ const {
     linear-gradient(180deg, #080f1b 0%, #0a1421 52%, #070d16 100%);
 }
 
-:global(.auth-shell)::before {
+:global(.auth-shell::before) {
   position: absolute;
   z-index: -1;
   inset: 0;
@@ -105,6 +105,8 @@ const {
 }
 
 .auth-container {
+  position: relative;
+  z-index: 1;
   width: min(100%, 420px);
   margin: 0 auto;
   text-align: center;
