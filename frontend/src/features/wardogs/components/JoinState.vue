@@ -28,26 +28,25 @@ const copyJoinId = async () => {
 </script>
 
 <template>
-  <section class="wardogs-join-state" :class="{ 'is-compact': !prominent }" aria-label="Server and joining">
+  <component :is="prominent ? 'section' : 'details'" class="wardogs-join-state cmp-surface" :class="{ 'is-compact': !prominent }" aria-label="Server and joining">
+    <summary v-if="!prominent" class="wardogs-join-compact-summary">Server access <span>{{ join.serverName || 'WARDOGS server allocated' }}</span></summary>
     <h2 v-if="join.state === 'waiting_for_server'">Waiting for a WARDOGS server</h2>
     <template v-else>
-      <h2>{{ prominent ? 'Join server' : 'Server access' }}</h2>
-      <p v-if="join.serverName" class="wardogs-server-name">{{ join.serverName }}</p>
-      <p v-else>WARDOGS server allocated</p>
+      <div class="wardogs-join-heading"><div><p class="cmp-kicker">Server access</p><h2>{{ prominent && joinId ? 'Join by ID' : 'Server access' }}</h2></div><p>{{ join.serverName || 'WARDOGS server allocated' }}</p></div>
       <template v-if="join.state === 'manual_join_available' && joinId">
-        <p v-if="prominent">Use Join By ID in WARDOGS</p>
+        <p v-if="prominent">Use Join By ID in WARDOGS to find this match.</p>
         <div class="wardogs-join-id">
-          <code>{{ joinId }}</code>
+          <code aria-label="Join ID">{{ joinId }}</code>
           <button class="cmp-button cmp-button--secondary" type="button" @click="copyJoinId">Copy Join ID</button>
         </div>
-        <p v-if="copyStatus" aria-live="polite">{{ copyStatus }}</p>
-        <details v-if="Array.isArray(join.instructions)" class="wardogs-join-instructions">
+        <p v-if="copyStatus" class="wardogs-copy-feedback" role="status">{{ copyStatus }}</p>
+        <details v-if="Array.isArray(join.instructions) && join.instructions.length" class="wardogs-join-instructions cmp-disclosure">
           <summary>Join By ID steps</summary>
           <ol><li v-for="(step, index) in join.instructions" :key="index">{{ step }}</li></ol>
         </details>
       </template>
-      <a v-else-if="directUrl" class="cmp-button cmp-button--primary" :href="directUrl">Join server</a>
+      <a v-else-if="directUrl" class="cmp-button" :class="prominent ? 'cmp-button--primary' : 'cmp-button--secondary'" :href="directUrl">Join server</a>
       <p v-else>Server allocated. Verified player join instructions are not available yet.</p>
     </template>
-  </section>
+  </component>
 </template>

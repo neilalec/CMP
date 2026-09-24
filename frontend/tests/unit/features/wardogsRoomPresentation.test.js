@@ -3,6 +3,8 @@ import { findParticipant, matchRoomState, participantObservation } from '@/featu
 import MatchStateHeader from '@/features/wardogs/components/MatchStateHeader.vue';
 import JoinState from '@/features/wardogs/components/JoinState.vue';
 import FactionRoster from '@/features/wardogs/components/FactionRoster.vue';
+import ScoreAndResults from '@/features/wardogs/components/ScoreAndResults.vue';
+import WardogsResultConfirmation from '@/features/wardogs/components/WardogsResultConfirmation.vue';
 import { factionSummary } from '@/features/wardogs/models/match';
 
 const makeMatch = () => {
@@ -48,6 +50,8 @@ describe('WARDOGS room presentation', () => {
     expect(matchRoomState(match, participant).title).toBe('Ready');
     await join.setProps({ prominent: false });
     expect(join.classes()).toContain('is-compact');
+    expect(join.element.tagName).toBe('DETAILS');
+    expect(join.get('summary').text()).toContain('Server access');
   });
 
   test('reserve, mismatch, and stale observation remain distinct', () => {
@@ -88,5 +92,65 @@ describe('WARDOGS room presentation', () => {
     expect(matchRoomState(match, participant).title).toBe('Match incomplete');
     match.result.status = 'void';
     expect(matchRoomState(match, participant).title).toBe('Match void');
+  });
+
+  test('an unknown observation never marks an assigned player absent', () => {
+    const match = makeMatch();
+    const participant = findParticipant(match, 'alice');
+    const header = mount(MatchStateHeader, { props: { match, participant } });
+    const roster = mount(FactionRoster, { props: { faction: match.factions[0],
+      summary: factionSummary(match.factions[0]), observationState: 'none',
+      myGroupId: 'premade-1', myPlayerId: 'alice' } });
+    expect(header.text()).toContain('Server presence unknown');
+    expect(roster.text()).toContain('Server presence unknown');
+    expect(roster.text()).not.toContain('Not observed on server');
+    expect(roster.text()).toContain('Your group');
+    expect(roster.text()).toContain('Alice · You');
+  });
+
+  test('fresh alignment, mismatch, and readiness remain independent', async () => {
+    const match = makeMatch();
+    const participant = findParticipant(match, 'alice');
+    match.join = { state: 'manual_join_available', joinId: 'join-123' };
+    match.observation.state = 'fresh';
+    participant.player.connected = true;
+    participant.player.observedFactionId = 'lonestar';
+    const header = mount(MatchStateHeader, { props: { match, participant } });
+    const roster = mount(FactionRoster, { props: { faction: match.factions[0],
+      summary: factionSummary(match.factions[0]), observationState: 'fresh' } });
+    expect(header.text()).toContain('Move to Valkyra');
+    expect(header.text()).toContain('Connected on lonestar; assigned Valkyra');
+    expect(roster.text()).toContain('Faction mismatch');
+    expect(roster.text()).toContain('Not CMP ready');
+    participant.player.observedFactionId = 'valkyra';
+    participant.player.ready = true;
+    const updated = JSON.parse(JSON.stringify(match));
+    await header.setProps({ match: updated, participant: findParticipant(updated, 'alice') });
+    expect(matchRoomState(match, participant).title).toBe('Ready');
+    expect(header.text()).toContain('CMP readiness: Ready');
+  });
+
+  test('observed scores stay evidence while current confirmed revisions carry authority', () => {
+    const match = makeMatch();
+    match.scores = { valkyra: 100, lonestar: 90, manticore: 80 };
+    const summaries = Object.fromEntries(match.factions.map((faction) => [faction.id, factionSummary(faction)]));
+    const evidence = mount(ScoreAndResults, { props: { match, summaries, rankedResults: [] } });
+    expect(evidence.text()).toContain('Not an official result');
+    expect(evidence.text()).toContain('100');
+    expect(evidence.find('.wardogs-rank').exists()).toBe(false);
+    for (const [status, placementGroups, outcome] of [
+      ['completed_win', [['valkyra'], ['lonestar'], ['manticore']], 'Completed win'],
+      ['tie', [['valkyra', 'lonestar'], ['manticore']], 'Tie for first'],
+      ['incomplete', null, 'Incomplete / abandoned'],
+      ['void', null, 'Void / cancelled']
+    ]) {
+      match.result = { status, placementGroups, revisionNumber: 2, corrected: true };
+      const result = mount(WardogsResultConfirmation, { props: { match, canConfirm: false } });
+      expect(result.get('.wardogs-result-outcome').text()).toBe(outcome);
+      expect(result.text()).toContain('AUTHORITATIVE · Revision 2');
+      expect(result.text()).toContain('Result corrected by an administrator.');
+      if (status === 'incomplete' || status === 'void') expect(result.text()).toContain('No competitive placement was recorded.');
+      expect(result.find('.wardogs-operator-disclosure').exists()).toBe(false);
+    }
   });
 });

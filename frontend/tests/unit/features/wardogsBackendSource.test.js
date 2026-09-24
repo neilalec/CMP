@@ -161,10 +161,10 @@ describe('WARDOGS backend data source', () => {
   test('faction display distinguishes mismatch, unknown presence, and explicit waiting', () => {
     const match = normalizeBackendMatch(backendPayload());
     const faction = match.factions[0];
-    const wrapper = mount(FactionRoster, { props: { faction, summary: factionSummary(faction) } });
+    const wrapper = mount(FactionRoster, { props: { faction, summary: factionSummary(faction), observationState: 'fresh' } });
     expect(wrapper.text()).toContain('Faction mismatch');
     expect(wrapper.text()).toContain('Connection unknown');
-    expect(wrapper.text()).toContain('Waiting');
+    expect(wrapper.text()).toContain('Not CMP ready');
     expect(wrapper.text()).toContain('Group leader');
   });
 
@@ -184,7 +184,7 @@ describe('WARDOGS backend data source', () => {
       match, summaries: Object.fromEntries(match.factions.map((item) =>
         [item.id, factionSummary(item)])), rankedResults: resultRows(match)
     } });
-    expect(scores.text()).toContain('Server score observation');
+    expect(scores.text()).toContain('Server evidence');
     expect(scores.text()).toContain('999');
     expect(scores.text()).toContain('Unexpected server players');
     expect(scores.text()).toContain('Stranger');

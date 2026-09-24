@@ -131,14 +131,10 @@ const submit = () => {
 </script>
 
 <template>
-  <section v-if="match.rating" class="cmp-surface wardogs-panel wardogs-player-rating" aria-label="Your WARDOGS rating">
-    <header class="cmp-panel-header"><h2 class="cmp-heading wardogs-panel-heading">Your WARDOGS rating</h2></header>
-    <strong>WARDOGS rating: {{ match.rating.currentRating }}</strong>
-    <p v-if="match.rating.match">This match: {{ signedDelta(match.rating.match.delta) }}
-      ({{ match.rating.match.before }} → {{ match.rating.match.after }})</p>
-  </section>
-  <section v-if="canConfirm && (match.result?.status === 'unconfirmed' || correctionMode)" class="cmp-surface wardogs-panel wardogs-result-confirmation" aria-label="Confirm WARDOGS result">
-    <header class="cmp-panel-header"><h2 class="cmp-heading wardogs-panel-heading">{{ correctionMode ? `Correct result · revision ${(match.result.revisionNumber || 1) + 1}` : 'Referee result confirmation' }}</h2><span class="cmp-panel-meta">ADMIN</span></header>
+  <section v-if="canConfirm && (match.result?.status === 'unconfirmed' || correctionMode)" class="wardogs-result-confirmation" aria-label="Confirm WARDOGS result">
+    <details class="wardogs-operator-disclosure cmp-disclosure" :open="correctionMode">
+      <summary>{{ correctionMode ? `Correct result · revision ${(match.result.revisionNumber || 1) + 1}` : 'Referee tools · confirm result' }} <span>ADMIN</span></summary>
+      <div class="wardogs-operator-form">
     <p v-if="correctionMode">A new immutable revision will supersede the current result. The previous revision remains in history.</p>
     <p v-else>Live scores are evidence only. Enter the placement explicitly; CMP will not infer completion or ranking from scores.</p>
     <div v-if="successfulObservation" class="wardogs-result-note">
@@ -194,10 +190,12 @@ const submit = () => {
       </button>
       <button v-if="correctionMode" class="cmp-button cmp-button--secondary" type="button" :disabled="correcting" @click="cancelCorrection">Cancel</button>
     </div>
+      </div>
+    </details>
   </section>
-  <section v-else-if="match.result?.status !== 'unconfirmed'" class="cmp-surface wardogs-panel wardogs-confirmed-result" aria-label="Referee confirmed result">
-    <header class="cmp-panel-header"><h2 class="cmp-heading wardogs-panel-heading">Referee confirmed result</h2><span class="cmp-panel-meta">AUTHORITATIVE · REVISION {{ match.result.revisionNumber }}</span></header>
-    <strong>{{ resultLabel(match.result.status) }}</strong>
+  <section v-else-if="match.result?.status !== 'unconfirmed'" class="cmp-surface wardogs-confirmed-result" :class="`is-${match.result.status}`" aria-label="Referee confirmed result">
+    <header><div><p class="cmp-kicker">Current result<span v-if="match.result.corrected"> · corrected</span></p><h2>Referee confirmed result</h2></div><span>AUTHORITATIVE · Revision {{ match.result.revisionNumber || 1 }}</span></header>
+    <strong class="wardogs-result-outcome">{{ resultLabel(match.result.status) }}</strong>
     <div v-if="placementRows(match.result).length" class="wardogs-confirmed-placement" aria-label="Confirmed placement">
       <div v-for="row in placementRows(match.result)" :key="`${row.rank}-${row.factions.join('-')}`">
         <strong>{{ ordinal(row.rank) }}</strong> {{ row.factions.join(' / ') }}
@@ -209,12 +207,15 @@ const submit = () => {
     <div v-if="match.result.scores" class="wardogs-result-score-summary">
       <span v-for="faction in match.factions" :key="faction.id">{{ faction.name }}: {{ match.result.scores[faction.id] }}</span>
     </div>
-    <small>Confirmed {{ match.result.confirmedAt }}</small>
-    <button v-if="canConfirm && !correctionMode" class="cmp-button cmp-button--secondary" type="button" :disabled="!currentRevision" @click="beginCorrection">Correct result</button>
-    <p v-if="canConfirm && !currentRevision" class="wardogs-result-note">Loading administrator revision history…</p>
+    <small v-if="match.result.confirmedAt">Confirmed {{ match.result.confirmedAt }}</small>
+    <details v-if="canConfirm && !correctionMode" class="wardogs-result-operator cmp-disclosure"><summary>Referee tools · correction</summary><button class="cmp-button cmp-button--secondary" type="button" :disabled="!currentRevision" @click="beginCorrection">Correct result</button><p v-if="!currentRevision" class="wardogs-result-note">Loading administrator revision history…</p></details>
   </section>
-  <section v-if="canConfirm && resultHistory.length" class="cmp-surface wardogs-panel wardogs-result-history" aria-label="WARDOGS result revision history">
-    <header class="cmp-panel-header"><h2 class="cmp-heading wardogs-panel-heading">Result revision history</h2></header>
+  <section v-if="match.rating" class="wardogs-player-rating cmp-inset" aria-label="Your WARDOGS rating">
+    <h2>Your WARDOGS rating</h2><strong>WARDOGS rating: {{ match.rating.currentRating }}</strong>
+    <p v-if="match.rating.match">This match: {{ signedDelta(match.rating.match.delta) }} ({{ match.rating.match.before }} → {{ match.rating.match.after }})</p>
+  </section>
+  <section v-if="canConfirm && resultHistory.length" class="wardogs-result-history" aria-label="WARDOGS result revision history">
+    <details class="cmp-disclosure wardogs-operator-disclosure"><summary>Result revision history <span>ADMIN</span></summary><div class="wardogs-history-content">
     <p v-if="historyError" role="alert">{{ historyError }}</p>
     <article v-for="revision in resultHistory" :key="revision.revisionId" class="wardogs-result-revision">
       <div><strong>Revision {{ revision.revisionNumber }} · {{ revision.revisionType === 'confirmation' ? 'Original confirmation' : 'Correction' }}</strong>
@@ -226,12 +227,12 @@ const submit = () => {
         </div>
       </div>
       <span v-else-if="revision.placementUnavailable" class="wardogs-result-note">Placement unavailable; review required.</span>
-      <span v-for="faction in match.factions" v-if="revision.scores" :key="faction.id">{{ faction.name }}: {{ revision.scores[faction.id] }}</span>
+      <template v-if="revision.scores"><span v-for="faction in match.factions" :key="faction.id">{{ faction.name }}: {{ revision.scores[faction.id] }}</span></template>
       <small>{{ revision.confirmedAt }} · {{ revision.actorId }}</small>
       <p v-if="revision.note">{{ revision.note }}</p>
       <p v-if="revision.correctionReason"><strong>Correction reason:</strong> {{ revision.correctionReason }}</p>
       <small v-if="revision.observation?.available">Observation {{ revision.observation.observedAt }} · {{ revision.observation.differsFromObservation ? 'scores differed' : 'scores matched' }}</small>
-    </article>
+    </article></div></details>
   </section>
   <p v-if="canConfirm && historyError && !resultHistory.length" role="alert">{{ historyError }}</p>
 </template>

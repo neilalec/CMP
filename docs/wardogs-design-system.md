@@ -30,6 +30,12 @@ Play uses one compact queue surface. Show the participant's session before the q
 
 Match Accept carries the same narrow top accent and state language into a focused dialog. Its timer and close control stay in the header, acceptance lists scroll independently, and the decision or resulting status stays in the footer. Pending, accepted, finalizing and cancelled are visually distinct. Finalization remains visible until authoritative lobby navigation; visual transitions never infer a lobby from the countdown.
 
+## Match room
+
+Lead with the current match state and the participant's planned assignment, then place contextual server access ahead of three equal faction rosters. The personal summary separates assignment, observed presence and CMP readiness. Faction rosters use a narrow identity marker, persistent group headings and plain player rows; current-user and group emphasis stays subtle, while mismatches and uncertainty are explicit in text. Active players and reserves remain separate.
+
+Show observation freshness once near the top and retain its timestamp and server detail in a disclosure. A stale observation describes last known presence; missing observation stays unknown. Keep observed scores in a compact evidence section labelled as unofficial. A referee-confirmed result takes visual priority when present, including the current revision, correction, tie, incomplete or void status. Place referee forms and history behind clearly labelled operator disclosures.
+
 ## Migration boundary
 
-The shell, base primitives and opening Play → Match Accept journey are implemented. Group, Profile, Match Room, Matches and Admin still have local composition and CSS rules. Migrate them feature by feature, preserving the precise distinctions between planned and observed state, connected and aligned, active and reserve, and observed scores and the latest confirmed revision. The historical Squad entry point uses its own stylesheet and shell. The WARDOGS Auth page is approved and visually frozen.
+The shell, base primitives, opening Play → Match Accept journey and Match Room are implemented. Group, Profile, Matches and Admin still have local composition and CSS rules. Migrate them feature by feature, preserving the precise distinctions between planned and observed state, connected and aligned, active and reserve, and observed scores and the latest confirmed revision. The historical Squad entry point uses its own stylesheet and shell. The WARDOGS Auth page is approved and visually frozen.
