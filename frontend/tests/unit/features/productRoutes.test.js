@@ -2,6 +2,16 @@ import { createPinia, setActivePinia } from 'pinia'
 import router from '../../../src/router'
 import { useAuthStore } from '../../../src/stores/authStore'
 
+test('participant routes stay eager while legacy routes load their styling lazily', () => {
+  const routeComponent = (name) => router.getRoutes().find((route) => route.name === name)?.components?.default
+  expect(typeof routeComponent('play')).not.toBe('function')
+  expect(typeof routeComponent('matches')).not.toBe('function')
+  expect(typeof routeComponent('wardogs-lobby')).not.toBe('function')
+  expect(typeof routeComponent('lobbies')).toBe('function')
+  expect(typeof routeComponent('admin')).toBe('function')
+  expect(typeof routeComponent('results')).toBe('function')
+})
+
 test('WARDOGS product routes work while participant legacy routes lead to Matches', async () => {
   setActivePinia(createPinia())
   const auth = useAuthStore()

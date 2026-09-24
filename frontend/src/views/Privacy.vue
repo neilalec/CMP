@@ -1,3 +1,7 @@
+<script setup>
+import '../assets/legacy/legacy-bundle.css';
+</script>
+
 <template>
   <div class="static-page content-panel page-shell narrow">
     <section class="static-card is-wide surface-card">

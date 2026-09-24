@@ -1,4 +1,5 @@
 <script setup>
+import '../assets/legacy/legacy-bundle.css';
 import { useGroupView } from '../features/group/composables/useGroupView';
 
 const {

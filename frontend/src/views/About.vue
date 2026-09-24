@@ -1,4 +1,5 @@
 <script setup>
+import '../assets/legacy/legacy-bundle.css';
 import { RouterLink } from 'vue-router';
 import { DISCORD_INVITE_URL } from '../constants/links';
 </script>

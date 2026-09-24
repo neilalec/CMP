@@ -1,3 +1,9 @@
+body {
+  background: radial-gradient(ellipse at 50% -24%, #1a3550 0%, transparent 58%), var(--cmp-bg);
+  color: var(--cmp-text);
+  font-family: var(--cmp-font-body);
+}
+
 .cmp-page {
   color: var(--cmp-text);
   font-family: var(--cmp-font-body);
@@ -113,12 +119,16 @@
 }
 
 .cmp-input {
+  min-height: 31px;
+  padding: .42rem .62rem;
   border: 1px solid var(--cmp-border-strong);
   border-radius: var(--cmp-radius-sm);
   background: var(--cmp-bg-elevated);
   box-shadow: none;
   color: var(--cmp-text);
   caret-color: var(--cmp-primary);
+  font: inherit;
+  outline: none;
 }
 
 .cmp-input:focus {

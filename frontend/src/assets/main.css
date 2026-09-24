@@ -1,6 +1,4 @@
-/* Global order: reset, transitional legacy, canonical CMP, then CMP primitives. */
+/* Shared CMP styling. Legacy route styles are loaded by their route components. */
 @import './base.css';
-@import './legacy/squad-legacy.css';
 @import './cmp-tokens.css';
-@import './legacy/cmp-compat.css';
 @import './cmp-components.css';

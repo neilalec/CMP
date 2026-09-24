@@ -1,4 +1,5 @@
 <script setup>
+import '../assets/legacy/legacy-bundle.css';
 import { useLobbyView } from '../features/lobby/composables/useLobbyView';
 import LobbyTeamColumn from '../features/lobby/components/LobbyTeamColumn.vue';
 import LobbyMatchInfo from '../features/lobby/components/LobbyMatchInfo.vue';

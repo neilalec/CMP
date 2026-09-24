@@ -1,4 +1,5 @@
 <script setup>
+import '../assets/legacy/legacy-bundle.css';
 import { computed, onMounted, ref } from 'vue';
 import { API_BASE_URL } from '../config';
 import { useAuthStore } from '../stores/authStore';

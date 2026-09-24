@@ -2,17 +2,6 @@ import { createRouter, createWebHistory } from 'vue-router';
 import Play from '../views/Play.vue';
 import Matches from '../views/Matches.vue';
 import Auth from '../views/Auth.vue';
-import Lobby from '../views/Lobby.vue';
-import Profile from '../views/Profile.vue';
-import Group from '../views/Group.vue';
-import Results from '../views/Results.vue';
-import Leaderboard from '../views/Leaderboard.vue';
-import Admin from '../views/Admin.vue';
-import About from '../views/About.vue';
-import Discord from '../views/Discord.vue';
-import Terms from '../views/Terms.vue';
-import Privacy from '../views/Privacy.vue';
-import SteamAuthCallback from '../views/SteamAuthCallback.vue';
 import WardogsPrototype from '../features/wardogs/WardogsPrototype.vue';
 import { useAuthStore } from '@/stores/authStore';
 import { useRootStore } from '@/stores/rootStore';
@@ -25,7 +14,7 @@ const routes = [
   { 
     path: '/play', 
     name: 'play', 
-    component: Play, 
+    component: Play,
     meta: { requiresAuth: true } 
   },
   {
@@ -41,42 +30,42 @@ const routes = [
   { 
     path: '/lobbies', 
     name: 'lobbies', 
-    component: Play, 
+    component: () => import('../views/LegacyLobbies.vue'),
     meta: { requiresAuth: true, legacySquad: true }
   },
   {
     path: '/results',
     name: 'results',
-    component: Results,
+    component: () => import('../views/Results.vue'),
     meta: { requiresAuth: true, legacySquad: true }
   },
   {
     path: '/leaderboard',
     name: 'leaderboard',
-    component: Leaderboard,
+    component: () => import('../views/Leaderboard.vue'),
     meta: { requiresAuth: true, legacySquad: true }
   },
   {
     path: '/discord',
     name: 'discord',
-    component: Discord,
+    component: () => import('../views/Discord.vue'),
     meta: { requiresAuth: true }
   },
   {
     path: '/about',
     name: 'about',
-    component: About,
+    component: () => import('../views/About.vue'),
     meta: { requiresAuth: true }
   },
   {
     path: '/terms',
     name: 'terms',
-    component: Terms
+    component: () => import('../views/Terms.vue')
   },
   {
     path: '/privacy',
     name: 'privacy',
-    component: Privacy
+    component: () => import('../views/Privacy.vue')
   },
   { 
     path: '/auth', 
@@ -87,26 +76,26 @@ const routes = [
   {
     path: '/auth/steam/callback',
     name: 'steam-auth-callback',
-    component: SteamAuthCallback,
+    component: () => import('../views/SteamAuthCallback.vue'),
     meta: { steamCallback: true }
   },
   { 
     path: '/lobby/:lobbyId', 
     name: 'lobby', 
-    component: Lobby, 
+    component: () => import('../views/Lobby.vue'),
     props: true, 
     meta: { requiresAuth: true, legacySquad: true }
   },
   { 
     path: '/profile', 
     name: 'profile', 
-    component: Profile, 
+    component: () => import('../views/Profile.vue'),
     meta: { requiresAuth: true } 
   },
   {
     path: '/admin',
     name: 'admin',
-    component: Admin,
+    component: () => import('../views/Admin.vue'),
     meta: { requiresAuth: true, requiresAdmin: true }
   },
   {
@@ -117,7 +106,7 @@ const routes = [
   { 
     path: '/group', 
     name: 'group', 
-    component: Group, 
+    component: () => import('../views/Group.vue'),
     meta: { requiresAuth: true } 
   },
   {
