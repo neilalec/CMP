@@ -6,6 +6,7 @@ import { useQueueStore } from '../../../stores/queueStore';
 import { useRootStore } from '../../../stores/rootStore';
 import { useSocketStore } from '../../../stores/socketStore';
 import { SOCKET_EVENTS } from '../../../constants/socketEvents';
+import { API_BASE_URL } from '../../../config';
 import { getCurrentLobbyId, setCurrentLobbyId } from '../../../utils/lobbyPersistence';
 import { visibleProductQueues } from '../utils/productQueues';
 import { developmentTarget } from '../../../devTarget';
@@ -223,7 +224,22 @@ export function useHomeView() {
     try {
       const queue = queueStore.queueModes?.[queueMode];
       const seedCount = count ?? Math.max(0, (queue?.maxPlayers || 0) - (queue?.playersInQueue || 0));
-      await queueStore.seedQueue(seedCount, queueMode);
+      if (queue?.gameType === 'wardogs') {
+        if (!isDev || developmentTarget !== 'wardogs') {
+          throw new Error('WARDOGS queue filling is available only in local WARDOGS development.');
+        }
+        const response = await fetch(`${API_BASE_URL}/admin/dev/wardogs/fill`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${authStore.token}` }
+        });
+        const payload = await response.json();
+        if (!response.ok || !payload?.success) {
+          throw new Error(payload?.message || 'Failed to fill WARDOGS queue');
+        }
+        await queueStore.syncWithServer(authStore.username);
+      } else {
+        await queueStore.seedQueue(seedCount, queueMode);
+      }
     } catch (error) {
       rootStore.setError(error.message || 'Failed to seed queue');
     } finally {
