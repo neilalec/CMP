@@ -65,6 +65,17 @@ if ($DevelopmentTarget -eq "squad") {
     $startSquadJs = $env:CMP_START_SQUADJS -eq "1"
 }
 
+if ($startSquadJs) {
+    $squadJsConfigResolvedPath = if ([System.IO.Path]::IsPathRooted($SquadJsConfigPath)) {
+        [System.IO.Path]::GetFullPath($SquadJsConfigPath)
+    } else {
+        [System.IO.Path]::GetFullPath((Join-Path $squadjs $SquadJsConfigPath))
+    }
+    if (-not (Test-Path -LiteralPath $squadJsConfigResolvedPath -PathType Leaf)) {
+        throw "SquadJS config file was not found: $squadJsConfigResolvedPath (relative config paths are resolved from the squadjs directory)."
+    }
+}
+
 $requiredPorts = if ($DevelopmentTarget -eq "squad" -and $startSquadJs) { @(5000, 5173, 3001) } else { @(5000, 5173) }
 foreach ($port in $requiredPorts) {
     if (-not (Test-PortAvailable $port)) {
@@ -163,7 +174,11 @@ try {
             Set-CmpUtf8Output
             Set-Location $workingDirectory
             $env:CMP_DEV_MODE = "1"
-            node index.js $using:SquadJsConfigPath
+            node index.js $using:squadJsConfigResolvedPath 2>&1
+            $nodeExitCode = $LASTEXITCODE
+            if ($nodeExitCode -ne 0) {
+                throw "SquadJS exited with code $nodeExitCode."
+            }
         }
     }
 
@@ -194,8 +209,8 @@ try {
     while ((Get-Date) -lt $readyDeadline -and (-not $backendReady -or -not $frontendReady -or -not $squadJsReady)) {
         foreach ($job in $jobs) {
             if ($job.State -in @("Failed", "Stopped", "Completed")) {
-                $jobOutput = Receive-Job -Job $job -ErrorAction SilentlyContinue | Out-String
-                throw "$($job.Name) stopped before startup was ready. $jobOutput"
+                $jobOutput = Receive-Job -Job $job -ErrorAction SilentlyContinue *>&1 | Out-String
+                throw "$($job.Name) stopped before startup was ready.`n$jobOutput"
             }
         }
         $backendReady = Test-TcpReady 5000
