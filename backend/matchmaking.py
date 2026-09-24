@@ -542,16 +542,32 @@ def assign_teams(players):
     clusters = list(group_map.values()) + [[player] for player in solo_players]
     random.shuffle(clusters)
 
-    for cluster in clusters:
-        if len(team1) + len(cluster) <= cap1:
-            team1.extend(cluster)
-        elif len(team2) + len(cluster) <= cap2:
-            team2.extend(cluster)
-        else:
-            if (cap1 - len(team1)) >= (cap2 - len(team2)):
-                team1.extend(cluster)
-            else:
-                team2.extend(cluster)
+    # Keep premades together where possible while guaranteeing teams fit the
+    # queue format. The old greedy fallback could put an oversized cluster on
+    # the fuller team, producing invalid 7v3 assignments for a 5v5 queue.
+    # Find the largest whole-cluster subset that fits team1, then split only
+    # the minimum number of players from remaining clusters to fill its slots.
+    subset_by_size = {0: ()}
+    for index, cluster in enumerate(clusters):
+        size = len(cluster)
+        for current_size, selected in list(subset_by_size.items()):
+            new_size = current_size + size
+            if new_size <= cap1 and new_size not in subset_by_size:
+                subset_by_size[new_size] = selected + (index,)
+
+    selected_indexes = set(subset_by_size[max(subset_by_size)])
+    team1 = [player for index, cluster in enumerate(clusters) if index in selected_indexes for player in cluster]
+    remaining_clusters = [cluster[:] for index, cluster in enumerate(clusters) if index not in selected_indexes]
+    team2 = [player for cluster in remaining_clusters for player in cluster]
+
+    needed = cap1 - len(team1)
+    for cluster in remaining_clusters:
+        while cluster and needed:
+            team1.append(cluster.pop())
+            team2.remove(team1[-1])
+            needed -= 1
+        if not needed:
+            break
 
     random.shuffle(team1)
     random.shuffle(team2)
