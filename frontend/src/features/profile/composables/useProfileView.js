@@ -6,6 +6,7 @@ import { useQueueStore } from '../../../stores/queueStore';
 import { useRootStore } from '../../../stores/rootStore';
 import { useSocketStore } from '../../../stores/socketStore';
 import { clearCurrentLobby } from '../../../utils/lobbyPersistence';
+import { PASSWORD_AUTH_ENABLED } from '../../../config';
 
 export function useProfileView() {
   const authStore = useAuthStore();
@@ -48,7 +49,9 @@ export function useProfileView() {
       queueStore.resetQueue();
       clearCurrentLobby();
       authStore.logout();
-      await socketStore.initSocket();
+      if (PASSWORD_AUTH_ENABLED) {
+        await socketStore.initSocket();
+      }
       router.replace('/auth');
     } catch (error) {
       rootStore.setError('Logout failed');

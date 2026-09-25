@@ -1,5 +1,6 @@
 import { onBeforeUnmount, onMounted, watch, ref, computed } from 'vue'
 import { SOCKET_EVENTS } from '../../../constants/socketEvents'
+import { PASSWORD_AUTH_ENABLED } from '../../../config'
 import {
   clearCurrentLobby,
   getCurrentLobbyId,
@@ -20,6 +21,10 @@ export function useAppSession({
   const isSessionlessRoute = () => (
     route.meta?.prototype === true
     || (typeof window !== 'undefined' && window.location.pathname.startsWith('/prototype/'))
+  )
+  const shouldSkipSessionBootstrap = () => (
+    isSessionlessRoute()
+    || (!PASSWORD_AUTH_ENABLED && route.meta?.guest === true)
   )
   const isInLobby = computed(() => isLobbyRoute(route.path))
   const currentLobbyId = ref(getCurrentLobbyId())
@@ -274,7 +279,7 @@ export function useAppSession({
   }
 
   onMounted(async () => {
-    if (isSessionlessRoute()) {
+    if (shouldSkipSessionBootstrap()) {
       socketStore.cleanupSocket()
       rootStore.clearError()
       return
@@ -286,6 +291,11 @@ export function useAppSession({
       // initial restore below owns socket startup in that case; skip the
       // reactive auth watcher for the same transition.
       skipNextAuthWatch = isAuthenticated
+
+      // The callback view owns the transition from Steam's redirect payload
+      // to persisted frontend auth. Do not connect anonymously or send it to
+      // /auth while that callback is still establishing the session.
+      if (!isAuthenticated && route.meta?.steamCallback) return
 
       if (isAuthenticated) {
         try {
@@ -318,7 +328,7 @@ export function useAppSession({
   })
 
   watch(() => authStore.isLoggedIn, async (isLoggedIn) => {
-    if (isSessionlessRoute()) return
+    if (shouldSkipSessionBootstrap()) return
     if (skipNextAuthWatch) {
       skipNextAuthWatch = false
       return
