@@ -1,6 +1,5 @@
 import { mount } from '@vue/test-utils'
 import { createTestingPinia } from '@pinia/testing'
-import { useGroupStore } from '@/stores/groupStore'
 import WardogsQueueCard from '@/features/home/components/WardogsQueueCard.vue'
 
 const mode = (overrides = {}) => ({
@@ -35,8 +34,6 @@ const mountCard = (overrides = {}, initialState = {}) => {
       isGroupLeader: false,
       hasSteamId: true,
       groupMemberCount: 1,
-      canManageQueueTools: false,
-      getQueueProgressPercent: jest.fn(() => 44),
       isModeQueueFull: jest.fn(() => false),
       ...overrides
     },
@@ -65,7 +62,7 @@ describe('WARDOGS Play queue card', () => {
     expect(wrapper.get('.wardogs-queue-action').classes()).toContain('cmp-button--primary')
     expect(wrapper.find('.wardogs-queue-action').text()).toBe('Join Queue')
     expect(wrapper.get('.wardogs-queue-card').classes()).not.toContain('is-queued')
-    expect(wrapper.find('.wardogs-queue-status').text()).toBe('Queue open.')
+    expect(wrapper.find('.wardogs-queue-status').exists()).toBe(false)
     expect(wrapper.find('.window-titlebar').exists()).toBe(false)
     expect(wrapper.find('.queue-admin-tools').exists()).toBe(false)
     expect(wrapper.text().toLowerCase()).not.toContain('squad')
@@ -79,7 +76,7 @@ describe('WARDOGS Play queue card', () => {
     await wrapper.setProps({ inQueue: true, currentQueueMode: 'wardogs_beta9' })
     expect(wrapper.get('.wardogs-queue-card').classes()).toContain('is-queued')
     expect(wrapper.find('.wardogs-queue-state').text()).toBe('In queue')
-    expect(wrapper.find('.wardogs-queue-status').text()).toBe('You’re in the queue.')
+    expect(wrapper.get('h2').text()).toBe('Finding a match')
     expect(wrapper.find('.wardogs-queue-action').text()).toBe('Leave Queue')
     expect(wrapper.get('.wardogs-queue-action').classes()).toContain('cmp-button--secondary')
     await wrapper.find('.wardogs-queue-action').trigger('click')
@@ -103,7 +100,7 @@ describe('WARDOGS Play queue card', () => {
     const { wrapper } = mountCard({ matchAcceptActive: true })
     expect(wrapper.find('.wardogs-queue-action').exists()).toBe(false)
     expect(wrapper.get('.wardogs-queue-state').text()).toBe('Match found')
-    expect(wrapper.find('.wardogs-queue-status').text()).toBe('Match forming.')
+    expect(wrapper.find('.wardogs-queue-status').exists()).toBe(false)
   })
 
   test('keeps Leave Queue available when matchmaking becomes unavailable', () => {
@@ -122,11 +119,11 @@ describe('WARDOGS Play queue card', () => {
       { group: { code: 'ABCD', leader: 'player1', members: ['player1', 'player2', 'player3'], playerProfiles: {} } }
     )
     expect(wrapper.find('.wardogs-queue-action').text()).toBe('Join Queue')
-    expect(wrapper.find('.wardogs-queue-status').text()).toBe('Ready to queue your group of 3.')
+    expect(wrapper.find('.wardogs-queue-status').exists()).toBe(false)
     expect(wrapper.get('.wardogs-play-group').text()).toContain('Group of 3')
     expect(wrapper.get('.wardogs-play-group').text()).toContain('Leader: player1')
-    expect(wrapper.get('.wardogs-play-group').text()).toContain('You control queueing for this group.')
-    expect(wrapper.get('.wardogs-play-manage').attributes('href')).toBe('/group')
+    expect(wrapper.get('.wardogs-play-group').text()).toContain('You control queueing')
+    expect(wrapper.get('.wardogs-play-group a').attributes('href')).toBe('/group')
   })
 
   test('explains that only the group leader can leave a queued group', () => {
@@ -138,9 +135,9 @@ describe('WARDOGS Play queue card', () => {
       groupMemberCount: 3
     }, { group: { code: 'ABCD', leader: 'player2', members: ['player1', 'player2', 'player3'], playerProfiles: {} } })
     expect(wrapper.find('.wardogs-queue-action').exists()).toBe(false)
-    expect(wrapper.find('.wardogs-queue-status').text()).toBe('Your group leader manages this queue.')
+    expect(wrapper.find('.wardogs-queue-status').exists()).toBe(false)
     expect(wrapper.get('.wardogs-play-group').text()).toContain('Leader: player2')
-    expect(wrapper.get('.wardogs-play-group').text()).toContain('Only the group leader controls queueing.')
+    expect(wrapper.get('.wardogs-play-group').text()).toContain('Leader controls queueing')
   })
 
   test('shows the queued group state for its leader', () => {
@@ -151,7 +148,7 @@ describe('WARDOGS Play queue card', () => {
       isGroupLeader: true,
       groupMemberCount: 3
     }, { group: { code: 'ABCD', leader: 'player1', members: ['player1', 'player2', 'player3'], playerProfiles: {} } })
-    expect(wrapper.find('.wardogs-queue-status').text()).toBe('Your group of 3 is queued.')
+    expect(wrapper.get('h2').text()).toBe('Finding a match')
     expect(wrapper.find('.wardogs-queue-action').text()).toBe('Leave Queue')
     expect(wrapper.find('.wardogs-queue-action').attributes('disabled')).toBeUndefined()
   })
@@ -163,42 +160,27 @@ describe('WARDOGS Play queue card', () => {
     expect(wrapper.get('button.wardogs-queue-action').attributes('aria-busy')).toBe('true')
   })
 
-  test('shows direct solo group actions and invokes existing group actions', async () => {
-    const { wrapper, pinia } = mountCard()
-    const groupStore = useGroupStore(pinia)
+  test('links solo players to create or join a group', () => {
+    const { wrapper } = mountCard()
     expect(wrapper.get('.wardogs-play-group').text()).toContain('Solo')
     expect(wrapper.get('.wardogs-play-group').text()).toContain('Create group')
     expect(wrapper.get('.wardogs-play-group').text()).toContain('Join group')
 
-    await wrapper.get('.wardogs-play-group-actions > button').trigger('click')
-    expect(groupStore.createGroup).toHaveBeenCalledWith('player1')
-
-    await wrapper.get('#wardogs-play-group-code').setValue('ab12')
-    await wrapper.get('.wardogs-play-join').trigger('submit')
-    expect(groupStore.joinGroup).toHaveBeenCalledWith('player1', 'AB12')
+    expect(wrapper.findAll('.wardogs-play-group-actions a')).toHaveLength(2)
+    expect(wrapper.findAll('.wardogs-play-group-actions a').every((link) => link.attributes('href') === '/group')).toBe(true)
   })
 
-  test('keeps solo group actions disabled while queued', () => {
+  test('keeps queue controls separate from group management while queued', () => {
     const { wrapper } = mountCard({ inQueue: true, currentQueueMode: 'wardogs_beta9' })
-    expect(wrapper.get('.wardogs-play-group-actions > button').attributes('disabled')).toBeDefined()
-    expect(wrapper.get('#wardogs-play-group-code').attributes('disabled')).toBeDefined()
-    expect(wrapper.get('.wardogs-play-group').text()).toContain('Group changes are unavailable while queued or in a match.')
+    expect(wrapper.get('button.wardogs-queue-action').text()).toBe('Leave Queue')
+    expect(wrapper.find('#wardogs-play-group-code').exists()).toBe(false)
   })
 
-  test('keeps queue tools separate and admin-only', async () => {
+  test('removes developer controls from the participant queue card', () => {
     const { wrapper: participant } = mountCard()
     expect(participant.find('.wardogs-queue-admin-tools').exists()).toBe(false)
-
     const { wrapper: admin } = mountCard({ canManageQueueTools: true })
-    expect(admin.find('.wardogs-queue-admin-tools').exists()).toBe(true)
-    await admin.find('.wardogs-queue-admin-tools summary').trigger('click')
-    const buttons = admin.findAll('.queue-dev-actions button')
-    await buttons[0].trigger('click')
-    await buttons[1].trigger('click')
-    await buttons[2].trigger('click')
-    expect(admin.emitted('seed-queue')).toEqual([['wardogs_beta9']])
-    expect(admin.emitted('clear-queue')).toEqual([['wardogs_beta9']])
-    expect(admin.emitted('set-queue-enabled')).toEqual([['wardogs_beta9', false]])
+    expect(admin.find('.wardogs-queue-admin-tools').exists()).toBe(false)
   })
 
   test('replaces the queue action with the active WARDOGS match link', () => {
@@ -206,6 +188,7 @@ describe('WARDOGS Play queue card', () => {
     expect(wrapper.find('a.wardogs-queue-action').text()).toBe('Open Match')
     expect(wrapper.find('a.wardogs-queue-action').attributes('href')).toBe('/wardogs/lobby/wardogs-match-1')
     expect(wrapper.find('button.wardogs-queue-action').exists()).toBe(false)
-    expect(wrapper.get('.wardogs-play-group-actions > button').attributes('disabled')).toBeDefined()
+    expect(wrapper.find('.wardogs-play-group').exists()).toBe(false)
+    expect(wrapper.find('.wardogs-queue-count').exists()).toBe(false)
   })
 })

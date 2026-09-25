@@ -4,10 +4,12 @@ import { buildRoutes } from '@/router';
 import { useAuthStore } from '@/stores/authStore';
 import { useRootStore } from '@/stores/rootStore';
 import { useSocketStore } from '@/stores/socketStore';
+import { useQueueStore } from '@/stores/queueStore';
 
 jest.mock('@/stores/authStore', () => ({ useAuthStore: jest.fn() }));
 jest.mock('@/stores/rootStore', () => ({ useRootStore: jest.fn() }));
 jest.mock('@/stores/socketStore', () => ({ useSocketStore: jest.fn() }));
+jest.mock('@/stores/queueStore', () => ({ useQueueStore: jest.fn() }));
 
 const response = (payload, ok = true) => ({ ok, text: async () => JSON.stringify(payload),
   headers: { get: () => 'application/json' } });
@@ -26,6 +28,8 @@ describe('WARDOGS Admin console', () => {
     useAuthStore.mockReturnValue(auth);
     useRootStore.mockReturnValue({ setError: jest.fn() });
     useSocketStore.mockReturnValue({ emit: jest.fn() });
+    useQueueStore.mockReturnValue({ clearQueue: jest.fn().mockResolvedValue(null),
+      setQueueEnabled: jest.fn().mockResolvedValue(null) });
     diagnostics = { generatedAt: 1790260000, database: { ok: true }, queueSize: 1,
       queueModes: { wardogs_beta9: { id: 'wardogs_beta9', gameType: 'wardogs',
         label: 'WARDOGS Beta · 3 factions', size: 1, requiredPlayers: 9,
@@ -65,6 +69,20 @@ describe('WARDOGS Admin console', () => {
     expect(page).not.toContain('Correct result');
     expect(page).not.toContain('Bridge');
     wrapper.unmount();
+  });
+
+  test('keeps WARDOGS queue maintenance in development Admin', async () => {
+    const wrapper = mountAdmin();
+    await flushPromises();
+    const maintenance = wrapper.findAll('details').find((item) => item.text().includes('Queue maintenance'));
+    expect(maintenance).toBeDefined();
+    const buttons = maintenance.findAll('button');
+    await buttons[0].trigger('click');
+    await flushPromises();
+    expect(useQueueStore().clearQueue).toHaveBeenCalledWith('wardogs_beta9');
+    await buttons[1].trigger('click');
+    await flushPromises();
+    expect(useQueueStore().setQueueEnabled).toHaveBeenCalledWith('wardogs_beta9', false);
   });
 
   test('does not infer allocator eligibility from a registered server or the Squad-scoped available list', async () => {

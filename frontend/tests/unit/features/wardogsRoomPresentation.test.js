@@ -28,9 +28,9 @@ describe('WARDOGS room presentation', () => {
     const participant = findParticipant(match, 'alice');
     expect(matchRoomState(match, participant)).toMatchObject({ title: 'Waiting for server', joinProminent: false });
     const view = mount(MatchStateHeader, { props: { match, participant } });
-    expect(view.text()).toContain('Waiting for allocation');
-    expect(view.text()).toContain('Valkyra · Active');
-    expect(view.text()).toContain('Server presence unknown');
+    expect(view.text()).toContain('Waiting for server');
+    expect(view.text()).toContain('You are active · Valkyra');
+    expect(view.text()).not.toContain('Server presence unknown');
   });
 
   test('Join ID is actionable before connection and secondary after alignment', async () => {
@@ -39,6 +39,8 @@ describe('WARDOGS room presentation', () => {
       instructions: ['Open WARDOGS.', 'Choose Join By ID.'] };
     const participant = findParticipant(match, 'alice');
     expect(matchRoomState(match, participant)).toMatchObject({ title: 'Server ready', joinProminent: true });
+    const header = mount(MatchStateHeader, { props: { match, participant } });
+    expect(header.text()).toContain('join-123');
     const join = mount(JoinState, { props: { join: match.join, prominent: true } });
     expect(join.text()).toContain('join-123');
     expect(join.get('button').text()).toBe('Copy Join ID');
@@ -68,7 +70,7 @@ describe('WARDOGS room presentation', () => {
     expect(matchRoomState(match, participant)).toMatchObject({ title: 'Connected on wrong faction', action: 'Move to Valkyra' });
     participant.player.rosterStatus = 'reserve';
     const header = mount(MatchStateHeader, { props: { match, participant } });
-    expect(header.text()).toContain('Valkyra · Reserve');
+    expect(header.text()).toContain('You are reserve · Valkyra');
     expect(header.text()).toContain('Connected on Lonestar; assigned Valkyra');
     const roster = mount(FactionRoster, { props: { faction: match.factions[0],
       summary: factionSummary(match.factions[0]), observationState: 'fresh',
@@ -101,7 +103,7 @@ describe('WARDOGS room presentation', () => {
     const roster = mount(FactionRoster, { props: { faction: match.factions[0],
       summary: factionSummary(match.factions[0]), observationState: 'none',
       myGroupId: 'premade-1', myPlayerId: 'alice' } });
-    expect(header.text()).toContain('Server presence unknown');
+    expect(header.text()).not.toContain('Not observed on server');
     expect(roster.text()).toContain('Server presence unknown');
     expect(roster.text()).not.toContain('Not observed on server');
     expect(roster.text()).toContain('Your group');
@@ -127,7 +129,7 @@ describe('WARDOGS room presentation', () => {
     const updated = JSON.parse(JSON.stringify(match));
     await header.setProps({ match: updated, participant: findParticipant(updated, 'alice') });
     expect(matchRoomState(match, participant).title).toBe('Ready');
-    expect(header.text()).toContain('CMP readiness: Ready');
+    expect(header.text()).toContain('CMP ready');
   });
 
   test('observed scores stay evidence while current confirmed revisions carry authority', () => {
@@ -145,8 +147,9 @@ describe('WARDOGS room presentation', () => {
       ['void', null, 'Void / cancelled']
     ]) {
       match.result = { status, placementGroups, revisionNumber: 2, corrected: true };
-      const result = mount(WardogsResultConfirmation, { props: { match, canConfirm: false } });
+      const result = mount(WardogsResultConfirmation, { props: { match, participant: findParticipant(match, 'alice'), canConfirm: false } });
       expect(result.get('.wardogs-result-outcome').text()).toBe(outcome);
+      expect(result.text()).toContain('Your faction: Valkyra');
       expect(result.text()).toContain('AUTHORITATIVE · Revision 2');
       expect(result.text()).toContain('Result corrected by an administrator.');
       if (status === 'incomplete' || status === 'void') expect(result.text()).toContain('No competitive placement was recorded.');

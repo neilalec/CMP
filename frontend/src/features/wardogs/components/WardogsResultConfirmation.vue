@@ -3,6 +3,7 @@ import { computed, reactive, ref, watch } from 'vue';
 
 const props = defineProps({
   match: { type: Object, required: true },
+  participant: { type: Object, default: null },
   canConfirm: { type: Boolean, default: false },
   confirming: { type: Boolean, default: false },
   correcting: { type: Boolean, default: false },
@@ -51,6 +52,16 @@ const resultLabel = (value) => ({
 })[value] || value;
 const signedDelta = (value) => value > 0 ? `+${value}` : value < 0 ? `−${Math.abs(value)}` : '0';
 const ordinal = (rank) => ({ 1: '1st', 2: '2nd', 3: '3rd' })[rank] || `${rank}th`;
+const personalPlacement = computed(() => {
+  const factionId = props.participant?.faction?.id;
+  if (!factionId || !Array.isArray(props.match.result?.placementGroups)) return '';
+  let rank = 1;
+  for (const group of props.match.result.placementGroups) {
+    if (group.includes(factionId)) return `${group.length > 1 ? 'Tied ' : ''}${ordinal(rank)}`;
+    rank += group.length;
+  }
+  return '';
+});
 const placementRows = (result) => {
   if (!Array.isArray(result?.placementGroups)) return [];
   let rank = 1;
@@ -135,6 +146,7 @@ const submit = () => {
     <details class="wardogs-operator-disclosure cmp-disclosure" :open="correctionMode">
       <summary>{{ correctionMode ? `Correct result · revision ${(match.result.revisionNumber || 1) + 1}` : 'Referee tools · confirm result' }} <span>ADMIN</span></summary>
       <div class="wardogs-operator-form">
+    <p v-if="historyError && !resultHistory.length" role="alert">{{ historyError }}</p>
     <p v-if="correctionMode">A new immutable revision will supersede the current result. The previous revision remains in history.</p>
     <p v-else>Live scores are evidence only. Enter the placement explicitly; CMP will not infer completion or ranking from scores.</p>
     <div v-if="successfulObservation" class="wardogs-result-note">
@@ -196,6 +208,7 @@ const submit = () => {
   <section v-else-if="match.result?.status !== 'unconfirmed'" class="cmp-surface wardogs-confirmed-result" :class="`is-${match.result.status}`" aria-label="Referee confirmed result">
     <header><div><p class="cmp-kicker">Current result<span v-if="match.result.corrected"> · corrected</span></p><h2>Referee confirmed result</h2></div><span>AUTHORITATIVE · Revision {{ match.result.revisionNumber || 1 }}</span></header>
     <strong class="wardogs-result-outcome">{{ resultLabel(match.result.status) }}</strong>
+    <p v-if="participant" class="wardogs-personal-result">Your faction: {{ participant.faction.name }}<template v-if="personalPlacement"> · {{ personalPlacement }}</template></p>
     <div v-if="placementRows(match.result).length" class="wardogs-confirmed-placement" aria-label="Confirmed placement">
       <div v-for="row in placementRows(match.result)" :key="`${row.rank}-${row.factions.join('-')}`">
         <strong>{{ ordinal(row.rank) }}</strong> {{ row.factions.join(' / ') }}
@@ -208,9 +221,9 @@ const submit = () => {
       <span v-for="faction in match.factions" :key="faction.id">{{ faction.name }}: {{ match.result.scores[faction.id] }}</span>
     </div>
     <small v-if="match.result.confirmedAt">Confirmed {{ match.result.confirmedAt }}</small>
-    <details v-if="canConfirm && !correctionMode" class="wardogs-result-operator cmp-disclosure"><summary>Referee tools · correction</summary><button class="cmp-button cmp-button--secondary" type="button" :disabled="!currentRevision" @click="beginCorrection">Correct result</button><p v-if="!currentRevision" class="wardogs-result-note">Loading administrator revision history…</p></details>
+    <details v-if="canConfirm && !correctionMode" class="wardogs-result-operator cmp-disclosure"><summary>Referee tools · correction</summary><button class="cmp-button cmp-button--secondary" type="button" :disabled="!currentRevision" @click="beginCorrection">Correct result</button><p v-if="historyError" role="alert">{{ historyError }}</p><p v-else-if="!currentRevision" class="wardogs-result-note">Loading administrator revision history…</p></details>
   </section>
-  <section v-if="match.rating" class="wardogs-player-rating cmp-inset" aria-label="Your WARDOGS rating">
+  <section v-if="match.rating && match.result?.status !== 'unconfirmed'" class="wardogs-player-rating cmp-inset" aria-label="Your WARDOGS rating">
     <h2>Your WARDOGS rating</h2><strong>WARDOGS rating: {{ match.rating.currentRating }}</strong>
     <p v-if="match.rating.match">This match: {{ signedDelta(match.rating.match.delta) }} ({{ match.rating.match.before }} → {{ match.rating.match.after }})</p>
   </section>
@@ -234,5 +247,4 @@ const submit = () => {
       <small v-if="revision.observation?.available">Observation {{ revision.observation.observedAt }} · {{ revision.observation.differsFromObservation ? 'scores differed' : 'scores matched' }}</small>
     </article></div></details>
   </section>
-  <p v-if="canConfirm && historyError && !resultHistory.length" role="alert">{{ historyError }}</p>
 </template>

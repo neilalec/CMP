@@ -24,6 +24,9 @@ const route = useRoute();
 const { match, mode, scenarioKey, scenarioOptions, factionSummaries, rankedResults, loading, error } = storeToRefs(store);
 const participant = computed(() => findParticipant(match.value, authStore.username));
 const roomState = computed(() => match.value ? matchRoomState(match.value, participant.value) : null);
+const hasObservedScores = computed(() => (match.value?.source !== 'cmp-backend' && match.value?.phase !== 'assembling') ||
+  (Boolean(match.value?.observation?.observedAt) &&
+    Object.values(match.value?.scores || {}).some((score) => Number.isInteger(score))));
 const backendLobbyId = computed(() => route.name === 'wardogs-lobby' || route.query.source === 'backend'
   ? (typeof route.params.lobbyId === 'string' ? route.params.lobbyId
     : (typeof route.query.lobby === 'string' ? route.query.lobby : '')) : '');
@@ -151,25 +154,19 @@ const onScenarioChange = (event) => store.selectScenario(event.target.value);
     <p v-if="loading" class="cmp-loading-state" role="status">Loading WARDOGS lobby…</p>
     <p v-if="error" class="cmp-error-state" role="alert">{{ error }}</p>
     <template v-if="match">
-      <MatchStateHeader :match="match" :participant="participant" />
-      <p v-if="mode === 'backend'" class="wardogs-observation-banner cmp-status" :class="match.observation?.state === 'fresh' ? 'cmp-status--success' : 'cmp-status--stale'" role="status">
-        <span v-if="match.observation?.state === 'fresh'">Server observation current<span v-if="match.observation.observedAt"> · {{ match.observation.observedAt }}</span></span>
-        <span v-else-if="match.observation?.state === 'stale'">Server observation stale · roster presence is last known, not current<span v-if="match.observation.observedAt"> · {{ match.observation.observedAt }}</span></span>
-        <span v-else>Server presence unknown<span v-if="match.observation?.pollState === 'error'"> · latest read unavailable</span></span>
-      </p>
-      <JoinState v-if="mode === 'backend' && match.join.state !== 'waiting_for_server'" :join="match.join" :prominent="roomState.joinProminent" />
-      <WardogsResultConfirmation v-if="mode === 'backend' && roomState.resultProminent" :match="match" :can-confirm="authStore.isAdmin && !participantPreview" :confirming="confirmingResult" :correcting="correctingResult" :result-history="resultHistory" :history-error="resultHistoryError" @confirm="confirmResult" @correct="correctResult" />
+      <WardogsResultConfirmation v-if="mode === 'backend' && roomState.resultProminent" :match="match" :participant="participant" :can-confirm="authStore.isAdmin && !participantPreview" :confirming="confirmingResult" :correcting="correctingResult" :result-history="resultHistory" :history-error="resultHistoryError" @confirm="confirmResult" @correct="correctResult" />
+      <MatchStateHeader v-else :match="match" :participant="participant" />
+      <JoinState v-if="mode === 'backend' && match.join.state !== 'waiting_for_server' && !roomState.joinProminent" :join="match.join" :prominent="false" />
       <section class="wardogs-roster-area" aria-label="Faction rosters">
         <div class="wardogs-section-heading cmp-section-header">
-          <div><p class="cmp-kicker">Planned assignment</p><h2>Faction rosters</h2></div>
-          <p>Server observations appear in each roster</p>
+          <div><h2>Faction rosters</h2></div>
         </div>
         <div class="wardogs-faction-grid">
-          <FactionRoster v-for="faction in match.factions" :key="faction.id" :faction="faction" :summary="factionSummaries[faction.id]" :observation-state="match.observation?.state || (mode === 'mock' ? 'demo' : 'none')" :my-group-id="participant?.group.id" :my-player-id="participant?.player.id" />
+          <FactionRoster v-for="faction in match.factions" :key="faction.id" :class="{ 'is-own-faction': faction.id === participant?.faction.id }" :faction="faction" :summary="factionSummaries[faction.id]" :observation-state="match.observation?.state || (mode === 'mock' ? 'demo' : 'none')" :my-group-id="participant?.group.id" :my-player-id="participant?.player.id" />
         </div>
       </section>
-      <ScoreAndResults v-if="mode === 'backend' || match.phase !== 'assembling'" :match="match" :summaries="factionSummaries" :ranked-results="rankedResults" />
-      <WardogsResultConfirmation v-if="mode === 'backend' && !roomState.resultProminent" :match="match" :can-confirm="authStore.isAdmin && !participantPreview" :confirming="confirmingResult" :correcting="correctingResult" :result-history="resultHistory" :history-error="resultHistoryError" @confirm="confirmResult" @correct="correctResult" />
+      <details v-if="hasObservedScores" class="wardogs-secondary-detail cmp-disclosure"><summary>{{ roomState.resultProminent ? 'Observed score evidence' : 'Observed scores' }}</summary><ScoreAndResults :match="match" :summaries="factionSummaries" :ranked-results="rankedResults" /></details>
+      <WardogsResultConfirmation v-if="mode === 'backend' && !roomState.resultProminent" :match="match" :participant="participant" :can-confirm="authStore.isAdmin && !participantPreview" :confirming="confirmingResult" :correcting="correctingResult" :result-history="resultHistory" :history-error="resultHistoryError" @confirm="confirmResult" @correct="correctResult" />
       <MatchOverview :match="match" />
     </template>
   </component>

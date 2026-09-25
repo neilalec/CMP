@@ -14,13 +14,11 @@ const props = defineProps({
   isGroupLeader: { type: Boolean, required: true },
   hasSteamId: { type: Boolean, required: true },
   groupMemberCount: { type: Number, required: true },
-  canManageQueueTools: { type: Boolean, required: true },
   wardogsLobbyId: { type: String, default: null },
-  getQueueProgressPercent: { type: Function, required: true },
   isModeQueueFull: { type: Function, required: true }
 })
 
-const emit = defineEmits(['join-queue', 'leave-queue', 'seed-queue', 'clear-queue', 'set-queue-enabled'])
+const emit = defineEmits(['join-queue', 'leave-queue'])
 
 const maxPlayers = computed(() => Number(props.mode.maxPlayers) || 9)
 const playersQueued = computed(() => Math.max(0, Number(props.mode.playersInQueue) || 0))
@@ -88,10 +86,19 @@ const handleAction = () => {
 
 <template>
   <article class="wardogs-queue-card cmp-surface" :class="{ 'is-queued': isQueuedHere, 'has-match': wardogsLobbyId }">
+    <template v-if="wardogsLobbyId">
+      <div class="wardogs-current-match" role="status">
+        <p class="cmp-kicker">Current match</p>
+        <h2>Your match is ready</h2>
+        <p>Return to your WARDOGS match.</p>
+        <RouterLink class="wardogs-queue-action cmp-button cmp-button--primary" :to="`/wardogs/lobby/${wardogsLobbyId}`">Open Match</RouterLink>
+      </div>
+    </template>
+    <template v-else>
     <header class="wardogs-queue-heading">
       <div>
-        <p class="cmp-kicker">Queue</p>
-        <h2 class="cmp-heading">{{ title }}</h2>
+        <p class="cmp-kicker">WARDOGS matchmaking</p>
+        <h2 class="cmp-heading">{{ isQueuedHere ? 'Finding a match' : title }}</h2>
         <p class="wardogs-queue-format">{{ formatLabel }}</p>
       </div>
       <span class="cmp-status wardogs-queue-state" :class="stateTone">{{ stateLabel }}</span>
@@ -114,23 +121,12 @@ const handleAction = () => {
         </div>
       </div>
       <div class="wardogs-queue-decision">
-        <p class="wardogs-queue-status" :class="{ 'is-blocking': isBlocked && !isQueuedHere }" role="status">{{ status }}</p>
-        <RouterLink v-if="wardogsLobbyId" class="wardogs-queue-action cmp-button cmp-button--primary" :to="`/wardogs/lobby/${wardogsLobbyId}`">Open Match</RouterLink>
-        <button v-else-if="canLeave" class="wardogs-queue-action cmp-button cmp-button--secondary is-leave" type="button" :disabled="loading" :aria-busy="loading" @click="handleAction">{{ loading ? 'Leaving…' : 'Leave Queue' }}</button>
+        <p v-if="isBlocked && !isQueuedHere" class="wardogs-queue-status is-blocking" role="status">{{ status }}</p>
+        <button v-if="canLeave" class="wardogs-queue-action cmp-button cmp-button--secondary is-leave" type="button" :disabled="loading" :aria-busy="loading" @click="handleAction">{{ loading ? 'Leaving…' : 'Leave Queue' }}</button>
         <button v-else-if="canJoin" class="wardogs-queue-action cmp-button cmp-button--primary" type="button" :disabled="loading" :aria-busy="loading" @click="handleAction">{{ loading ? 'Joining…' : 'Join Queue' }}</button>
       </div>
     </div>
-
-    <details v-if="canManageQueueTools" class="wardogs-queue-admin-tools cmp-disclosure">
-      <summary>Queue tools</summary>
-      <div class="queue-dev-actions">
-        <button class="cmp-button cmp-button--secondary" type="button" :disabled="loading" @click="emit('seed-queue', mode.id)">Fill WARDOGS beta queue</button>
-        <button class="cmp-button cmp-button--secondary" type="button" :disabled="loading" @click="emit('clear-queue', mode.id)">Clear queue</button>
-        <button class="cmp-button cmp-button--secondary" type="button" :disabled="loading" @click="emit('set-queue-enabled', mode.id, isQueueDisabled)">
-          {{ isQueueDisabled ? 'Enable queue' : 'Disable queue' }}
-        </button>
-      </div>
-    </details>
+    </template>
   </article>
 </template>
 
@@ -141,11 +137,16 @@ const handleAction = () => {
   margin: 0 auto;
   padding: var(--cmp-space-5);
   display: grid;
-  gap: var(--cmp-space-5);
+  gap: var(--cmp-space-4);
   border-top: 3px solid var(--cmp-border-strong);
 }
 .wardogs-queue-card.is-queued { border-top-color: var(--cmp-primary); }
 .wardogs-queue-card.has-match { border-top-color: var(--cmp-success); }
+.wardogs-current-match { display: grid; justify-items: start; gap: var(--cmp-space-3); padding: var(--cmp-space-3) 0; }
+.wardogs-current-match h2 { margin: 0; font-size: clamp(1.8rem, 3vw, 2.6rem); }
+.wardogs-current-match p:not(.cmp-kicker) { margin: 0; color: var(--cmp-text-secondary); }
+.wardogs-current-match .wardogs-queue-action { width: min(100%, 240px); margin-top: var(--cmp-space-3); }
+.wardogs-queue-card.is-queued { background: color-mix(in srgb, var(--cmp-primary) 6%, var(--cmp-surface)); }
 .wardogs-queue-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--cmp-space-4); }
 .wardogs-queue-heading h2 { margin: var(--cmp-space-1) 0 0; font-size: 1.5rem; letter-spacing: -.03em; line-height: 1.15; }
 .wardogs-queue-format { margin: var(--cmp-space-1) 0 0; color: var(--cmp-text-secondary); font-size: .875rem; }
@@ -161,14 +162,10 @@ const handleAction = () => {
 .wardogs-queue-slots span { display: block; height: 9px; border: 1px solid var(--cmp-border-strong); border-radius: 2px; background: var(--cmp-surface-inset); }
 .wardogs-queue-slots span.is-filled { border-color: var(--cmp-primary); background: var(--cmp-primary); }
 .wardogs-queue-decision { display: grid; gap: var(--cmp-space-2); align-content: end; }
-.wardogs-queue-status { margin: 0; min-height: 2.6em; color: var(--cmp-text-secondary); font-size: .8125rem; line-height: 1.3; }
+.wardogs-queue-status { margin: 0; color: var(--cmp-text-secondary); font-size: .8125rem; line-height: 1.3; }
 .wardogs-queue-status.is-blocking { color: var(--cmp-warning); }
 .wardogs-queue-action { width: 100%; min-height: 44px; }
 .wardogs-queue-action.is-leave:hover:not(:disabled) { border-color: var(--cmp-danger); color: var(--cmp-danger); }
-.wardogs-queue-admin-tools { padding-top: var(--cmp-space-2); }
-.wardogs-queue-admin-tools summary { width: fit-content; font-size: .8125rem; }
-.queue-dev-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap: var(--cmp-space-2); margin-top: var(--cmp-space-3); }
-.queue-dev-actions button { min-height: 42px; padding-inline: var(--cmp-space-2); font-size: .75rem; }
 @media (max-width: 600px) {
   .wardogs-queue-card { padding: var(--cmp-space-4); gap: var(--cmp-space-4); }
   .wardogs-queue-bottom { grid-template-columns: 1fr; gap: var(--cmp-space-4); }

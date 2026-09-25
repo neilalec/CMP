@@ -71,7 +71,7 @@ watch(() => route.fullPath, () => {
             <nav id="primary-navigation" class="primary-nav" :class="{ 'is-open': mobileNavOpen }" aria-label="Primary">
               <RouterLink to="/play" @click="mobileNavOpen = false">Play</RouterLink>
               <RouterLink to="/matches" :class="{ 'is-active': matchesActive }" @click="mobileNavOpen = false">Matches</RouterLink>
-              <RouterLink to="/group" @click="mobileNavOpen = false">Group</RouterLink>
+              <RouterLink class="mobile-group-link" to="/group" @click="mobileNavOpen = false">Group</RouterLink>
               <RouterLink class="mobile-profile-link" to="/profile" @click="mobileNavOpen = false">Profile</RouterLink>
               <RouterLink v-if="canViewAdmin" class="admin-nav-link" to="/admin" @click="mobileNavOpen = false">Admin</RouterLink>
             </nav>
@@ -93,7 +93,8 @@ watch(() => route.fullPath, () => {
                 <span class="account-name">{{ authStore.playerName || authStore.username }}</span>
               </summary>
               <div class="account-menu-items">
-                <RouterLink to="/profile">Profile</RouterLink>
+              <RouterLink to="/profile">Profile</RouterLink>
+              <RouterLink to="/group">Group</RouterLink>
                 <RouterLink to="/about">About</RouterLink>
                 <RouterLink to="/discord">Discord</RouterLink>
               </div>
@@ -168,6 +169,7 @@ watch(() => route.fullPath, () => {
 .primary-nav a.router-link-active, .primary-nav a.is-active { color: var(--cmp-text); }
 .primary-nav a.router-link-active::after, .primary-nav a.is-active::after { content: ''; position: absolute; inset: auto 0 0; height: 2px; background: var(--cmp-primary-hover); }
 .primary-nav .mobile-profile-link { display: none; }
+.primary-nav .mobile-group-link { display: none; }
 .primary-nav .admin-nav-link { margin-left: 3px; color: var(--cmp-text-muted); }
 .current-match-link { display: inline-flex; align-items: center; gap: 8px; flex: none; min-height: 42px; margin-left: auto; padding: 7px 9px; color: var(--cmp-text); font-size: .78rem; font-weight: 700; text-decoration: none; white-space: nowrap; }
 .current-match-link:hover { color: var(--cmp-primary-hover); }
@@ -200,6 +202,7 @@ watch(() => route.fullPath, () => {
   .primary-nav.is-open { display: grid; }
   .primary-nav a { min-height: 44px; padding: 0 12px; border-radius: var(--cmp-radius-sm); }
   .primary-nav .mobile-profile-link { display: inline-flex; }
+  .primary-nav .mobile-group-link { display: inline-flex; }
   .primary-nav a.router-link-active, .primary-nav a.is-active { background: var(--cmp-surface); }
   .primary-nav a.router-link-active::after, .primary-nav a.is-active::after { inset: 8px auto 8px 0; width: 2px; height: auto; }
   .primary-nav .admin-nav-link { margin-left: 0; border-top: 1px solid var(--cmp-border); border-radius: 0; }

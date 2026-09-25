@@ -35,9 +35,7 @@ const {
 <template>
   <div class="play-content cmp-page cmp-page-content">
     <header v-if="activeView === 'queue'" class="play-heading cmp-page-header">
-      <p class="cmp-kicker">Matchmaking</p>
       <h1>Play</h1>
-      <p>One queue. Three factions. Queue solo or with your group.</p>
     </header>
     <p v-if="activeView === 'queue' && queueStore.error" class="play-feedback cmp-error-state" role="alert">{{ queueStore.error }}</p>
     <p v-if="activeView === 'queue' && !queueModes.length" class="play-feedback cmp-loading-state" role="status">Checking queue availability…</p>

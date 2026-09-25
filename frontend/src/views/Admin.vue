@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useAuthStore } from '../stores/authStore';
 import { useRootStore } from '../stores/rootStore';
 import { useSocketStore } from '../stores/socketStore';
+import { useQueueStore } from '../stores/queueStore';
 import { API_BASE_URL } from '../config';
 import { SOCKET_EVENTS } from '../constants/socketEvents';
 import { formatQueueModeCapacity } from '../features/admin/diagnostics';
@@ -16,6 +17,7 @@ import {
 const authStore = useAuthStore();
 const rootStore = useRootStore();
 const socketStore = useSocketStore();
+const queueStore = useQueueStore();
 
 const diagnostics = ref(null);
 const servers = ref([]);
@@ -30,6 +32,7 @@ const wardogsDev = ref(null);
 const wardogsDevError = ref('');
 const wardogsDevBusy = ref(false);
 const wardogsDevLoading = ref(false);
+const wardogsQueueBusy = ref(false);
 const wardogsDevAvailable = computed(() => import.meta.env.DEV && isAdmin.value && wardogsDev.value !== null);
 const wardogsDevVisible = computed(() => import.meta.env.DEV && isAdmin.value);
 const wardogsServers = computed(() => servers.value.filter((server) => server.game_type === 'wardogs'));
@@ -137,6 +140,21 @@ const isWarningEvent = (value) => /failed|error|unauthorized|skipped|blocked|tim
 const formatLiveSession = (value) => {
   if (!value || !value.matched || !value.targetServerId) return 'No verified live session';
   return value.targetServerId;
+};
+const manageWardogsQueue = async (mode, action) => {
+  if (!import.meta.env.DEV || !isAdmin.value) return;
+  wardogsQueueBusy.value = true;
+  wardogsDevError.value = '';
+  try {
+    if (action === 'clear') await queueStore.clearQueue(mode.id);
+    else await queueStore.setQueueEnabled(mode.id, mode.enabled === false);
+    await loadDiagnostics();
+    await loadWardogsDev();
+  } catch (err) {
+    wardogsDevError.value = err.message || 'WARDOGS queue action failed';
+  } finally {
+    wardogsQueueBusy.value = false;
+  }
 };
 const runtimeCapacityLabel = (value) => {
   if (!value || typeof value.available !== 'boolean') return 'Unknown';
@@ -391,6 +409,7 @@ onMounted(async () => {
             <div class="signal-row"><dt>Test match</dt><dd><RouterLink v-if="wardogsDev.lobbyId" :to="`/wardogs/lobby/${wardogsDev.lobbyId}`">{{ wardogsDev.lobbyId }} · Open match</RouterLink><span v-else>None</span></dd></div>
           </dl>
           <div class="admin-action-row"><div><h3>Fill queue</h3><p>Add synthetic players to the local test queue. Your acceptance remains manual.</p></div><button class="cmp-button cmp-button--secondary" type="button" :disabled="wardogsDevBusy || !!wardogsDevError" @click="wardogsDevAction('fill')">Fill test queue</button></div>
+          <details v-if="wardogsQueueModes.length" class="cmp-disclosure admin-disclosure"><summary>Queue maintenance</summary><div v-for="mode in wardogsQueueModes" :key="mode.id" class="admin-action-row"><div><h3>{{ mode.label }}</h3><p>{{ mode.size }} waiting · {{ mode.enabled === false ? 'Paused' : 'Enabled' }}</p></div><div class="admin-actions"><button class="cmp-button cmp-button--secondary" type="button" :disabled="wardogsQueueBusy" @click="manageWardogsQueue(mode, 'clear')">Clear queue</button><button class="cmp-button cmp-button--secondary" type="button" :disabled="wardogsQueueBusy" @click="manageWardogsQueue(mode, 'toggle')">{{ mode.enabled === false ? 'Enable queue' : 'Disable queue' }}</button></div></div></details>
           <div class="admin-action-row"><div><h3>Presence overlay</h3><p>Switch between simulated presence and real observations for this test match.</p></div><div class="admin-actions"><button class="cmp-button cmp-button--secondary" type="button" :disabled="wardogsDevBusy || !!wardogsDevError || !wardogsDev.lobbyId" @click="wardogsDevAction('simulate', { lobbyId: wardogsDev.lobbyId, enabled: true })">Simulate connected</button><button class="cmp-button cmp-button--secondary" type="button" :disabled="wardogsDevBusy || !!wardogsDevError || !wardogsDev.lobbyId" @click="wardogsDevAction('simulate', { lobbyId: wardogsDev.lobbyId, enabled: false })">Real observations only</button></div></div>
           <div class="admin-action-row"><div><h3>Allocation retry</h3><p>Retry allocation for the current local test lobby.</p></div><button class="cmp-button cmp-button--secondary" type="button" :disabled="wardogsDevBusy || !!wardogsDevError || !wardogsDev.lobbyId" @click="wardogsLobbyAction('allocate')">Retry allocation</button></div>
           <div class="admin-action-row"><div><h3>Participant preview</h3><p>Change this view while keeping your admin permission.</p></div><button class="cmp-button cmp-button--secondary" type="button" :disabled="wardogsDevBusy || !!wardogsDevError" @click="authStore.wardogsParticipantPreview = !authStore.wardogsParticipantPreview">{{ authStore.wardogsParticipantPreview ? 'View as admin' : 'View as participant' }}</button></div>

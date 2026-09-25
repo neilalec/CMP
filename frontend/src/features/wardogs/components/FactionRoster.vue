@@ -25,38 +25,42 @@ const playerTone = (player) => {
   if (player.connected === false || player.connected == null || !player.observedFactionId) return 'cmp-status--warning';
   return 'cmp-status--success';
 };
+const playerAlert = (player) => props.observationState === 'fresh' &&
+  (player.connected === false || (player.connected === true &&
+    player.observedFactionId && player.observedFactionId !== props.faction.id));
 </script>
 
 <template>
   <article class="wardogs-faction-card cmp-surface" :class="`cmp-faction--${faction.id}`">
     <header class="wardogs-faction-header">
-      <div><h3>{{ faction.name }}</h3><p>{{ summary.active }} active · {{ summary.reserves }} reserve{{ summary.reserves === 1 ? '' : 's' }}<span v-if="faction.mockCapacity"> · sample target {{ faction.mockCapacity }}</span></p></div>
-      <strong>{{ summary.ready }}/{{ summary.active }} CMP ready</strong>
+      <div><h3>{{ faction.name }}</h3><p>{{ summary.active }} active<span v-if="summary.reserves"> · {{ summary.reserves }} reserve{{ summary.reserves === 1 ? '' : 's' }}</span><span v-if="faction.mockCapacity"> · sample target {{ faction.mockCapacity }}</span></p></div>
     </header>
-    <p class="wardogs-faction-meta">
-      <span v-if="observationState === 'stale'">{{ summary.connected }}/{{ summary.active }} last seen connected; current presence unknown</span>
-      <span v-else-if="observationState === 'none' || observationState === 'unavailable'">Connection observation unavailable</span>
-      <span v-else>{{ summary.connected }}/{{ summary.active }} connected<span v-if="observationState === 'fresh'"> · {{ summary.aligned }} aligned</span></span>
-      <span v-if="summary.missing && observationState === 'fresh'"> · {{ summary.missing }} not observed</span>
-      <span v-if="summary.unknown"> · {{ summary.unknown }} unknown</span>
-      <span> · Commander: {{ commander?.displayName || 'Unassigned' }}</span>
-    </p>
     <div class="wardogs-groups">
-      <section v-for="section in [{ label: 'Active roster', groups: activeGroups }, { label: 'Reserves', groups: reserveGroups }]" :key="section.label" class="wardogs-roster-section">
+      <section v-for="section in [{ label: 'Active roster', groups: activeGroups }, { label: 'Reserves', groups: reserveGroups }]" v-show="section.label !== 'Reserves' || section.groups.length" :key="section.label" class="wardogs-roster-section">
         <h4>{{ section.label }}</h4>
         <p v-if="!section.groups.length" class="wardogs-empty">None</p>
         <div v-for="group in section.groups" :key="`${section.label}-${group.id}`" class="wardogs-group" :class="{ 'is-my-group': group.id === myGroupId }">
-          <div class="wardogs-group-heading"><strong>{{ group.name }}</strong><span v-if="group.id === myGroupId">Your group · </span><span>{{ group.type }} · {{ group.players.length }}</span></div>
+          <div v-if="group.type !== 'solo' || group.players.length > 1" class="wardogs-group-heading"><strong>{{ group.name }}</strong><span v-if="group.id === myGroupId">Your group · </span><span>{{ group.type }} · {{ group.players.length }} player{{ group.players.length === 1 ? '' : 's' }}</span></div>
           <ul class="wardogs-player-list">
             <li v-for="player in group.players" :key="player.id" class="wardogs-player" :class="{ 'is-me': player.id === myPlayerId }">
               <div class="wardogs-player-identity"><strong>{{ player.displayName }}<small v-if="player.id === myPlayerId"> · You</small></strong><small v-if="player.id === group.leaderId">Group leader</small></div>
-              <p class="cmp-status wardogs-player-presence" :class="playerTone(player)">{{ playerPresence(player) }}</p>
-              <p v-if="player.rosterStatus === 'active'" class="wardogs-player-ready">{{ player.ready ? 'CMP ready' : 'Not CMP ready' }}</p>
-              <p v-if="!player.registered || !player.steamId || player.devSimulated || player.devSynthetic" class="wardogs-player-notes"><span v-if="!player.registered">CMP registration pending</span><span v-if="!player.steamId">Identity pending</span><span v-if="player.devSimulated">DEV simulated presence</span><span v-else-if="player.devSynthetic">DEV test account</span></p>
+              <p v-if="playerAlert(player)" class="cmp-status wardogs-player-presence" :class="playerTone(player)">{{ playerPresence(player) }}</p>
             </li>
           </ul>
         </div>
       </section>
+      <details class="wardogs-roster-detail cmp-disclosure">
+        <summary>Roster status</summary>
+        <p>{{ summary.ready }}/{{ summary.active }} CMP ready · Commander: {{ commander?.displayName || 'Unassigned' }}</p>
+        <p v-if="observationState === 'fresh'">{{ summary.connected }}/{{ summary.active }} connected · {{ summary.aligned }} aligned</p>
+        <p v-else-if="observationState === 'stale'">Last server observation is stale; current presence is unknown.</p>
+        <p v-else>Server presence unknown.</p>
+        <ul>
+          <li v-for="player in faction.groups.flatMap((group) => group.players)" :key="player.id">
+            {{ player.displayName }} · {{ playerPresence(player) }} · {{ player.ready ? 'CMP ready' : 'Not CMP ready' }}<template v-if="player.devSimulated"> · DEV simulated presence</template><template v-else-if="player.devSynthetic"> · DEV test account</template><template v-if="!player.registered"> · CMP registration pending</template><template v-if="!player.steamId"> · Identity pending</template>
+          </li>
+        </ul>
+      </details>
     </div>
   </article>
 </template>

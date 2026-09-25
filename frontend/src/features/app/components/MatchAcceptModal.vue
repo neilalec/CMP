@@ -130,10 +130,10 @@ const handleDialogKeydown = (event) => {
           <h2 id="match-accept-title" ref="phaseHeading" tabindex="-1">{{ phaseTitle }}</h2>
           <p id="match-accept-detail">{{ phaseDetail }}</p>
           <p v-if="isCancelled">Check Play for your current queue status.</p>
-          <p v-if="!isCancelled" class="match-accept-progress">{{ acceptedCount }} of {{ requiredCount }} accepted</p>
+          <p v-if="phase === 'accepted' || phase === 'finalizing'" class="match-accept-progress">{{ acceptedCount }} of {{ requiredCount }} accepted</p>
         </div>
       </div>
-      <div v-if="!isCancelled" class="match-player-groups" aria-label="Acceptance status">
+      <div v-if="phase === 'accepted'" class="match-player-groups" aria-label="Acceptance status">
           <div class="match-player-list">
             <h3>Accepted <span>{{ acceptedPlayers.length }}</span></h3>
             <ul><li v-for="player in acceptedPlayers" :key="`accepted-${player}`" :title="player">{{ displayName(player) }}</li></ul>
@@ -166,21 +166,22 @@ const handleDialogKeydown = (event) => {
   overflow: auto;
 }
 .match-accept-modal {
-  width: min(100%, 520px);
+  width: min(100%, 560px);
   max-height: calc(100dvh - 32px);
   min-height: 0;
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto auto;
   overflow: hidden;
   border-top: 3px solid var(--cmp-primary);
 }
+.match-accept-modal.is-accepted { grid-template-rows: auto auto minmax(0, 1fr) auto; }
 .match-accept-modal.is-accepted, .match-accept-modal.is-finalizing { border-top-color: var(--cmp-success); }
 .match-accept-modal.is-cancelled { grid-template-rows: auto auto auto; border-top-color: var(--cmp-warning); }
 .match-accept-header { display: flex; align-items: start; justify-content: space-between; gap: var(--cmp-space-4); padding: var(--cmp-space-4) var(--cmp-space-5) 0; }
 .match-accept-header > div { display: flex; align-items: center; flex-wrap: wrap; gap: var(--cmp-space-2) var(--cmp-space-4); min-height: 42px; }
 .match-accept-header .cmp-kicker { color: var(--cmp-primary-hover); }
 .is-cancelled .match-accept-header .cmp-kicker { color: var(--cmp-warning); }
-.match-accept-countdown { color: var(--cmp-text); font: 700 .875rem/1 var(--cmp-font-mono); font-variant-numeric: tabular-nums; }
+.match-accept-countdown { color: var(--cmp-text); font: 700 1.25rem/1 var(--cmp-font-mono); font-variant-numeric: tabular-nums; }
 .match-accept-countdown.is-urgent { color: var(--cmp-warning); }
 .match-accept-close {
   width: 42px;
@@ -192,9 +193,9 @@ const handleDialogKeydown = (event) => {
   font-weight: 400;
   line-height: 1;
 }
-.match-accept-body { padding: var(--cmp-space-2) var(--cmp-space-5) var(--cmp-space-4); }
+.match-accept-body { padding: var(--cmp-space-4) var(--cmp-space-5) var(--cmp-space-5); }
 .match-accept-summary { display: grid; gap: var(--cmp-space-2); }
-.match-accept-summary h2 { margin: 0; font-size: 1.5rem; line-height: 1.15; letter-spacing: -.03em; }
+.match-accept-summary h2 { margin: 0; font-size: clamp(1.8rem, 4vw, 2.5rem); line-height: 1.1; letter-spacing: -.03em; }
 .match-accept-summary p { margin: 0; color: var(--cmp-text-secondary); font-size: .875rem; }
 .match-accept-summary .match-accept-progress { color: var(--cmp-text); font-weight: 700; font-variant-numeric: tabular-nums; }
 .match-player-groups {
@@ -216,8 +217,8 @@ const handleDialogKeydown = (event) => {
 .match-player-list:first-child li::before { content: '✓'; margin-right: 8px; color: var(--cmp-success); }
 .match-player-list:last-child li::before { content: '·'; margin-right: 8px; color: var(--cmp-text-muted); }
 .match-player-empty { margin: 0; color: var(--cmp-text-muted); font-size: .8125rem; }
-.match-accept-footer { min-height: 76px; display: grid; align-items: center; padding: var(--cmp-space-3) var(--cmp-space-5) var(--cmp-space-4); border-top: 1px solid var(--cmp-border); background: var(--cmp-surface); }
-.match-accept-button { width: 100%; min-height: 46px; font-size: .9375rem; }
+.match-accept-footer { min-height: 88px; display: grid; align-items: center; padding: var(--cmp-space-4) var(--cmp-space-5); border-top: 1px solid var(--cmp-border); background: var(--cmp-surface); }
+.match-accept-button { width: 100%; min-height: 54px; font-size: 1rem; }
 .match-accept-confirmed { margin: 0; font-size: .875rem; }
 @media (max-width: 480px) {
   .match-accept-overlay { padding: var(--cmp-space-2); }

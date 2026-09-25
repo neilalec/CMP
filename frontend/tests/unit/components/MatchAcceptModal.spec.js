@@ -20,12 +20,12 @@ describe('WARDOGS Match Accept modal', () => {
 
     expect(wrapper.text()).toContain('Match found')
     expect(wrapper.text()).toContain('18s left')
-    expect(wrapper.text()).toContain('2 of 9 accepted')
+    expect(wrapper.text()).not.toContain('2 of 9 accepted')
     expect(wrapper.get('[role="dialog"]').attributes('aria-modal')).toBe('true')
     expect(wrapper.get('#match-accept-title').text()).toBe('Accept this match')
     expect(wrapper.get('button.match-accept-button').text()).toBe('Accept Match')
-    expect(wrapper.text()).toContain('Accepted')
-    expect(wrapper.text()).toContain('Waiting')
+    expect(wrapper.text()).not.toContain('alpha')
+    expect(wrapper.text()).not.toContain('charlie')
   })
 
   test('replaces the dominant action with accepted and waiting status', () => {

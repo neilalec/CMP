@@ -415,15 +415,10 @@ const handleS3oSmallJoin = () => {
           :is-group-leader="isGroupLeader"
           :has-steam-id="hasSteamId"
           :group-member-count="groupMemberCount"
-          :can-manage-queue-tools="canManageQueueTools"
           :wardogs-lobby-id="wardogsLobbyId"
-          :get-queue-progress-percent="getQueueProgressPercent"
           :is-mode-queue-full="isModeQueueFull"
           @join-queue="emit('join-queue', $event)"
           @leave-queue="emit('leave-queue', $event)"
-          @seed-queue="emit('seed-queue', $event)"
-          @clear-queue="emit('clear-queue', $event)"
-          @set-queue-enabled="(mode, enabled) => emit('set-queue-enabled', mode, enabled)"
         />
         <article
           v-else-if="queueCard.type === 'standard'"
@@ -1039,7 +1034,7 @@ const handleS3oSmallJoin = () => {
 
 <style scoped>
 .queue-board.single-mode .queue-grid {
-  grid-template-columns: minmax(0, 620px);
+  grid-template-columns: minmax(0, 880px);
 }
 
 .queue-board {
