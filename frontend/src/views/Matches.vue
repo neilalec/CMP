@@ -17,17 +17,12 @@ const factionName = (id) => names[id] || id || 'Faction unavailable';
 const outcomeName = (outcome) => ({ win: 'Win', loss: 'Loss', tie: 'Tie', incomplete: 'Incomplete', void: 'Void' })[outcome]
   || 'Placement unavailable';
 const placementName = (index) => ({ 1: '1st', 2: '2nd', 3: '3rd' })[index] || `${index}th`;
-const placementContext = (groups) => Array.isArray(groups)
-  ? groups.map((group, index) => {
-    const rank = groups.slice(0, index).reduce((total, previous) => total + previous.length, 1);
-    return `${placementName(rank)} ${group.map(factionName).join(' / ')}`;
-  }).join(' · ') : '';
 const matchDate = (value) => {
   const date = new Date(value);
   return value && !Number.isNaN(date.getTime()) ? date.toLocaleString() : 'Date unavailable';
 };
 const ratingText = (rating) => rating
-  ? `${rating.delta > 0 ? '+' : ''}${rating.delta} → ${rating.after}` : 'No rating entry';
+  ? `${rating.delta > 0 ? '+' : ''}${rating.delta} → ${rating.after}` : '—';
 const ratingTone = (rating) => rating?.delta > 0 ? 'is-positive' : rating?.delta < 0 ? 'is-negative' : '';
 const resultTone = (outcome) => ({ win: 'is-win', loss: 'is-loss', tie: 'is-tie', incomplete: 'is-unrated', void: 'is-unrated' })[outcome] || 'is-unrated';
 
@@ -68,30 +63,29 @@ onMounted(() => { loadCurrent(); loadHistory(); });
 
 <template>
   <div class="matches-page cmp-page cmp-page-content">
-    <header class="cmp-page-header matches-heading"><p class="cmp-kicker">Competitive record</p><h1>Matches</h1><p>Your current match and referee-confirmed history.</p></header>
+    <header class="cmp-page-header matches-heading"><h1>Matches</h1></header>
 
-    <section class="matches-section" aria-label="Current match">
+    <section v-if="currentLoading || current || currentError" class="matches-section" aria-label="Current match">
       <div class="cmp-section-header"><h2>Current match</h2></div>
       <p v-if="currentLoading && !current" class="cmp-loading-state" role="status">Checking your current match…</p>
-      <div v-if="current" class="matches-current cmp-surface" :class="`cmp-faction--${current.factionId}`">
+      <div v-if="current" class="matches-current" :class="`cmp-faction--${current.factionId}`">
         <div><p class="cmp-kicker">In progress</p><strong>{{ current.state === 'waiting_for_server' ? 'Waiting for server' : 'Server allocated' }}</strong><p class="cmp-faction-marker">{{ factionName(current.factionId) }} · {{ current.rosterStatus === 'reserve' ? 'Reserve' : 'Active' }}</p></div>
         <RouterLink class="cmp-button cmp-button--primary" :to="`/wardogs/lobby/${current.lobbyId}`">Open match</RouterLink>
       </div>
-      <p v-else-if="!currentLoading && !currentError" class="cmp-empty-state matches-quiet">No current WARDOGS match. <RouterLink to="/play">Go to Play</RouterLink></p>
       <p v-if="currentError" class="cmp-error-state" role="alert">{{ currentError }} <button class="matches-retry cmp-button cmp-button--secondary" type="button" @click="loadCurrent">Retry</button></p>
     </section>
 
     <section class="matches-section" aria-label="Recent matches">
-      <div class="cmp-section-header"><h2>Recent matches</h2><p v-if="history.length">{{ history.length }} shown</p></div>
+      <div class="cmp-section-header"><h2>Recent history</h2></div>
       <p v-if="historyLoading && !history.length" class="cmp-loading-state" role="status">Loading match history…</p>
       <p v-if="historyError" class="cmp-error-state" role="alert">{{ historyError }} <button class="matches-retry cmp-button cmp-button--secondary" type="button" @click="loadHistory">Retry</button></p>
-      <p v-else-if="!historyLoading && !history.length" class="cmp-empty-state">No referee-confirmed WARDOGS matches yet. Results appear here after confirmation.</p>
+      <p v-else-if="!historyLoading && !history.length" class="cmp-empty-state">No confirmed matches yet.</p>
       <ol v-if="history.length" class="matches-history">
         <li v-for="match in history" :key="match.lobbyId" class="matches-row" :class="[`cmp-faction--${match.factionId}`, resultTone(match.result.outcome)]">
-          <div class="matches-row-result"><strong>{{ outcomeName(match.result.outcome) }}</strong><span v-if="match.result.placement">{{ placementName(match.result.placement) }} place</span></div>
+          <div class="matches-row-result"><strong>{{ match.result.placement ? placementName(match.result.placement) : outcomeName(match.result.outcome) }}</strong><span v-if="match.result.placement">{{ outcomeName(match.result.outcome) }}</span></div>
           <div class="matches-row-main"><strong class="cmp-faction-marker">{{ factionName(match.factionId) }} <small>· {{ match.rosterStatus === 'reserve' ? 'Reserve' : 'Active' }}</small></strong><time :datetime="match.matchAt">{{ matchDate(match.matchAt) }}</time></div>
-          <div class="matches-row-rating"><span>WARDOGS rating</span><strong :class="ratingTone(match.rating)">{{ ratingText(match.rating) }}</strong></div>
-          <p v-if="match.result.corrected || match.result.placementGroups" class="matches-row-context"><span v-if="match.result.corrected" class="matches-corrected">Corrected · revision {{ match.result.revisionNumber }}</span><span v-if="match.result.placementGroups">{{ placementContext(match.result.placementGroups) }}</span></p>
+          <div class="matches-row-rating"><span v-if="match.rating">After match</span><strong :aria-label="match.rating ? `Rating change ${ratingText(match.rating)}` : 'No rating change recorded'" :class="ratingTone(match.rating)">{{ ratingText(match.rating) }}</strong></div>
+          <details v-if="match.result.corrected" class="matches-row-context"><summary class="matches-corrected">Corrected</summary><span v-if="match.result.revisionNumber">Confirmed revision {{ match.result.revisionNumber }}</span></details>
         </li>
       </ol>
     </section>
@@ -99,19 +93,17 @@ onMounted(() => { loadCurrent(); loadHistory(); });
 </template>
 
 <style scoped>
-.matches-page { display: grid; gap: var(--cmp-section-gap); max-width: 1120px; }
+.matches-page { display: grid; gap: var(--cmp-section-gap); max-width: 920px; }
 .matches-heading { margin-bottom: 0; }
 .matches-section { display: grid; gap: var(--cmp-space-3); min-width: 0; }
 .matches-section .cmp-section-header { margin-bottom: 0; }
-.matches-current { display: flex; align-items: center; justify-content: space-between; gap: var(--cmp-space-4); padding: var(--cmp-space-4) var(--cmp-space-5); border-left: 3px solid var(--cmp-faction-color, var(--cmp-primary)); }
+.matches-current { display: flex; align-items: center; justify-content: space-between; gap: var(--cmp-space-4); padding: var(--cmp-space-3) var(--cmp-space-2); border-bottom: 1px solid var(--cmp-border); border-left: 2px solid var(--cmp-faction-color, var(--cmp-primary)); }
 .matches-current > div { display: grid; gap: var(--cmp-space-1); }
 .matches-current strong { font-size: 1rem; }
 .matches-current p:last-child { margin: 0; color: var(--cmp-text-secondary); font-size: var(--cmp-type-meta); }
-.matches-quiet { margin: 0; color: var(--cmp-text-muted); font-size: var(--cmp-type-meta); }
-.matches-quiet a { color: var(--cmp-primary-hover); }
 .matches-retry { margin-left: var(--cmp-space-3); }
 .matches-history { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--cmp-border); }
-.matches-row { display: grid; grid-template-columns: 150px minmax(0, 1fr) 180px; align-items: center; gap: var(--cmp-space-2) var(--cmp-space-5); min-width: 0; padding: var(--cmp-space-3) var(--cmp-space-2); border-bottom: 1px solid var(--cmp-border); }
+.matches-row { display: grid; grid-template-columns: 104px minmax(0, 1fr) 125px; align-items: center; gap: var(--cmp-space-2) var(--cmp-space-4); min-width: 0; padding: var(--cmp-space-3) var(--cmp-space-2); border-bottom: 1px solid var(--cmp-border); }
 .matches-row:hover { background: var(--cmp-bg-elevated); }
 .matches-row-result, .matches-row-main, .matches-row-rating { display: grid; gap: var(--cmp-space-1); min-width: 0; }
 .matches-row-result strong { color: var(--cmp-text); font-size: 1.125rem; line-height: 1.2; }
@@ -124,7 +116,7 @@ onMounted(() => { loadCurrent(); loadHistory(); });
 .matches-row-rating strong { font: 700 .875rem var(--cmp-font-mono); }
 .matches-row-rating strong.is-positive { color: var(--cmp-success); }
 .matches-row-rating strong.is-negative { color: var(--cmp-warning); }
-.matches-row-context { grid-column: 2 / -1; display: flex; flex-wrap: wrap; gap: var(--cmp-space-1) var(--cmp-space-4); margin: 0; color: var(--cmp-text-muted); font-size: .75rem; overflow-wrap: anywhere; }
+.matches-row-context { grid-column: 2 / -1; display: flex; flex-wrap: wrap; gap: var(--cmp-space-1) var(--cmp-space-3); margin: 0; color: var(--cmp-text-muted); font-size: .75rem; overflow-wrap: anywhere; }
 .matches-corrected { color: var(--cmp-primary-hover); font-weight: 650; }
 @media (max-width: 640px) { .matches-current { align-items: flex-start; flex-direction: column; padding: var(--cmp-space-4); }.matches-row { grid-template-columns: minmax(0, 1fr) auto; gap: var(--cmp-space-2); }.matches-row-result { grid-column: 1; }.matches-row-main { grid-column: 1 / -1; grid-row: 2; }.matches-row-rating { grid-column: 2; grid-row: 1; text-align: right; }.matches-row-context { grid-column: 1 / -1; }.matches-retry { display: flex; margin: var(--cmp-space-2) 0 0; } }
 </style>

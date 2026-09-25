@@ -26,7 +26,7 @@ describe('WARDOGS Matches page', () => {
   });
   afterEach(() => { jest.restoreAllMocks(); });
 
-  test('has compact no-current and no-confirmed-history states', async () => {
+  test('keeps the page focused when there is no current match or confirmed history', async () => {
     let finishCurrent;
     let finishHistory;
     global.fetch = jest.fn((url) => new Promise((resolve) => {
@@ -40,9 +40,8 @@ describe('WARDOGS Matches page', () => {
     finishCurrent(response({ success: true, match: null }));
     finishHistory(response({ success: true, matches: [] }));
     await flushPromises();
-    expect(wrapper.text()).toContain('No current WARDOGS match');
-    expect(wrapper.find('.matches-quiet').classes()).toContain('cmp-empty-state');
-    expect(wrapper.text()).toContain('No referee-confirmed WARDOGS matches yet');
+    expect(wrapper.find('[aria-label="Current match"]').exists()).toBe(false);
+    expect(wrapper.text()).toContain('No confirmed matches yet.');
     expect(wrapper.text()).not.toContain('Win');
   });
 
@@ -62,7 +61,7 @@ describe('WARDOGS Matches page', () => {
     historyFails = false;
     await wrapper.findAll('button').find((button) => button.text() === 'Retry').trigger('click');
     await flushPromises();
-    expect(wrapper.text()).toContain('No referee-confirmed WARDOGS matches yet');
+    expect(wrapper.text()).toContain('No confirmed matches yet.');
   });
 
   test('renders only supplied authoritative outcomes and replayed rating values', async () => {
@@ -78,12 +77,14 @@ describe('WARDOGS Matches page', () => {
     const text = wrapper.text();
     for (const label of ['Win', 'Loss', 'Tie', 'Incomplete', 'Void']) expect(text).toContain(label);
     expect(text).toContain('+24 → 1024');
-    expect(text).toContain('Corrected · revision 2');
-    expect(text).toContain('1st Valkyra · 2nd Lonestar · 3rd Manticore');
+    expect(wrapper.get('.matches-row-context summary').text()).toBe('Corrected');
+    expect(wrapper.get('.matches-row-context').attributes('open')).toBeUndefined();
+    expect(wrapper.get('.matches-row-context').text()).toContain('Confirmed revision 2');
     expect(text).not.toContain('Observed score');
     expect(wrapper.findAll('.matches-row')).toHaveLength(5);
-    expect(wrapper.find('.matches-row.is-win .matches-row-result strong').text()).toBe('Win');
-    expect(wrapper.find('.matches-row.is-unrated .matches-row-rating strong').text()).toBe('No rating entry');
+    expect(wrapper.find('.matches-row.is-win .matches-row-result strong').text()).toBe('1st');
+    expect(wrapper.find('.matches-row.is-unrated .matches-row-rating strong').text()).toBe('—');
+    expect(wrapper.find('.matches-row.is-unrated .matches-row-rating strong').attributes('aria-label')).toBe('No rating change recorded');
   });
 
   test('a current-match failure does not hide valid history, including a zero rating change', async () => {

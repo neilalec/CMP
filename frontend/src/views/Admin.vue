@@ -4,6 +4,7 @@ import { useAuthStore } from '../stores/authStore';
 import { useRootStore } from '../stores/rootStore';
 import { useSocketStore } from '../stores/socketStore';
 import { useQueueStore } from '../stores/queueStore';
+import { useGroupStore } from '../stores/groupStore';
 import { API_BASE_URL } from '../config';
 import { SOCKET_EVENTS } from '../constants/socketEvents';
 import { formatQueueModeCapacity } from '../features/admin/diagnostics';
@@ -18,6 +19,8 @@ const authStore = useAuthStore();
 const rootStore = useRootStore();
 const socketStore = useSocketStore();
 const queueStore = useQueueStore();
+const participantGroupStore = useGroupStore();
+const seedCount = ref(1);
 
 const diagnostics = ref(null);
 const servers = ref([]);
@@ -154,6 +157,18 @@ const manageWardogsQueue = async (mode, action) => {
     wardogsDevError.value = err.message || 'WARDOGS queue action failed';
   } finally {
     wardogsQueueBusy.value = false;
+  }
+};
+const seedWardogsGroup = async () => {
+  const count = Number(seedCount.value);
+  if (!Number.isFinite(count) || count < 1) {
+    rootStore.setError('Enter a valid bot count.');
+    return;
+  }
+  try {
+    await participantGroupStore.seedGroup(Math.floor(count));
+  } catch (err) {
+    rootStore.setError(err.message || 'Failed to seed group');
   }
 };
 const runtimeCapacityLabel = (value) => {
@@ -293,6 +308,7 @@ const deleteActiveLobby = async (lobbyId) => {
 
 onMounted(async () => {
   await authStore.syncProfile();
+  if (authStore.username) await participantGroupStore.syncStatus(authStore.username);
   await Promise.all([loadDiagnostics(), loadServers(), loadWardogsDev()]);
 });
 </script>
@@ -409,6 +425,7 @@ onMounted(async () => {
             <div class="signal-row"><dt>Test match</dt><dd><RouterLink v-if="wardogsDev.lobbyId" :to="`/wardogs/lobby/${wardogsDev.lobbyId}`">{{ wardogsDev.lobbyId }} · Open match</RouterLink><span v-else>None</span></dd></div>
           </dl>
           <div class="admin-action-row"><div><h3>Fill queue</h3><p>Add synthetic players to the local test queue. Your acceptance remains manual.</p></div><button class="cmp-button cmp-button--secondary" type="button" :disabled="wardogsDevBusy || !!wardogsDevError" @click="wardogsDevAction('fill')">Fill test queue</button></div>
+          <div v-if="participantGroupStore.inGroup" class="admin-action-row"><div><h3>Seed premade</h3><p>Add synthetic members to your current development group.</p></div><div class="admin-actions"><label for="admin-wardogs-seed-count">Bots</label><input id="admin-wardogs-seed-count" v-model.number="seedCount" class="cmp-input admin-seed-count" type="number" min="1" step="1" inputmode="numeric"><button class="cmp-button cmp-button--secondary" type="button" :disabled="participantGroupStore.loading" @click="seedWardogsGroup">Add members</button></div></div>
           <details v-if="wardogsQueueModes.length" class="cmp-disclosure admin-disclosure"><summary>Queue maintenance</summary><div v-for="mode in wardogsQueueModes" :key="mode.id" class="admin-action-row"><div><h3>{{ mode.label }}</h3><p>{{ mode.size }} waiting · {{ mode.enabled === false ? 'Paused' : 'Enabled' }}</p></div><div class="admin-actions"><button class="cmp-button cmp-button--secondary" type="button" :disabled="wardogsQueueBusy" @click="manageWardogsQueue(mode, 'clear')">Clear queue</button><button class="cmp-button cmp-button--secondary" type="button" :disabled="wardogsQueueBusy" @click="manageWardogsQueue(mode, 'toggle')">{{ mode.enabled === false ? 'Enable queue' : 'Disable queue' }}</button></div></div></details>
           <div class="admin-action-row"><div><h3>Presence overlay</h3><p>Switch between simulated presence and real observations for this test match.</p></div><div class="admin-actions"><button class="cmp-button cmp-button--secondary" type="button" :disabled="wardogsDevBusy || !!wardogsDevError || !wardogsDev.lobbyId" @click="wardogsDevAction('simulate', { lobbyId: wardogsDev.lobbyId, enabled: true })">Simulate connected</button><button class="cmp-button cmp-button--secondary" type="button" :disabled="wardogsDevBusy || !!wardogsDevError || !wardogsDev.lobbyId" @click="wardogsDevAction('simulate', { lobbyId: wardogsDev.lobbyId, enabled: false })">Real observations only</button></div></div>
           <div class="admin-action-row"><div><h3>Allocation retry</h3><p>Retry allocation for the current local test lobby.</p></div><button class="cmp-button cmp-button--secondary" type="button" :disabled="wardogsDevBusy || !!wardogsDevError || !wardogsDev.lobbyId" @click="wardogsLobbyAction('allocate')">Retry allocation</button></div>
@@ -485,6 +502,7 @@ onMounted(async () => {
 .admin-action-row { display: flex; align-items: center; justify-content: space-between; gap: var(--cmp-space-5); padding: var(--cmp-space-4) var(--cmp-space-2); border-top: 1px solid var(--cmp-border); }
 .admin-action-row > div:first-child { min-width: 0; }
 .admin-action-row .cmp-button { flex: none; }
+.admin-seed-count { width: 82px; }
 .danger-section { border-top-color: color-mix(in srgb, var(--cmp-danger) 60%, var(--cmp-border)); }
 .danger-label { color: var(--cmp-danger); font-size: var(--cmp-type-meta); font-weight: 650; }
 .danger-section .admin-action-row { border-top-color: color-mix(in srgb, var(--cmp-danger) 22%, var(--cmp-border)); }

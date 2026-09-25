@@ -29,9 +29,13 @@ test('shows a backend history rating as the latest rated match, not legacy Elo',
   const page = mountPage();
   await flushPromises();
   expect(page.text()).toContain('1036');
-  expect(page.text()).toContain('After your latest rated match');
+  expect(page.text()).toContain('After latest rated match');
   expect(page.text()).not.toContain('Elo');
-  expect(page.get('a[href="/group"]').text()).toBe('Open group');
+  expect(page.find('a[href="/group"]').exists()).toBe(false);
+  expect(page.text()).toContain('Steam linked');
+  expect(page.find('#profile-display-name').exists()).toBe(false);
+  expect(page.get('.profile-edit-trigger').text()).toBe('Edit');
+  expect(page.get('.profile-account').text()).toContain('Account details');
   expect(global.fetch.mock.calls[0][1].headers.Authorization).toBe('Bearer test-token');
 });
 
@@ -39,18 +43,19 @@ test('handles missing or unavailable rating history without inventing a rating',
   global.fetch = jest.fn().mockResolvedValue(response([]));
   const empty = mountPage();
   await flushPromises();
-  expect(empty.text()).toContain('No recent rating entry.');
+  expect(empty.text()).toContain('—');
   empty.unmount();
   global.fetch = jest.fn().mockRejectedValue(new Error('network'));
   const failed = mountPage();
   await flushPromises();
-  expect(failed.get('[role="alert"]').text()).toContain('WARDOGS rating history is unavailable.');
+  expect(failed.get('[role="status"]').text()).toContain('Unavailable');
 });
 
 test('display-name editing reports validation, saving, success and failure', async () => {
   global.fetch = jest.fn().mockResolvedValue(response([]));
   const page = mountPage();
   await flushPromises();
+  await page.get('.profile-edit-trigger').trigger('click');
   await page.get('#profile-display-name').setValue('');
   await page.get('form').trigger('submit');
   expect(page.get('[role="alert"]').text()).toBe('Enter a display name.');
@@ -59,7 +64,9 @@ test('display-name editing reports validation, saving, success and failure', asy
   await flushPromises();
   expect(authStore.updateDisplayName).toHaveBeenCalledWith('New Alice');
   expect(page.get('[role="status"]').text()).toBe('Display name saved.');
+  expect(page.find('#profile-display-name').exists()).toBe(false);
   authStore.updateDisplayName.mockRejectedValue(new Error('Name unavailable'));
+  await page.get('.profile-edit-trigger').trigger('click');
   await page.get('#profile-display-name').setValue('Another');
   await page.get('form').trigger('submit');
   await flushPromises();

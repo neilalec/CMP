@@ -26,9 +26,11 @@ beforeEach(() => {
     isGroupLeader: computed(() => groupStore.leader === authStore.username), joinCode: ref(''), seedCount: ref(1) });
 });
 
-test('solo actions create or join a group and explain queue restrictions', async () => {
+test('no-group state is minimal and explains queue restrictions', async () => {
   const page = mountPage();
-  expect(page.text()).toContain('Queue alone, or bring players together.');
+  expect(page.findAll('.cmp-surface')).toHaveLength(0);
+  expect(page.get('h1').text()).toBe('Group');
+  expect(page.get('button').text()).toBe('Create group');
   await page.get('button').trigger('click');
   expect(actions.handleCreate).toHaveBeenCalledTimes(1);
   await page.get('#wardogs-group-code').setValue('ABCD');
@@ -36,7 +38,7 @@ test('solo actions create or join a group and explain queue restrictions', async
   expect(actions.handleJoin).toHaveBeenCalledTimes(1);
   queueStore.inQueue = true;
   await nextTick();
-  expect(page.text()).toContain('Leave the queue before creating or joining a group.');
+  expect(page.text()).toContain('Leave the queue from Play before creating or joining a group.');
   expect(page.get('button').attributes('disabled')).toBeDefined();
 });
 
@@ -46,7 +48,7 @@ test('leader sees members, contextual controls, code copy, and leave', async () 
   const writeText = jest.fn().mockResolvedValue(undefined);
   Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
   const page = mountPage();
-  expect(page.text()).toContain('You control queueing for this group.');
+  expect(page.text()).toContain('You control queueing.');
   expect(page.text()).toContain('Bob Player');
   expect(page.text()).toContain('Leader');
   await page.get('.group-code button').trigger('click');
@@ -76,16 +78,20 @@ test('group-code copy failures are announced as errors', async () => {
 test('non-leader sees authority but cannot manage members', () => {
   Object.assign(groupStore, { code: 'ABCD', leader: 'bob', members: ['alice', 'bob'] });
   const page = mountPage();
-  expect(page.text()).toContain('Only the group leader controls queueing.');
+  expect(page.text()).toContain('Leader controls queueing.');
+  expect(page.text()).toContain('Member');
   expect(page.find('.group-member-actions').exists()).toBe(false);
   expect(page.find('.group-footer button').exists()).toBe(true);
 });
 
-test('admin seeding stays in a separate disclosure', async () => {
-  Object.assign(groupStore, { code: 'ABCD', leader: 'alice', members: ['alice'] });
-  authStore.isAdmin = true;
+test('queued group shows one matchmaking note and disables membership changes', async () => {
+  Object.assign(groupStore, { code: 'ABCD', leader: 'alice', members: ['alice', 'bob'] });
+  queueStore.inQueue = true;
   const page = mountPage();
-  expect(page.get('.group-admin summary').text()).toBe('Admin seeding');
-  await page.get('.group-admin button').trigger('click');
-  expect(actions.handleSeedGroup).toHaveBeenCalledTimes(1);
+  expect(page.text()).toContain('Group is queued. Manage matchmaking from Play.');
+  expect(page.text()).not.toContain('You are in queue.');
+  expect(page.find('.group-member-actions').exists()).toBe(true);
+  expect(page.findAll('.group-member-actions button').every((button) => button.attributes('disabled') !== undefined)).toBe(true);
+  expect(page.get('.group-footer button').attributes('disabled')).toBeUndefined();
+  expect(page.text()).not.toContain('4/9');
 });

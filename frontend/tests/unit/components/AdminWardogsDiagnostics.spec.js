@@ -5,11 +5,13 @@ import { useAuthStore } from '@/stores/authStore';
 import { useRootStore } from '@/stores/rootStore';
 import { useSocketStore } from '@/stores/socketStore';
 import { useQueueStore } from '@/stores/queueStore';
+import { useGroupStore } from '@/stores/groupStore';
 
 jest.mock('@/stores/authStore', () => ({ useAuthStore: jest.fn() }));
 jest.mock('@/stores/rootStore', () => ({ useRootStore: jest.fn() }));
 jest.mock('@/stores/socketStore', () => ({ useSocketStore: jest.fn() }));
 jest.mock('@/stores/queueStore', () => ({ useQueueStore: jest.fn() }));
+jest.mock('@/stores/groupStore', () => ({ useGroupStore: jest.fn() }));
 
 const response = (payload, ok = true) => ({ ok, text: async () => JSON.stringify(payload),
   headers: { get: () => 'application/json' } });
@@ -22,6 +24,7 @@ describe('WARDOGS Admin console', () => {
   let servers;
   let dev;
   let auth;
+  let group;
   beforeEach(() => {
     auth = { token: 'test-token', username: 'neil', isAdmin: true,
       canToggleAdmin: false, syncProfile: jest.fn().mockResolvedValue(null) };
@@ -30,6 +33,9 @@ describe('WARDOGS Admin console', () => {
     useSocketStore.mockReturnValue({ emit: jest.fn() });
     useQueueStore.mockReturnValue({ clearQueue: jest.fn().mockResolvedValue(null),
       setQueueEnabled: jest.fn().mockResolvedValue(null) });
+    group = { inGroup: true, loading: false, syncStatus: jest.fn().mockResolvedValue(null),
+      seedGroup: jest.fn().mockResolvedValue(null) };
+    useGroupStore.mockReturnValue(group);
     diagnostics = { generatedAt: 1790260000, database: { ok: true }, queueSize: 1,
       queueModes: { wardogs_beta9: { id: 'wardogs_beta9', gameType: 'wardogs',
         label: 'WARDOGS Beta · 3 factions', size: 1, requiredPlayers: 9,
@@ -111,6 +117,17 @@ describe('WARDOGS Admin console', () => {
     expect(danger.text()).toContain('Reset test queue / overlay');
     expect(danger.text()).toContain('Delete test lobby');
     expect(devSection.text()).not.toContain('Delete test lobby');
+    wrapper.unmount();
+  });
+
+  test('keeps premade seeding available in development Admin only', async () => {
+    const wrapper = mountAdmin();
+    await flushPromises();
+    expect(wrapper.get('[aria-label="WARDOGS developer tools"]').text()).toContain('Seed premade');
+    expect(group.syncStatus).toHaveBeenCalledWith('neil');
+    await wrapper.get('#admin-wardogs-seed-count').setValue('3');
+    await wrapper.findAll('button').find((button) => button.text() === 'Add members').trigger('click');
+    expect(group.seedGroup).toHaveBeenCalledWith(3);
     wrapper.unmount();
   });
 
