@@ -315,6 +315,8 @@ def handle_authenticate_event(
     *,
     request,
     logger,
+    decode_token,
+    get_username_by_sid,
     upsert_player_activity,
     matchmaking_queue,
     join_room,
@@ -322,10 +324,15 @@ def handle_authenticate_event(
     build_queue_payload,
     emit
 ):
-    username = data.get('username')
-    logger.info(f"Authentication attempt for {username}, {request.sid}")
-
     try:
+        token = data.get('token') if isinstance(data, dict) else None
+        claimed_username = data.get('username') if isinstance(data, dict) else None
+        if not token:
+            return False
+        username = decode_token(token).get('sub')
+        if (not username or (claimed_username and claimed_username != username)
+                or (get_username_by_sid(request.sid) not in (None, username))):
+            return False
         if username:
             queue_mode = find_user_queue_mode(matchmaking_queue, username)
             upsert_player_activity(
@@ -346,5 +353,5 @@ def handle_authenticate_event(
         logger.warning("Authentication failed for no username provided")
         return False
     except Exception as e:
-        logger.error(f"Error in handle_authenticate: {str(e)}")
+        logger.warning('Socket authentication failed')
         return False

@@ -87,7 +87,7 @@ const subscribe = () => {
   const lobbyId = backendLobbyId.value;
   if (!liveSocket?.connected || !lobbyId || !authStore.token) return;
   const socket = liveSocket;
-  socket.emit('wardogs_lobby_subscribe', { lobbyId, token: authStore.token }, (reply) => {
+  socket.emit('wardogs_lobby_subscribe', { lobbyId }, (reply) => {
     if (!reply?.success) return;
     if (liveSocket !== socket || backendLobbyId.value !== lobbyId) {
       socket.emit('wardogs_lobby_unsubscribe', { lobbyId });

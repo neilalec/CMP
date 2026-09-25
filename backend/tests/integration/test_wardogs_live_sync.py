@@ -223,15 +223,20 @@ def test_one_worker_guard_prevents_duplicate_active_polling():
 def test_socket_updates_require_lobby_membership(flask_app, monkeypatch):
     save_wardogs_lobby(app_core.get_db_connection, lobby())
     monkeypatch.setattr(backend_app, 'is_admin_user', lambda username: username == 'admin')
-    alice = backend_app.socketio.test_client(flask_app)
-    outsider = backend_app.socketio.test_client(flask_app)
-    admin = backend_app.socketio.test_client(flask_app)
     with flask_app.app_context():
         alice_token = create_access_token(identity='alice')
         outsider_token = create_access_token(identity='outsider')
         admin_token = create_access_token(identity='admin')
+    alice = backend_app.socketio.test_client(flask_app, auth={'token': alice_token})
+    outsider = backend_app.socketio.test_client(flask_app, auth={'token': outsider_token})
+    admin = backend_app.socketio.test_client(flask_app, auth={'token': admin_token})
+    anonymous = backend_app.socketio.test_client(flask_app)
+    assert anonymous.emit('wardogs_lobby_subscribe',
+                          {'lobbyId': 'live-lobby', 'token': alice_token}, callback=True)['success'] is False
     assert alice.emit('wardogs_lobby_subscribe',
                       {'lobbyId': 'live-lobby', 'token': alice_token}, callback=True) == {'success': True}
+    assert outsider.emit('wardogs_lobby_subscribe',
+                         {'lobbyId': 'live-lobby', 'token': alice_token}, callback=True) == {'success': False}
     assert outsider.emit('wardogs_lobby_subscribe',
                          {'lobbyId': 'live-lobby', 'token': outsider_token}, callback=True) == {'success': False}
     assert admin.emit('wardogs_lobby_subscribe',
@@ -247,3 +252,4 @@ def test_socket_updates_require_lobby_membership(flask_app, monkeypatch):
     alice.disconnect()
     outsider.disconnect()
     admin.disconnect()
+    anonymous.disconnect()

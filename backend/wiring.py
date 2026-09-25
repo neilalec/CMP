@@ -196,10 +196,19 @@ def _socket_backend_api():
     )
 
 
-def _with_socket_backend(handler):
+def _socket_backend_handler(handler, *, require_actor):
     def wrapped(*args, **kwargs):
         backend = _socket_backend_api()
         try:
+            if require_actor:
+                actor = backend.get_username_by_sid(request.sid)
+                if not actor:
+                    return {'success': False, 'message': 'Authentication required'}
+                payload = args[0] if args else None
+                if payload is not None and not isinstance(payload, dict):
+                    return {'success': False, 'message': 'Invalid request'}
+                # Existing clients may still send username. It is never the actor.
+                args = ({**(payload or {}), 'username': actor}, *args[1:])
             return handler(backend, *args, **kwargs)
         except Exception as exc:
             backend.logger.error(
@@ -211,6 +220,14 @@ def _with_socket_backend(handler):
             return {'success': False, 'message': f"{getattr(handler, '__name__', 'Socket handler')} failed"}
 
     return wrapped
+
+
+def _with_socket_backend(handler):
+    return _socket_backend_handler(handler, require_actor=True)
+
+
+def _with_anonymous_socket_backend(handler):
+    return _socket_backend_handler(handler, require_actor=False)
 
 
 def _queue_socket_dependencies(backend, socketio):
@@ -942,14 +959,30 @@ def register_http_routes(app):
 
 
 def register_socket_routes(socketio):
+    def leave_previous_actor_rooms(backend, previous_actor, new_actor):
+        if not previous_actor or previous_actor == new_actor:
+            return
+        leave_room(backend.get_user_room(previous_actor))
+        group_code = backend.get_user_group(previous_actor)
+        if group_code:
+            leave_room(group_code)
+        lobby_id = backend.find_active_lobby_for_user(previous_actor)
+        if lobby_id:
+            leave_room(lobby_id)
+        spectating_id = backend.player_activity.get(previous_actor, {}).get('spectating_lobby_id')
+        if spectating_id and spectating_id != lobby_id:
+            leave_room(spectating_id)
+
     @socketio.on('wardogs_lobby_subscribe')
     def subscribe_wardogs_lobby(data):
         if not isinstance(data, dict) or not isinstance(data.get('lobbyId'), str):
             return {'success': False}
         lobby_id = data['lobbyId']
         try:
-            username = decode_token(data.get('token') or '').get('sub')
             backend = _http_backend_api()
+            username = _socket_backend_api().get_username_by_sid(request.sid)
+            if not username:
+                return {'success': False, 'message': 'Authentication required'}
             lobby = get_wardogs_lobby(backend.get_db_connection, lobby_id)
             if not lobby or not can_read_lobby(lobby, username, backend.is_admin_user(username)):
                 return {'success': False}
@@ -960,6 +993,8 @@ def register_socket_routes(socketio):
 
     @socketio.on('wardogs_lobby_unsubscribe')
     def unsubscribe_wardogs_lobby(data):
+        if not _socket_backend_api().get_username_by_sid(request.sid):
+            return {'success': False, 'message': 'Authentication required'}
         if isinstance(data, dict) and isinstance(data.get('lobbyId'), str):
             leave_room(wardogs_lobby_room(data['lobbyId']))
         return {'success': True}
@@ -970,7 +1005,6 @@ def register_socket_routes(socketio):
         backend = _socket_backend_api()
         backend.logger.info("=== Caught unhandled event ===")
         backend.logger.info(f"Event: {event}")
-        backend.logger.info(f"Data: {args}")
 
     @socketio.on(_socket_backend_api().SOCKET_EVENTS['CONNECTION']['CONNECT'])
     def handle_connect(auth):
@@ -1011,23 +1045,30 @@ def register_socket_routes(socketio):
 
     @socketio.on(_socket_backend_api().SOCKET_EVENTS['AUTH']['REGISTER'])
     @_socket_backend_api().handle_socket_data
-    @_with_socket_backend
+    @_with_anonymous_socket_backend
     def register_socket(backend, data):
+        previous_actor = backend.get_username_by_sid(request.sid)
         dependencies = _auth_socket_dependencies(backend)
-        return backend.register_socket_event(
+        result = backend.register_socket_event(
             data,
             password_auth_enabled=backend.PASSWORD_AUTH_ENABLED,
             max_attempts=backend.AUTH_REGISTER_MAX_ATTEMPTS,
             window_seconds=backend.AUTH_RATE_LIMIT_WINDOW_SECONDS,
             **dependencies
         )
+        if result.get('success'):
+            leave_previous_actor_rooms(backend, previous_actor, data['username'])
+            backend.upsert_player_activity(data['username'], sid=request.sid, status='authenticated')
+            join_room(backend.get_user_room(data['username']))
+        return result
 
     @socketio.on(_socket_backend_api().SOCKET_EVENTS['AUTH']['LOGIN'])
     @_socket_backend_api().handle_socket_data
-    @_with_socket_backend
+    @_with_anonymous_socket_backend
     def login_socket(backend, data):
+        previous_actor = backend.get_username_by_sid(request.sid)
         dependencies = _auth_socket_dependencies(backend)
-        return backend.login_socket_event(
+        result = backend.login_socket_event(
             data,
             password_auth_enabled=backend.PASSWORD_AUTH_ENABLED,
             get_user_record=backend.get_user_record,
@@ -1041,15 +1082,20 @@ def register_socket_routes(socketio):
             window_seconds=backend.AUTH_RATE_LIMIT_WINDOW_SECONDS,
             **dependencies
         )
+        if result.get('success'):
+            leave_previous_actor_rooms(backend, previous_actor, data.get('username'))
+        return result
 
     @socketio.on(_socket_backend_api().SOCKET_EVENTS['AUTH']['AUTHENTICATE'])
     @_socket_backend_api().handle_socket_data
-    @_with_socket_backend
+    @_with_anonymous_socket_backend
     def handle_authenticate(backend, data):
         return backend.handle_authenticate_event(
             data,
             request=request,
             logger=backend.logger,
+            decode_token=decode_token,
+            get_username_by_sid=backend.get_username_by_sid,
             upsert_player_activity=backend.upsert_player_activity,
             matchmaking_queue=backend.matchmaking_queue,
             join_room=join_room,
@@ -1306,6 +1352,7 @@ def register_socket_routes(socketio):
     @_with_socket_backend
     def handle_group_transfer(backend, data=None):
         dependencies = _group_socket_dependencies(backend)
+        dependencies.pop('user_to_group')
         return backend.handle_group_transfer_event(
             data,
             **dependencies
@@ -1398,8 +1445,8 @@ def register_socket_routes(socketio):
 
     @socketio.on(_socket_backend_api().SOCKET_EVENTS['OPEN_LOBBIES']['STATUS'])
     @_socket_backend_api().handle_socket_data
-    def handle_open_lobbies_status(data=None):
-        backend = _socket_backend_api()
+    @_with_socket_backend
+    def handle_open_lobbies_status(backend, data=None):
         return backend.handle_open_lobbies_status_event(
             backend.get_open_lobbies,
             backend.get_active_lobbies,
@@ -1622,6 +1669,8 @@ def register_socket_routes(socketio):
     @_socket_backend_api().handle_socket_data
     @_with_socket_backend
     def handle_start_lobby(backend, data=None):
+        if not backend.is_admin_user(backend.get_username_by_sid(request.sid)):
+            return {'success': False, 'message': 'Admin access required'}
         return backend.handle_start_lobby_event(
             data,
             lobbies=backend.lobbies,

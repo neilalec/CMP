@@ -59,7 +59,7 @@ def test_socket_authenticate(socket_client, auth_token):
     """Test authentication with token"""
     response = socket_client.emit(SOCKET_EVENTS['AUTH']['AUTHENTICATE'], {
         'token': auth_token,
-        'username': 'neil'
+        'username': 'testuser'
     }, callback=True)
     
     assert response is True

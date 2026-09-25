@@ -48,6 +48,16 @@ def upsert_player_activity(username, sid=None, **updates):
     import time
 
     app = _app()
+    if sid:
+        # A successful login may switch accounts on an existing anonymous SID.
+        # Keep a SID bound to exactly one authenticated participant.
+        for other_username, other_entry in app.player_activity.items():
+            if other_username != username and sid in get_player_sids(other_username):
+                other_sids = get_player_sids(other_username)
+                other_sids.discard(sid)
+                other_entry['sids'] = other_sids
+                if other_entry.get('sid') == sid:
+                    other_entry['sid'] = next(iter(other_sids), None)
     existing = app.player_activity.get(username, {})
     sessions = get_player_sids(username)
     if sid:
