@@ -8,7 +8,8 @@ from pathlib import Path
 from typing import Any
 
 
-SENSITIVE_KEYS = {"password", "token", "authorization", "secret", "api_key", "apikey"}
+SENSITIVE_KEYS = {"password", "token", "authorization", "secret", "api_key", "apikey",
+                  "serverid", "joinid"}
 
 
 def utc_now() -> str:

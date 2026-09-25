@@ -1,4 +1,4 @@
-{"endpoint":"/v1/server-id","response":{"serverId":"5f62a737-4e04-4113-895a-8dc5806247b8"},"source":"wdrcon","success":true,"timestamp":"2026-09-23T11:08:26.875826Z"}
+{"endpoint":"/v1/server-id","response":{"serverId":"[REDACTED]"},"source":"wdrcon","success":true,"timestamp":"2026-09-23T11:08:26.875826Z"}
 {"candidateChanges":{"connectedSteamIds":[],"disconnectedSteamIds":[],"factionChanges":{}},"kind":"DERIVED CANDIDATE","note":"Polling comparison only; not an authoritative match lifecycle event.","source":"recorder","timestamp":"2026-09-23T11:08:32.532295Z"}
 {"candidateChanges":{"connectedSteamIds":[],"disconnectedSteamIds":[],"factionChanges":{}},"kind":"DERIVED CANDIDATE","note":"Polling comparison only; not an authoritative match lifecycle event.","source":"recorder","timestamp":"2026-09-23T11:08:37.846577Z"}
 {"candidateChanges":{"connectedSteamIds":[],"disconnectedSteamIds":[],"factionChanges":{}},"kind":"DERIVED CANDIDATE","note":"Polling comparison only; not an authoritative match lifecycle event.","source":"recorder","timestamp":"2026-09-23T11:08:43.119779Z"}

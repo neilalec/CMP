@@ -21,7 +21,7 @@ class MockState:
              "kills": 0, "deaths": 1, "cash": 50, "pingMs": 40},
         ]
         self.routes = ["GET /v1/capabilities", "GET /v1/status", "GET /v1/players",
-                       "GET /v1/rotation", "GET /v1/catalog/maps", "POST /v1/match/map",
+                       "GET /v1/rotation", "GET /v1/server-id", "GET /v1/catalog/maps", "POST /v1/match/map",
                        "PATCH /v1/players/{id}", "POST /v1/match/restart", "POST /v1/match/end"]
 
     def status(self):
@@ -79,6 +79,8 @@ def handler_for(state: MockState, password: str):
                          "lighting": "DayClear", "status": "now", "denied": False},
                         {"index": 1, "map": "Europe", "experiences": ["Madrid_KOTH_01"],
                          "lighting": "DayClear", "status": "next", "denied": False}]})
+                if path == "/v1/server-id":
+                    return self.reply(200, {"serverId": "fixture-live-join-id"})
                 if path == "/v1/catalog/maps":
                     return self.reply(200, {"maps": [{"id": "Kavkazi", "displayName": "Bakurani"},
                                                      {"id": "Europe", "displayName": "Ozeti"}]})

@@ -54,6 +54,14 @@ class RecorderAgainstSyntheticFixture(unittest.TestCase):
         self.assertIn("factionScoresChanged", candidates[-1]["candidateChanges"])
         self.assertIn("factionChanges", candidates[-1]["candidateChanges"])
 
+    def test_real_join_id_is_redacted_from_metadata_and_observation_logs(self):
+        metadata = json.loads((self.recorder.evidence.directory / "metadata.json").read_text())
+        events = self.lines("events.jsonl")
+        server_id_events = [row for row in events if row.get("endpoint") == "/v1/server-id"]
+        self.assertEqual(metadata["serverId"], "[REDACTED]")
+        self.assertEqual(server_id_events[0]["response"]["serverId"], "[REDACTED]")
+        self.assertNotIn("fixture-live-join-id", json.dumps(metadata) + json.dumps(events))
+
     def test_same_map_score_reset_is_only_a_candidate_and_credentials_are_redacted(self):
         self.recorder.poll_once()
         self.state.scores = dict.fromkeys(self.state.scores, 0)
