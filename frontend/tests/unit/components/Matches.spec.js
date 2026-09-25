@@ -41,6 +41,7 @@ describe('WARDOGS Matches page', () => {
     finishHistory(response({ success: true, matches: [] }));
     await flushPromises();
     expect(wrapper.text()).toContain('No current WARDOGS match');
+    expect(wrapper.find('.matches-quiet').classes()).toContain('cmp-empty-state');
     expect(wrapper.text()).toContain('No referee-confirmed WARDOGS matches yet');
     expect(wrapper.text()).not.toContain('Win');
   });

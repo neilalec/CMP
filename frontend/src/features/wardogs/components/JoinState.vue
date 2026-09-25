@@ -13,16 +13,20 @@ const joinId = computed(() => props.join.state === 'manual_join_available' &&
   typeof props.join.joinId === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(props.join.joinId)
   ? props.join.joinId : '');
 const copyStatus = ref('');
+const copyFailed = ref(false);
 const copyJoinId = async () => {
   if (!joinId.value || !navigator?.clipboard?.writeText) {
     copyStatus.value = 'Copy is unavailable in this browser.';
+    copyFailed.value = true;
     return;
   }
   try {
     await navigator.clipboard.writeText(joinId.value);
     copyStatus.value = 'Join ID copied.';
+    copyFailed.value = false;
   } catch {
     copyStatus.value = 'Could not copy the Join ID.';
+    copyFailed.value = true;
   }
 };
 </script>
@@ -39,7 +43,7 @@ const copyJoinId = async () => {
           <code aria-label="Join ID">{{ joinId }}</code>
           <button class="cmp-button cmp-button--secondary" type="button" @click="copyJoinId">Copy Join ID</button>
         </div>
-        <p v-if="copyStatus" class="wardogs-copy-feedback" role="status">{{ copyStatus }}</p>
+        <p v-if="copyStatus" class="wardogs-copy-feedback cmp-status" :class="copyFailed ? 'cmp-status--danger' : 'cmp-status--success'" :role="copyFailed ? 'alert' : 'status'">{{ copyStatus }}</p>
         <details v-if="Array.isArray(join.instructions) && join.instructions.length" class="wardogs-join-instructions cmp-disclosure">
           <summary>Join By ID steps</summary>
           <ol><li v-for="(step, index) in join.instructions" :key="index">{{ step }}</li></ol>

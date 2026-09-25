@@ -16,6 +16,8 @@ Use `cmp-page-content` for general pages. Narrow forms may use an intentional re
 
 On desktop, preserve useful density. At tablet widths, collapse wide content before it becomes cramped. At mobile widths, keep a 16px gutter, stack section headings and actions where necessary, and keep controls at least 42px high. Horizontal overflow is reserved for data that genuinely needs it.
 
+Keep the shared outer gutter and top offset across WARDOGS pages. Center content within a width suited to its task: participant records and operator views can be narrower than the shell, while the three-faction match room can use more of it. Empty, loading and error states use the shared state primitives; inline save and copy feedback uses the shared status label with a tone and accessible live role that match the outcome.
+
 ## Controls and state
 
 `cmp-button` is neutral, `cmp-button--primary` is the single leading action in an area, `cmp-button--secondary` is a quiet outlined action, and `cmp-button--danger` marks destructive actions. `cmp-input` covers text fields and selects. Focus is a visible outline. Disabled controls dim and retain their shape.

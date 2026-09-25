@@ -77,7 +77,7 @@ onMounted(() => { loadCurrent(); loadHistory(); });
         <div><p class="cmp-kicker">In progress</p><strong>{{ current.state === 'waiting_for_server' ? 'Waiting for server' : 'Server allocated' }}</strong><p class="cmp-faction-marker">{{ factionName(current.factionId) }} · {{ current.rosterStatus === 'reserve' ? 'Reserve' : 'Active' }}</p></div>
         <RouterLink class="cmp-button cmp-button--primary" :to="`/wardogs/lobby/${current.lobbyId}`">Open match</RouterLink>
       </div>
-      <p v-else-if="!currentLoading && !currentError" class="matches-quiet">No current WARDOGS match. <RouterLink to="/play">Go to Play</RouterLink></p>
+      <p v-else-if="!currentLoading && !currentError" class="cmp-empty-state matches-quiet">No current WARDOGS match. <RouterLink to="/play">Go to Play</RouterLink></p>
       <p v-if="currentError" class="cmp-error-state" role="alert">{{ currentError }} <button class="matches-retry cmp-button cmp-button--secondary" type="button" @click="loadCurrent">Retry</button></p>
     </section>
 

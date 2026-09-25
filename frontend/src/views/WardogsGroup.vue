@@ -10,16 +10,20 @@ const {
 } = useGroupView();
 const queueStore = useQueueStore();
 const copyStatus = ref('');
+const copyFailed = ref(false);
 const copyCode = async () => {
   if (!groupStore.code || !navigator?.clipboard?.writeText) {
     copyStatus.value = 'Copy is unavailable in this browser.';
+    copyFailed.value = true;
     return;
   }
   try {
     await navigator.clipboard.writeText(groupStore.code);
     copyStatus.value = 'Group code copied.';
+    copyFailed.value = false;
   } catch {
     copyStatus.value = 'Could not copy the group code.';
+    copyFailed.value = true;
   }
 };
 </script>
@@ -39,7 +43,7 @@ const copyCode = async () => {
     <template v-else>
       <section class="group-overview cmp-surface" aria-label="Your group summary">
         <div><p class="cmp-kicker">Your premade</p><h2>{{ groupStore.members.length }} player{{ groupStore.members.length === 1 ? '' : 's' }}</h2><p>Leader: <strong>{{ getMemberDisplayName(groupStore.leader) }}</strong> · {{ isGroupLeader ? 'You control queueing for this group.' : 'Only the group leader controls queueing.' }}</p><p v-if="queueStore.inQueue" class="cmp-status cmp-status--success">You are in queue.</p></div>
-        <div class="group-code"><span class="cmp-kicker">Group code</span><code>{{ groupStore.code }}</code><button class="cmp-button cmp-button--secondary" type="button" @click="copyCode">Copy code</button><span v-if="copyStatus" class="group-copy-feedback" role="status">{{ copyStatus }}</span></div>
+        <div class="group-code"><span class="cmp-kicker">Group code</span><code>{{ groupStore.code }}</code><button class="cmp-button cmp-button--secondary" type="button" @click="copyCode">Copy code</button><span v-if="copyStatus" class="group-copy-feedback cmp-status" :class="copyFailed ? 'cmp-status--danger' : 'cmp-status--success'" :role="copyFailed ? 'alert' : 'status'">{{ copyStatus }}</span></div>
       </section>
 
       <section class="group-members" aria-label="Group members"><div class="cmp-section-header"><h2>Members</h2><p>{{ groupStore.members.length }} in group</p></div><ul><li v-for="member in groupStore.members" :key="member" class="cmp-player-row group-member" :class="{ 'is-me': member === authStore.username }"><div class="group-member-name"><strong>{{ getMemberDisplayName(member) }}</strong><span v-if="member === authStore.username">You</span><span v-if="member === groupStore.leader">Leader</span></div><div v-if="member !== groupStore.leader && isGroupLeader" class="group-member-actions"><button class="cmp-button cmp-button--secondary" type="button" :disabled="groupStore.loading" @click="handleTransferOwnership(member)">Make leader</button><button class="cmp-button cmp-button--danger" type="button" :disabled="groupStore.loading" @click="handleKickMember(member)">Kick</button></div></li></ul></section>
@@ -71,7 +75,7 @@ const copyCode = async () => {
 .group-code { display: grid; gap: var(--cmp-space-2); min-width: 200px; padding-left: var(--cmp-space-5); border-left: 1px solid var(--cmp-border); }
 .group-code code { color: var(--cmp-text); font: 700 1.125rem var(--cmp-font-mono); letter-spacing: .04em; overflow-wrap: anywhere; }
 .group-code button { justify-self: start; }
-.group-copy-feedback { color: var(--cmp-success); font-size: var(--cmp-type-meta); }
+.group-copy-feedback { font-size: var(--cmp-type-meta); }
 .group-members { display: grid; gap: var(--cmp-space-3); }
 .group-members .cmp-section-header { margin: 0; }
 .group-members ul { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--cmp-border); }

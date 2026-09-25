@@ -34,7 +34,7 @@
 .wardogs-join-id code { display: flex; align-items: center; min-width: 0; padding: var(--cmp-space-2) var(--cmp-space-3); border: 1px solid var(--cmp-border); border-radius: var(--cmp-radius-sm); background: var(--cmp-surface-inset); font: 700 .9375rem var(--cmp-font-mono); user-select: all; overflow-wrap: anywhere; }
 .wardogs-join-state.is-compact .wardogs-join-id code { font-size: var(--cmp-type-meta); }
 .wardogs-join-state > a { justify-self: start; }
-.wardogs-copy-feedback { color: var(--cmp-success) !important; }
+.wardogs-copy-feedback { margin: 0; font-size: var(--cmp-type-meta); }
 .wardogs-join-instructions { margin-top: var(--cmp-space-1); font-size: var(--cmp-type-meta); }
 .wardogs-join-instructions ol { margin: 0 0 var(--cmp-space-2); padding-left: 1.5em; }
 .wardogs-join-instructions li { margin: var(--cmp-space-1) 0; }

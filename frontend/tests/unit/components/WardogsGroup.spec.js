@@ -52,12 +52,25 @@ test('leader sees members, contextual controls, code copy, and leave', async () 
   await page.get('.group-code button').trigger('click');
   expect(writeText).toHaveBeenCalledWith('ABCD');
   expect(page.text()).toContain('Group code copied.');
+  expect(page.get('.group-copy-feedback').attributes('role')).toBe('status');
+  expect(page.get('.group-copy-feedback').classes()).toContain('cmp-status--success');
   await page.get('.group-member-actions button').trigger('click');
   expect(actions.handleTransferOwnership).toHaveBeenCalledWith('bob');
   await page.get('.group-member-actions .cmp-button--danger').trigger('click');
   expect(actions.handleKickMember).toHaveBeenCalledWith('bob');
   await page.get('.group-footer button').trigger('click');
   expect(actions.handleLeave).toHaveBeenCalledTimes(1);
+});
+
+test('group-code copy failures are announced as errors', async () => {
+  Object.assign(groupStore, { code: 'ABCD', leader: 'alice', members: ['alice'] });
+  Object.defineProperty(navigator, 'clipboard', {
+    value: { writeText: jest.fn().mockRejectedValue(new Error('denied')) }, configurable: true
+  });
+  const page = mountPage();
+  await page.get('.group-code button').trigger('click');
+  expect(page.get('.group-copy-feedback').attributes('role')).toBe('alert');
+  expect(page.get('.group-copy-feedback').classes()).toContain('cmp-status--danger');
 });
 
 test('non-leader sees authority but cannot manage members', () => {

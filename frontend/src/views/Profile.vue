@@ -57,7 +57,7 @@ onMounted(async () => {
 
     <section class="profile-identity cmp-surface" aria-label="Competitive identity">
       <div class="profile-name"><p class="cmp-kicker">Display name</p><h2>{{ authStore.playerName || 'Player' }}</h2><p>{{ hasSteamId ? 'Steam linked' : 'Steam not linked' }}<span v-if="authStore.isAdmin"> · Admin</span></p></div>
-      <div class="profile-rating"><p class="cmp-kicker">WARDOGS rating</p><p v-if="ratingLoading" role="status">Checking recent rating…</p><p v-else-if="ratingError" role="alert">{{ ratingError }}</p><template v-else-if="latestRatedMatch"><strong>{{ latestRatedMatch.rating.after }}</strong><span>After your latest rated match</span></template><p v-else>No recent rating entry.</p></div>
+      <div class="profile-rating"><p class="cmp-kicker">WARDOGS rating</p><p v-if="ratingLoading" class="cmp-status" role="status">Checking recent rating…</p><p v-else-if="ratingError" class="cmp-status cmp-status--danger" role="alert">{{ ratingError }}</p><template v-else-if="latestRatedMatch"><strong>{{ latestRatedMatch.rating.after }}</strong><span>After your latest rated match</span></template><p v-else>No recent rating entry.</p></div>
     </section>
 
     <section class="profile-edit" aria-labelledby="display-name-title">
@@ -67,8 +67,8 @@ onMounted(async () => {
         <input id="profile-display-name" v-model="displayName" class="cmp-input" type="text" maxlength="32" autocomplete="nickname" :disabled="saving" @input="saveStatus = ''; saveError = ''">
         <button class="cmp-button cmp-button--primary" type="submit" :disabled="saving" :aria-busy="saving">{{ saving ? 'Saving…' : 'Save name' }}</button>
       </form>
-      <p v-if="saveStatus" class="profile-feedback is-success" role="status">{{ saveStatus }}</p>
-      <p v-if="saveError" class="profile-feedback is-error" role="alert">{{ saveError }}</p>
+      <p v-if="saveStatus" class="profile-feedback cmp-status cmp-status--success" role="status">{{ saveStatus }}</p>
+      <p v-if="saveError" class="profile-feedback cmp-status cmp-status--danger" role="alert">{{ saveError }}</p>
     </section>
 
     <section class="profile-group cmp-disclosure" aria-label="Group access"><div><h2>Group</h2><p>Manage your premade for matchmaking.</p></div><RouterLink class="cmp-button cmp-button--secondary" to="/group">Open group</RouterLink></section>
@@ -92,8 +92,6 @@ onMounted(async () => {
 .display-name-control { display: flex; gap: var(--cmp-space-2); max-width: 620px; }
 .display-name-control input { flex: 1; min-width: 0; }
 .profile-feedback { margin: 0; font-size: var(--cmp-type-meta); }
-.profile-feedback.is-success { color: var(--cmp-success); }
-.profile-feedback.is-error { color: var(--cmp-danger); }
 .profile-group { display: flex; align-items: center; justify-content: space-between; gap: var(--cmp-space-4); padding-top: var(--cmp-space-4); }
 .profile-group h2 { margin: 0 0 var(--cmp-space-1); font-size: var(--cmp-type-section); }
 .profile-group p { margin: 0; color: var(--cmp-text-secondary); font-size: var(--cmp-type-meta); }

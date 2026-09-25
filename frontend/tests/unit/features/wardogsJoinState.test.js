@@ -54,5 +54,16 @@ describe('WARDOGS join state', () => {
     await manual.find('button').trigger('click');
     expect(writeText).toHaveBeenCalledWith('copy-this-id');
     expect(manual.text()).toContain('Join ID copied.');
+    expect(manual.get('[role="status"]').classes()).toContain('cmp-status--success');
+  });
+
+  test('copy failure is announced and uses the error status treatment', async () => {
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: jest.fn().mockRejectedValue(new Error('denied')) }, configurable: true
+    });
+    const manual = render({ state: 'manual_join_available', joinId: 'copy-fails', instructions: [] });
+    await manual.find('button').trigger('click');
+    expect(manual.get('[role="alert"]').text()).toBe('Could not copy the Join ID.');
+    expect(manual.get('[role="alert"]').classes()).toContain('cmp-status--danger');
   });
 });
