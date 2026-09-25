@@ -39,7 +39,7 @@ describe('WARDOGS Admin console', () => {
     diagnostics = { generatedAt: 1790260000, database: { ok: true }, queueSize: 1,
       queueModes: { wardogs_beta9: { id: 'wardogs_beta9', gameType: 'wardogs',
         label: 'WARDOGS Beta · 3 factions', size: 1, requiredPlayers: 9,
-        factionCount: 3, activePerFaction: 3, reservePerFaction: 0 } },
+        factionCount: 3, activePerFaction: 3, reservePerFaction: 0, pendingMatch: null } },
       serverAvailabilityByGame: { wardogs: { available: false, reason: 'no_servers', capacity: 0,
         activeLobbyCount: 0, activePendingMatchCount: 0 } },
       bridge: { enabled: false }, automation: { mode: 'on', rconWritesEnabled: true },
@@ -61,9 +61,10 @@ describe('WARDOGS Admin console', () => {
     const wrapper = mountAdmin();
     await flushPromises();
     const page = wrapper.text();
+    expect(wrapper.get('.operator-summary').text()).toContain('SystemHealthyQueue1 waiting');
     expect(page).toContain('Backend databaseHealthy');
-    expect(page).toContain('WARDOGS server registry1 registered');
-    expect(page).toContain('WARDOGS queue capacityNo registered capacity');
+    expect(page).toContain('WARDOGS servers1 registered');
+    expect(page).toContain('ServersNo registered capacity');
     expect(page).toContain('WARDOGS Beta · 3 factions');
     expect(page).toContain('9 total players · 3 factions · 3 active/faction · 0 reserve/faction');
     expect(page).toContain('Test WARDOGS');
@@ -97,8 +98,8 @@ describe('WARDOGS Admin console', () => {
       activeLobbyCount: 0, activePendingMatchCount: 0 };
     const wrapper = mountAdmin();
     await flushPromises();
-    expect(wrapper.text()).toContain('WARDOGS queue capacityHeadroom reported');
-    expect(wrapper.text()).toContain('Queue capacity describes runtime headroom from diagnostics. It does not guarantee a server will pass the allocator’s registry and fresh-health checks.');
+    expect(wrapper.text()).toContain('ServersRuntime headroom reported · 1 registered');
+    expect(wrapper.text()).toContain('Runtime capacity does not guarantee that a specific registry server will pass allocation checks.');
     expect(wrapper.text()).toContain('WARDOGS allocation checks approval, enabled state, a recent healthy probe, and reservation ownership when it runs. This registry view does not predict that decision.');
     expect(wrapper.text()).not.toContain('Eligible');
     expect(wrapper.text()).not.toContain('Available for allocation');
@@ -148,7 +149,7 @@ describe('WARDOGS Admin console', () => {
     const wrapper = mountAdmin();
     await flushPromises();
     expect(wrapper.find('[aria-label="System diagnostics"]').exists()).toBe(false);
-    expect(wrapper.find('[aria-label="WARDOGS server registry"]').exists()).toBe(false);
+    expect(wrapper.find('[aria-label="WARDOGS servers"]').exists()).toBe(false);
     expect(global.fetch).not.toHaveBeenCalled();
     wrapper.unmount();
   });
@@ -164,6 +165,26 @@ describe('WARDOGS Admin console', () => {
     expect(wrapper.text()).toContain('Backend databaseHealthy');
     expect(wrapper.text()).toContain('Servers unavailable');
     expect(wrapper.findAll('button').some((button) => button.text() === 'Retry servers')).toBe(true);
+    wrapper.unmount();
+  });
+
+  test('labels retained server registry data stale after a failed refresh', async () => {
+    let failServerRefresh = false;
+    global.fetch = jest.fn(async (url) => {
+      if (url.endsWith('/admin/diagnostics')) return response({ success: true, diagnostics });
+      if (url.endsWith('/admin/servers')) return failServerRefresh
+        ? response({ success: false, message: 'Registry refresh failed' }, false)
+        : response({ success: true, servers, available: [] });
+      return response({ success: true, ...dev });
+    });
+    const wrapper = mountAdmin();
+    await flushPromises();
+    failServerRefresh = true;
+    await wrapper.findAll('button').find((button) => button.text() === 'Refresh').trigger('click');
+    await flushPromises();
+    expect(wrapper.text()).toContain('Registry refresh failed');
+    expect(wrapper.text()).toContain('Showing last successful registry read; probe details may be stale.');
+    expect(wrapper.text()).toContain('Test WARDOGS');
     wrapper.unmount();
   });
 
@@ -210,6 +231,42 @@ describe('WARDOGS Admin console', () => {
     wrapper.unmount();
   });
 
+  test('shows direct active-match links and keeps technical health detail collapsed', async () => {
+    diagnostics.activeLobbies = [{ lobby_id: 'wd-live', step: 4, players: 9, selected_map: 'Valley' }];
+    const wrapper = mountAdmin();
+    await flushPromises();
+    const systemDetail = wrapper.get('.system-detail');
+    expect(systemDetail.attributes('open')).toBeUndefined();
+    expect(systemDetail.find('summary').text()).toContain('System detail');
+    expect(wrapper.find('a[href="/wardogs/lobby/wd-live"]').text()).toContain('Open match');
+    expect(wrapper.text()).not.toContain('Confirm result');
+    expect(wrapper.text()).not.toContain('Correct result');
+    wrapper.unmount();
+  });
+
+  test('does not report zeros while diagnostics are loading or runtime capacity is unknown', async () => {
+    let finishDiagnostics;
+    let finishServers;
+    global.fetch = jest.fn((url) => new Promise((resolve) => {
+      if (url.endsWith('/admin/diagnostics')) finishDiagnostics = resolve;
+      else if (url.endsWith('/admin/servers')) finishServers = resolve;
+      else resolve(response({ success: true, ...dev }));
+    }));
+    const wrapper = mountAdmin();
+    await flushPromises();
+    expect(wrapper.get('.operator-summary').text()).toContain('SystemLoading');
+    expect(wrapper.text()).not.toContain('0 waiting');
+    finishDiagnostics(response({ success: true, diagnostics: {
+      database: { ok: true }, queueModes: {}, serverAvailabilityByGame: {}
+    } }));
+    await flushPromises();
+    expect(wrapper.get('.operator-summary').text()).toContain('ServersUnknown');
+    finishServers(response({ success: true, servers: [], available: [] }));
+    await flushPromises();
+    expect(wrapper.text()).toContain('No WARDOGS servers are registered');
+    wrapper.unmount();
+  });
+
   test('shows compact loading states before admin reads finish', async () => {
     let finishDiagnostics;
     let finishServers;
@@ -220,7 +277,7 @@ describe('WARDOGS Admin console', () => {
     }));
     const wrapper = mountAdmin();
     await flushPromises();
-    expect(wrapper.text()).toContain('Loading system signals');
+    expect(wrapper.get('.operator-summary').text()).toContain('SystemLoading');
     expect(wrapper.get('.runtime-section').text()).toContain('Loading runtime diagnostics');
     expect(wrapper.find('.runtime-summary').exists()).toBe(false);
     expect(wrapper.text()).toContain('Loading registered servers');

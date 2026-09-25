@@ -42,6 +42,34 @@ const wardogsServers = computed(() => servers.value.filter((server) => server.ga
 const otherServers = computed(() => servers.value.filter((server) => server.game_type !== 'wardogs'));
 const wardogsQueueModes = computed(() => queueModeDiagnostics.value.filter((mode) => mode.gameType === 'wardogs'));
 const wardogsRuntimeCapacity = computed(() => diagnostics.value?.serverAvailabilityByGame?.wardogs || null);
+const systemSummary = computed(() => {
+  if (!diagnostics.value) return loading.value ? 'Loading' : 'Unknown';
+  const database = diagnostics.value.database?.ok;
+  const bridge = diagnostics.value.bridge;
+  if (database === false || (bridge?.enabled !== false && bridge?.ok === false)) return 'Needs attention';
+  if (database === true && (bridge?.enabled === false || bridge?.ok === true)) return 'Healthy';
+  return 'Partial checks';
+});
+const queueSummary = computed(() => {
+  if (!diagnostics.value) return loading.value ? 'Loading' : 'Unknown';
+  const sizes = wardogsQueueModes.value.map((mode) => mode.size);
+  if (!sizes.length || sizes.some((size) => typeof size !== 'number' || !Number.isFinite(size))) return 'Unknown';
+  const total = sizes.reduce((sum, size) => sum + size, 0);
+  return `${total} waiting`;
+});
+const serverSummary = computed(() => {
+  if (!wardogsRuntimeCapacity.value || typeof wardogsRuntimeCapacity.value.available !== 'boolean') {
+    return diagnostics.value ? 'Unknown' : (loading.value || serverLoading.value ? 'Loading' : 'Unknown');
+  }
+  const capacity = wardogsRuntimeCapacity.value.capacity;
+  if (typeof capacity !== 'number' || !Number.isFinite(capacity)) return 'Unknown';
+  if (capacity <= 0) return 'No registered capacity';
+  return `${wardogsRuntimeCapacity.value.available ? 'Runtime headroom reported' : 'At runtime capacity'} · ${capacity} registered`;
+});
+const systemNeedsAttention = computed(() => systemSummary.value === 'Needs attention');
+const activeLobbyCount = computed(() => Array.isArray(diagnostics.value?.activeLobbies)
+  ? activeLobbies.value.length
+  : 'Unknown');
 
 const loadWardogsDev = async () => {
   if (!import.meta.env.DEV || !isAdmin.value) return;
@@ -172,14 +200,16 @@ const seedWardogsGroup = async () => {
   }
 };
 const runtimeCapacityLabel = (value) => {
-  if (!value || typeof value.available !== 'boolean') return 'Unknown';
-  if (Number(value.capacity) <= 0) return 'No registered capacity';
+  if (!value || typeof value.available !== 'boolean'
+    || typeof value.capacity !== 'number' || !Number.isFinite(value.capacity)) return 'Unknown';
+  if (value.capacity <= 0) return 'No registered capacity';
   return value.available ? 'Headroom reported' : 'At runtime capacity';
 };
 const runtimeCapacityTone = (value) => {
   if (!value || typeof value.available !== 'boolean') return 'is-neutral';
   return value.available ? 'is-good' : 'is-attention';
 };
+const queueModeSize = (mode) => typeof mode?.size === 'number' && Number.isFinite(mode.size) ? mode.size : null;
 
 const apiFetch = async (path, options = {}) => {
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -316,11 +346,17 @@ onMounted(async () => {
 <template>
   <div class="admin-page cmp-page cmp-page-content">
     <header class="cmp-page-header admin-header">
-      <div><p class="cmp-kicker">WARDOGS operations</p><h1>Admin</h1><p>System signals, server registry, and controlled local test tools.</p></div>
+      <div><p class="cmp-kicker">WARDOGS operations</p><h1>Admin</h1></div>
       <button v-if="isAdmin" class="cmp-button cmp-button--secondary" type="button" :disabled="loading || serverLoading" @click="loadDiagnostics(); loadServers()">
-        {{ loading || serverLoading ? 'Refreshing…' : 'Refresh status' }}
+        {{ loading || serverLoading ? 'Refreshing…' : 'Refresh' }}
       </button>
     </header>
+
+    <dl v-if="isAdmin" class="operator-summary" aria-label="WARDOGS operational summary">
+      <div><dt>System</dt><dd :class="systemNeedsAttention ? 'is-attention' : ''">{{ systemSummary }}</dd></div>
+      <div><dt>Queue</dt><dd>{{ queueSummary }}</dd></div>
+      <div><dt>Servers</dt><dd>{{ serverSummary }}</dd></div>
+    </dl>
 
     <details v-if="canAccessAdminPage && authStore.canToggleAdmin" class="admin-mode cmp-disclosure">
       <summary>Root admin test mode <span>{{ authStore.isAdmin ? 'Admin mode active' : 'Regular-user test' }}</span></summary>
@@ -334,50 +370,46 @@ onMounted(async () => {
     <p v-if="!isAdmin && !canAccessAdminPage" class="cmp-error-state" role="alert">Admin access is required.</p>
 
     <template v-if="isAdmin">
-      <section class="admin-section" aria-label="System diagnostics">
-        <div class="admin-section-heading"><div><p class="cmp-kicker">Platform signals</p><h2>System health</h2></div><span v-if="diagnostics" class="admin-updated">Updated {{ formatDateTime(diagnostics.generatedAt) }}</span></div>
-        <p v-if="loading && !diagnostics" role="status" class="cmp-loading-state">Loading system signals…</p>
-        <p v-if="error" role="alert" class="cmp-error-state">{{ error }} <button type="button" class="text-action" @click="loadDiagnostics">Retry diagnostics</button><span v-if="diagnostics">Showing last successful diagnostics.</span></p>
-        <template v-if="diagnostics">
-          <dl class="signal-list">
-            <div class="signal-row"><dt>Backend database</dt><dd class="signal-value" :class="diagnostics.database?.ok === true ? 'is-good' : diagnostics.database?.ok === false ? 'is-attention' : 'is-neutral'">{{ diagnostics.database?.ok === true ? 'Healthy' : diagnostics.database?.ok === false ? 'Needs attention' : 'Unknown' }}</dd></div>
-            <div v-if="diagnostics.bridge?.enabled !== false" class="signal-row"><dt>CMP bridge</dt><dd class="signal-value" :class="diagnostics.bridge?.ok ? 'is-good' : 'is-attention'">{{ diagnostics.bridge?.ok ? 'Healthy' : 'Degraded' }}</dd></div>
-            <div class="signal-row"><dt>WARDOGS queue capacity</dt><dd class="signal-value" :class="runtimeCapacityTone(wardogsRuntimeCapacity)">{{ runtimeCapacityLabel(wardogsRuntimeCapacity) }}</dd><small v-if="wardogsRuntimeCapacity">{{ wardogsRuntimeCapacity.activeLobbyCount || 0 }} active lobbies · {{ wardogsRuntimeCapacity.activePendingMatchCount || 0 }} pending acceptances · {{ wardogsRuntimeCapacity.capacity || 0 }} registered-server capacity</small></div>
-            <div class="signal-row"><dt>EOS integration</dt><dd class="signal-value" :class="diagnostics.eos?.configured ? 'is-good' : 'is-attention'">{{ diagnostics.eos?.configured ? 'Configured' : 'Not configured' }}</dd></div>
-            <div class="signal-row"><dt>RCON automation</dt><dd class="signal-value">{{ automationMode }} · {{ diagnostics.automation?.rconWritesEnabled ? 'writes enabled' : 'writes blocked' }}</dd></div>
-          </dl>
-          <p class="admin-note">Queue capacity describes runtime headroom from diagnostics. It does not guarantee a server will pass the allocator’s registry and fresh-health checks.</p>
-          <div class="automation-control">
-            <div><h3>Automation mode</h3><p>Control existing server write behavior.</p></div>
-            <div class="admin-actions" role="group" aria-label="Automation mode">
-              <button v-for="mode in automationModes" :key="mode.id" type="button" class="cmp-button cmp-button--secondary" :aria-pressed="automationMode === mode.id" :disabled="automationLoading || loading || !!error" :title="mode.description" @click="setAutomationMode(mode.id)">{{ mode.label }}</button>
-            </div>
+      <div v-if="error || serverError" class="operator-alerts" aria-label="Operational problems">
+        <p v-if="error" class="cmp-error-state" role="alert">Diagnostics: {{ error }} <button type="button" class="text-action" @click="loadDiagnostics">Retry diagnostics</button><span v-if="diagnostics">Showing last successful read.</span></p>
+        <p v-if="serverError" class="cmp-error-state" role="alert">Server registry: {{ serverError }} <button type="button" class="text-action" @click="loadServers">Retry servers</button><span v-if="serversLoaded">Showing last successful registry read; probe details may be stale.</span></p>
+        <p v-if="systemNeedsAttention" class="cmp-error-state" role="status">A system health check needs attention. Review the system detail below.</p>
+        <p v-if="wardogsRuntimeCapacity?.available === false" class="cmp-error-state" role="status">WARDOGS runtime reports no headroom{{ wardogsRuntimeCapacity.reason ? `: ${String(wardogsRuntimeCapacity.reason).replaceAll('_', ' ')}` : '' }}.</p>
+      </div>
+
+      <section class="admin-section runtime-section" aria-label="Queue and runtime">
+        <div class="admin-section-heading"><div><p class="cmp-kicker">Live operations</p><h2>Queue &amp; runtime</h2></div><span class="admin-updated">{{ diagnostics ? queueSummary : loading ? 'Loading' : 'Unknown' }}</span></div>
+        <p v-if="!diagnostics" class="admin-note" role="status">{{ loading ? 'Loading runtime diagnostics…' : 'Runtime diagnostics are unavailable. Retry diagnostics to restore live counts.' }}</p>
+        <template v-else>
+          <p v-if="error" class="admin-note" role="status">Showing the last successful runtime read; counts may be stale.</p>
+          <p v-if="!wardogsQueueModes.length" class="admin-note">No WARDOGS queue modes are present in diagnostics.</p>
+          <div v-for="mode in wardogsQueueModes" :key="mode.id" class="runtime-mode">
+            <div><strong>{{ mode.label }}</strong><small>{{ formatQueueModeCapacity(mode) }}</small></div>
+            <strong>{{ queueModeSize(mode) === null ? 'Unknown' : `${queueModeSize(mode)} waiting` }}</strong>
+            <span>{{ mode.pendingMatch === null ? 'No pending acceptance' : mode.pendingMatch ? `${mode.pendingMatch.acceptedCount}/${mode.pendingMatch.requiredCount} accepted` : 'Unknown acceptance state' }}</span>
           </div>
-          <details v-if="queueModeDiagnostics.length" class="cmp-disclosure admin-disclosure">
-            <summary>Queue mode detail <span>{{ queueModeDiagnostics.length }}</span></summary>
-            <div v-for="mode in queueModeDiagnostics" :key="mode.id" class="detail-row"><span>{{ mode.label }}</span><strong>{{ mode.size }} queued</strong><small>{{ formatQueueModeCapacity(mode) }}</small></div>
-          </details>
-          <details class="cmp-disclosure admin-disclosure">
-            <summary>CMP audit events <span>{{ recentEvents.length }} recent</span></summary>
-            <p v-if="!recentEvents.length" class="admin-note">No recent events.</p>
-            <div v-for="event in recentEvents" :key="event.id" class="detail-row" :class="{ 'is-warning': isWarningEvent(event.event_type) }"><span>{{ formatEventType(event.event_type) }}</span><strong>{{ isWarningEvent(event.event_type) ? 'Review' : 'Recorded' }} · {{ formatDateTime(event.created_at) }}</strong><small>Lobby {{ event.lobby_id || 'unavailable' }}</small></div>
-            <p class="admin-note">{{ historyCounts.lobbyEvents || 0 }} lobby events recorded.</p>
-          </details>
+          <div class="runtime-summary">
+            <div><span>Active matches</span><strong>{{ activeLobbyCount }}</strong></div>
+            <div><span>Pending acceptance</span><strong>{{ diagnostics?.pendingMatch === null ? 'None reported' : diagnostics?.pendingMatch ? `${diagnostics.pendingMatch.acceptedCount}/${diagnostics.pendingMatch.requiredCount}` : 'Unknown' }}</strong></div>
+          </div>
+          <div v-if="activeLobbies.length" class="active-lobby-list" aria-label="Active matches">
+            <RouterLink v-for="lobby in activeLobbies" :key="lobby.lobby_id" class="active-lobby-row" :to="`/wardogs/lobby/${lobby.lobby_id}`">
+              <span>{{ lobby.lobby_id }}</span><strong>{{ formatLobbyPhase(lobby.step) }} · {{ lobby.players }} players</strong><span>Open match</span>
+            </RouterLink>
+          </div>
         </template>
       </section>
 
       <section class="admin-section" aria-label="WARDOGS server registry">
-        <div class="admin-section-heading"><div><p class="cmp-kicker">Operations</p><h2>WARDOGS server registry</h2></div><span class="admin-updated">{{ serversLoaded ? `${wardogsServers.length} registered` : serverLoading ? 'Loading' : 'Unknown' }}</span></div>
+        <div class="admin-section-heading"><div><p class="cmp-kicker">Infrastructure</p><h2>WARDOGS servers</h2></div><span class="admin-updated">{{ serversLoaded ? `${wardogsServers.length} registered` : serverLoading ? 'Loading' : 'Unknown' }}</span></div>
         <p v-if="serverLoading && !serversLoaded" role="status" class="cmp-loading-state">Loading registered servers…</p>
-        <p v-if="serverError" role="alert" class="cmp-error-state">{{ serverError }} <button type="button" class="text-action" @click="loadServers">Retry servers</button><span v-if="serversLoaded">Showing the last successful registry read; probe and assignment details may be stale.</span></p>
         <p v-if="serversLoaded && !wardogsServers.length" class="cmp-empty-state">No WARDOGS servers are registered.</p>
         <div v-for="server in wardogsServers" :key="server.id" class="server-row">
-          <div class="server-identity"><strong>{{ server.display_name || server.slug || `Server ${server.id}` }}</strong><span>Registry ID {{ server.id }} · {{ server.approved_by ? 'Approved' : 'Awaiting approval' }}</span></div>
-          <div class="server-state"><span>Registry state</span><strong>{{ server.enabled ? 'Enabled' : 'Disabled' }} · {{ server.status || 'Unknown' }}</strong></div>
+          <div class="server-identity"><strong>{{ server.display_name || server.slug || `Server ${server.id}` }}</strong><span>ID {{ server.id }} · {{ server.approved_by ? 'Approved' : 'Awaiting approval' }} · {{ server.enabled ? 'Enabled' : 'Disabled' }}</span></div>
           <div class="server-state"><span>Last probe</span><strong>{{ server.last_health_status || 'Not checked' }}</strong><small>{{ formatDateTime(server.last_health_check_at) }}</small></div>
-          <div class="server-assignment"><span>Current match</span><RouterLink v-if="server.current_lobby_id" :to="`/wardogs/lobby/${server.current_lobby_id}`">{{ server.current_lobby_id }} · Open match</RouterLink><strong v-else>Unassigned</strong></div>
+          <div class="server-assignment"><span>Assignment</span><RouterLink v-if="server.current_lobby_id" :to="`/wardogs/lobby/${server.current_lobby_id}`">{{ server.current_lobby_id }} · Open match</RouterLink><strong v-else>Unassigned</strong></div>
           <details class="server-details cmp-disclosure">
-            <summary>Probe and registry detail</summary>
+            <summary>Technical detail</summary>
             <div class="detail-row"><span>Approval</span><strong>{{ server.approved_by ? `Approved by ${server.approved_by}` : 'Awaiting approval' }}</strong></div>
             <div class="detail-row"><span>Reservation</span><strong>{{ server.current_lobby_id ? `Assigned to ${server.current_lobby_id}` : 'No current match recorded' }}</strong></div>
             <div v-if="server.last_health_error" class="detail-row is-warning"><span>Probe issue</span><strong>{{ server.last_health_error }}</strong></div>
@@ -388,35 +420,40 @@ onMounted(async () => {
             <p class="admin-note">WARDOGS allocation checks approval, enabled state, a recent healthy probe, and reservation ownership when it runs. This registry view does not predict that decision.</p>
           </details>
         </div>
-        <p v-if="serversLoaded && !serverError" class="admin-note">Registry writes remain disabled here. Allocation retry is limited to the local test workflow.</p>
         <details v-if="otherServers.length" class="cmp-disclosure admin-disclosure other-servers"><summary>Other registered game servers <span>{{ otherServers.length }}</span></summary>
           <div v-for="server in otherServers" :key="server.id" class="detail-row"><span>{{ server.display_name || server.slug || `Server ${server.id}` }} · {{ server.game_type }}</span><strong>{{ server.approved_by ? 'Approved' : 'Awaiting approval' }} · {{ server.enabled ? 'Enabled' : 'Disabled' }} · {{ server.status || 'Unknown' }}</strong><small>Last probe {{ server.last_health_status || 'Not checked' }} · {{ formatDateTime(server.last_health_check_at) }} · {{ server.current_lobby_id || 'Unassigned' }}</small></div>
         </details>
       </section>
 
-      <section class="admin-section runtime-section" aria-label="Queue and runtime">
-        <div class="admin-section-heading"><div><p class="cmp-kicker">Live operations</p><h2>Queue &amp; runtime</h2></div><span class="admin-updated">{{ diagnostics ? `${wardogsQueueModes.reduce((total, mode) => total + mode.size, 0)} WARDOGS waiting` : 'Unknown' }}</span></div>
-        <p v-if="!diagnostics" class="admin-note" role="status">{{ loading ? 'Loading runtime diagnostics…' : 'Runtime diagnostics are unavailable. Refresh system health to try again.' }}</p>
-        <template v-else>
-          <p v-if="error" class="admin-note" role="status">Showing the last successful runtime read; counts may be stale.</p>
-          <p v-if="!wardogsQueueModes.length" class="admin-note">No WARDOGS queue modes are present in diagnostics.</p>
-          <div v-else class="runtime-modes">
-            <div v-for="mode in wardogsQueueModes" :key="mode.id" class="detail-row"><span>{{ mode.label }}</span><strong>{{ mode.size }} queued</strong><small>{{ formatQueueModeCapacity(mode) }} · {{ mode.pendingMatch ? `${mode.pendingMatch.acceptedCount}/${mode.pendingMatch.requiredCount} accepted` : 'No pending acceptance' }}</small></div>
+      <details v-if="diagnostics" class="admin-section system-detail cmp-disclosure" aria-label="System diagnostics">
+        <summary><span><span class="cmp-kicker">Platform signals</span><strong>System detail</strong></span><span>Updated {{ formatDateTime(diagnostics.generatedAt) }}</span></summary>
+        <dl class="signal-list">
+          <div class="signal-row"><dt>Backend database</dt><dd class="signal-value" :class="diagnostics.database?.ok === true ? 'is-good' : diagnostics.database?.ok === false ? 'is-attention' : 'is-neutral'">{{ diagnostics.database?.ok === true ? 'Healthy' : diagnostics.database?.ok === false ? 'Needs attention' : 'Unknown' }}</dd></div>
+          <div v-if="diagnostics.bridge?.enabled !== false" class="signal-row"><dt>CMP bridge</dt><dd class="signal-value" :class="diagnostics.bridge?.ok ? 'is-good' : 'is-attention'">{{ diagnostics.bridge?.ok ? 'Healthy' : 'Degraded' }}</dd></div>
+          <div class="signal-row"><dt>EOS integration</dt><dd class="signal-value">{{ diagnostics.eos?.configured ? 'Configured' : 'Not configured' }}</dd></div>
+          <div class="signal-row"><dt>RCON automation</dt><dd class="signal-value">{{ automationMode }} · {{ diagnostics.automation?.rconWritesEnabled ? 'writes enabled' : 'writes blocked' }}</dd></div>
+          <div class="signal-row"><dt>Runtime headroom</dt><dd class="signal-value" :class="runtimeCapacityTone(wardogsRuntimeCapacity)">{{ runtimeCapacityLabel(wardogsRuntimeCapacity) }}</dd><small v-if="wardogsRuntimeCapacity">{{ wardogsRuntimeCapacity.activeLobbyCount ?? 'Unknown' }} active lobbies · {{ wardogsRuntimeCapacity.activePendingMatchCount ?? 'Unknown' }} pending acceptances · {{ wardogsRuntimeCapacity.capacity ?? 'Unknown' }} reported capacity</small></div>
+        </dl>
+        <p class="admin-note">Runtime capacity does not guarantee that a specific registry server will pass allocation checks.</p>
+        <div class="automation-control">
+          <div><h3>Automation mode</h3><p>Control existing server write behavior.</p></div>
+          <div class="admin-actions" role="group" aria-label="Automation mode">
+            <button v-for="mode in automationModes" :key="mode.id" type="button" class="cmp-button cmp-button--secondary" :aria-pressed="automationMode === mode.id" :disabled="automationLoading || loading || !!error" :title="mode.description" @click="setAutomationMode(mode.id)">{{ mode.label }}</button>
           </div>
-          <div class="runtime-summary">
-            <div><span>Active CMP lobbies</span><strong>{{ activeLobbies.length }}</strong></div>
-            <div><span>Pending acceptance</span><strong>{{ diagnostics?.pendingMatch ? `${diagnostics.pendingMatch.acceptedCount}/${diagnostics.pendingMatch.requiredCount} · ${diagnostics.pendingMatch.label}` : 'None reported' }}</strong></div>
-          </div>
-          <details v-if="activeLobbies.length" class="cmp-disclosure admin-disclosure">
-            <summary>Active lobby detail <span>{{ activeLobbies.length }}</span></summary>
-            <div v-for="lobby in activeLobbies" :key="lobby.lobby_id" class="detail-row"><span>{{ lobby.lobby_id }}</span><strong>{{ formatLobbyPhase(lobby.step) }} · {{ lobby.players }} players</strong><small>{{ lobby.selected_map || 'No layer selected' }}<template v-if="lobby.live_started_at"> · Live since {{ formatDateTime(lobby.live_started_at) }}</template></small></div>
-          </details>
-        </template>
-      </section>
+        </div>
+        <details v-if="queueModeDiagnostics.length" class="cmp-disclosure admin-disclosure"><summary>Queue mode detail <span>{{ queueModeDiagnostics.length }}</span></summary>
+          <div v-for="mode in queueModeDiagnostics" :key="mode.id" class="detail-row"><span>{{ mode.label }}</span><strong>{{ queueModeSize(mode) ?? 'Unknown' }} queued</strong><small>{{ formatQueueModeCapacity(mode) }}</small></div>
+        </details>
+        <details class="cmp-disclosure admin-disclosure"><summary>CMP audit events <span>{{ recentEvents.length }} recent</span></summary>
+          <p v-if="!recentEvents.length" class="admin-note">No recent events.</p>
+          <div v-for="event in recentEvents" :key="event.id" class="detail-row" :class="{ 'is-warning': isWarningEvent(event.event_type) }"><span>{{ formatEventType(event.event_type) }}</span><strong>{{ isWarningEvent(event.event_type) ? 'Review' : 'Recorded' }} · {{ formatDateTime(event.created_at) }}</strong><small>Lobby {{ event.lobby_id || 'unavailable' }}</small></div>
+          <p class="admin-note">{{ historyCounts.lobbyEvents || 0 }} lobby events recorded.</p>
+        </details>
+      </details>
 
       <section v-if="wardogsDevVisible" class="admin-section dev-section" aria-label="WARDOGS developer tools">
-        <div class="admin-section-heading"><div><p class="cmp-kicker">Local environment</p><h2>Test harness</h2></div><span class="environment-label">Development only</span></div>
-        <p class="admin-note">These controls affect local WARDOGS test state. Join from Play first; synthetic players auto-accept. Simulated presence is separate from real WDRCON observation.</p>
+        <div class="admin-section-heading"><div><p class="cmp-kicker">Local environment</p><h2>Development tools</h2></div><span class="environment-label">Development only</span></div>
+        <p class="admin-note">Controls affect local WARDOGS test state. Synthetic players auto-accept; simulated presence is separate from real WDRCON observation.</p>
         <p v-if="wardogsDevLoading && !wardogsDev" role="status" class="cmp-loading-state">Loading test state…</p>
         <p v-if="wardogsDevError" role="alert" class="cmp-error-state">{{ wardogsDevError }} <button class="text-action" type="button" @click="loadWardogsDev">Retry test tools</button><span v-if="wardogsDev">Showing the last successful test state; controls are disabled until it refreshes.</span></p>
         <template v-if="wardogsDevAvailable">
@@ -430,7 +467,6 @@ onMounted(async () => {
           <div class="admin-action-row"><div><h3>Presence overlay</h3><p>Switch between simulated presence and real observations for this test match.</p></div><div class="admin-actions"><button class="cmp-button cmp-button--secondary" type="button" :disabled="wardogsDevBusy || !!wardogsDevError || !wardogsDev.lobbyId" @click="wardogsDevAction('simulate', { lobbyId: wardogsDev.lobbyId, enabled: true })">Simulate connected</button><button class="cmp-button cmp-button--secondary" type="button" :disabled="wardogsDevBusy || !!wardogsDevError || !wardogsDev.lobbyId" @click="wardogsDevAction('simulate', { lobbyId: wardogsDev.lobbyId, enabled: false })">Real observations only</button></div></div>
           <div class="admin-action-row"><div><h3>Allocation retry</h3><p>Retry allocation for the current local test lobby.</p></div><button class="cmp-button cmp-button--secondary" type="button" :disabled="wardogsDevBusy || !!wardogsDevError || !wardogsDev.lobbyId" @click="wardogsLobbyAction('allocate')">Retry allocation</button></div>
           <div class="admin-action-row"><div><h3>Participant preview</h3><p>Change this view while keeping your admin permission.</p></div><button class="cmp-button cmp-button--secondary" type="button" :disabled="wardogsDevBusy || !!wardogsDevError" @click="authStore.wardogsParticipantPreview = !authStore.wardogsParticipantPreview">{{ authStore.wardogsParticipantPreview ? 'View as admin' : 'View as participant' }}</button></div>
-          <p class="admin-note">Result confirmation and correction stay with the match in Match Room.</p>
         </template>
       </section>
 
@@ -447,8 +483,8 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.admin-page { display: grid; gap: var(--cmp-section-gap); max-width: 1120px; }
-.admin-header { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--cmp-space-5); margin: 0; }
+.admin-page { display: grid; gap: var(--cmp-section-gap); max-width: 1180px; }
+.admin-header { display: flex; align-items: center; justify-content: space-between; gap: var(--cmp-space-5); margin: 0; }
 .admin-header > div { display: grid; gap: var(--cmp-space-2); }
 .admin-section { display: grid; gap: var(--cmp-space-3); min-width: 0; padding-top: var(--cmp-space-4); border-top: 1px solid var(--cmp-border); }
 .admin-section-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--cmp-space-4); }
@@ -479,7 +515,7 @@ onMounted(async () => {
 .detail-row > strong { font-size: .875rem; font-weight: 650; text-align: right; overflow-wrap: anywhere; }
 .detail-row small { grid-column: 1 / -1; color: var(--cmp-text-muted); font-size: var(--cmp-type-meta); overflow-wrap: anywhere; }
 .detail-row.is-warning > strong { color: var(--cmp-warning); }
-.server-row { display: grid; grid-template-columns: minmax(200px, 1.4fr) minmax(135px, .8fr) minmax(135px, .8fr) minmax(150px, 1fr); gap: var(--cmp-space-3) var(--cmp-space-5); align-items: center; padding: var(--cmp-space-4) var(--cmp-space-2); border-top: 1px solid var(--cmp-border); }
+.server-row { display: grid; grid-template-columns: minmax(220px, 1.3fr) minmax(145px, .7fr) minmax(170px, 1fr); gap: var(--cmp-space-3) var(--cmp-space-5); align-items: center; padding: var(--cmp-space-3) var(--cmp-space-2); border-top: 1px solid var(--cmp-border); }
 .server-identity, .server-state, .server-assignment { display: grid; gap: var(--cmp-space-1); min-width: 0; }
 .server-identity strong { font-size: .9375rem; overflow-wrap: anywhere; }
 .server-identity span, .server-state span, .server-state small, .server-assignment > span { color: var(--cmp-text-muted); font-size: var(--cmp-type-meta); overflow-wrap: anywhere; }
@@ -491,7 +527,6 @@ onMounted(async () => {
 .admin-section > .cmp-error-state, .admin-section > .cmp-loading-state, .admin-section > .cmp-empty-state { display: grid; gap: var(--cmp-space-2); }
 .text-action { width: fit-content; min-height: 42px; padding: 0; border: 0; background: none; color: var(--cmp-primary-hover); font: 650 .875rem var(--cmp-font-body); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 .text-action:focus-visible { outline: 2px solid var(--cmp-focus); outline-offset: 3px; }
-.runtime-modes { display: grid; }
 .runtime-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--cmp-space-5); padding: var(--cmp-space-4) var(--cmp-space-2); border-top: 1px solid var(--cmp-border); }
 .runtime-summary > div { display: grid; gap: var(--cmp-space-1); min-width: 0; }
 .runtime-summary span { color: var(--cmp-text-muted); font-size: var(--cmp-type-meta); }
@@ -510,6 +545,32 @@ onMounted(async () => {
 .admin-mode summary { color: var(--cmp-text-secondary); }
 .admin-mode > p { margin: 0 0 var(--cmp-space-3); color: var(--cmp-text-muted); font-size: var(--cmp-type-meta); }
 .admin-mode .admin-actions { justify-content: flex-start; padding-bottom: var(--cmp-space-3); }
+.operator-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; border-block: 1px solid var(--cmp-border); }
+.operator-summary > div { display: grid; gap: var(--cmp-space-1); min-width: 0; padding: var(--cmp-space-3) var(--cmp-space-4); border-right: 1px solid var(--cmp-border); }
+.operator-summary > div:last-child { border-right: 0; }
+.operator-summary dt, .runtime-summary span { color: var(--cmp-text-muted); font-size: var(--cmp-type-meta); }
+.operator-summary dd { margin: 0; color: var(--cmp-text); font-size: 1rem; font-weight: 700; overflow-wrap: anywhere; }
+.operator-summary dd.is-attention { color: var(--cmp-warning); }
+.operator-alerts { display: grid; gap: var(--cmp-space-2); }
+.operator-alerts > * { margin: 0; }
+.runtime-mode { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(110px, .7fr) minmax(140px, .8fr); align-items: center; gap: var(--cmp-space-3); padding: var(--cmp-space-3) var(--cmp-space-2); border-top: 1px solid var(--cmp-border); }
+.runtime-mode > div { display: grid; gap: var(--cmp-space-1); min-width: 0; }
+.runtime-mode strong { font-size: .9rem; overflow-wrap: anywhere; }
+.runtime-mode small, .runtime-mode > span { color: var(--cmp-text-muted); font-size: var(--cmp-type-meta); overflow-wrap: anywhere; }
+.runtime-mode > strong { text-align: right; }
+.active-lobby-list { display: grid; }
+.active-lobby-row { display: grid; grid-template-columns: minmax(100px, .8fr) minmax(0, 1.4fr) auto; align-items: center; gap: var(--cmp-space-3); min-height: 48px; padding: var(--cmp-space-2); border-top: 1px solid var(--cmp-border); color: var(--cmp-text-secondary); font-size: .875rem; text-decoration: none; }
+.active-lobby-row strong { color: var(--cmp-text); }
+.active-lobby-row > span:last-child { color: var(--cmp-primary-hover); font-weight: 650; }
+.active-lobby-row:hover { background: var(--cmp-surface); }
+.active-lobby-row:focus-visible { outline: 2px solid var(--cmp-focus); outline-offset: 3px; }
+.system-detail { padding-top: var(--cmp-space-3); border-top: 1px solid var(--cmp-border); }
+.system-detail > summary { display: flex; align-items: center; justify-content: space-between; gap: var(--cmp-space-4); min-height: 48px; cursor: pointer; }
+.system-detail > summary > span:first-child { display: inline-grid; gap: 2px; }
+.system-detail > summary .cmp-kicker { margin: 0; }
+.system-detail > summary strong { color: var(--cmp-text); font-size: 1rem; }
+.system-detail > summary > span:last-child { color: var(--cmp-text-muted); font-size: var(--cmp-type-meta); text-align: right; }
+.system-detail > summary:focus-visible { outline: 2px solid var(--cmp-focus); outline-offset: 3px; }
 @media (max-width: 900px) {
   .server-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .server-details { grid-column: 1 / -1; }
@@ -518,6 +579,12 @@ onMounted(async () => {
   .admin-header, .automation-control, .admin-action-row { align-items: flex-start; flex-direction: column; }
   .admin-header > button, .admin-action-row > .cmp-button { width: 100%; }
   .admin-actions { justify-content: flex-start; }
+  .operator-summary > div { padding-inline: var(--cmp-space-2); }
+  .runtime-mode { grid-template-columns: minmax(0, 1fr) auto; }
+  .runtime-mode > span { grid-column: 1 / -1; }
+  .active-lobby-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .active-lobby-row strong { grid-column: 1; }
+  .active-lobby-row > span:last-child { grid-column: 2; grid-row: 1 / span 2; }
   .signal-row, .detail-row { grid-template-columns: minmax(0, 1fr) auto; gap: var(--cmp-space-1) var(--cmp-space-3); }
   .signal-row small { grid-column: 1 / -1; text-align: left; }
   .runtime-summary { grid-template-columns: 1fr; gap: var(--cmp-space-3); }
@@ -535,5 +602,15 @@ onMounted(async () => {
   .automation-control .admin-actions, .admin-action-row .admin-actions { width: 100%; }
   .admin-action-row .admin-actions .cmp-button { flex: 1 1 100%; }
   .admin-disclosure summary span { text-align: left; }
+  .operator-summary { grid-template-columns: 1fr; }
+  .operator-summary > div { grid-template-columns: minmax(100px, .7fr) minmax(0, 1fr); align-items: baseline; gap: var(--cmp-space-3); border-right: 0; border-bottom: 1px solid var(--cmp-border); }
+  .operator-summary > div:last-child { border-bottom: 0; }
+  .operator-summary dd { text-align: right; font-size: .9375rem; }
+  .runtime-mode { grid-template-columns: minmax(0, 1fr); }
+  .runtime-mode > strong { text-align: left; }
+  .active-lobby-row { grid-template-columns: minmax(0, 1fr); gap: var(--cmp-space-1); }
+  .active-lobby-row strong, .active-lobby-row > span:last-child { grid-column: auto; grid-row: auto; }
+  .system-detail > summary { align-items: flex-start; flex-direction: column; gap: var(--cmp-space-2); }
+  .system-detail > summary > span:last-child { text-align: left; }
 }
 </style>
