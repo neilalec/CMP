@@ -75,7 +75,7 @@ export const buildRoutes = (target = developmentTarget) => {
     {
       path: '/profile', name: 'profile',
       component: squad ? SquadProfile : () => import('../views/Profile.vue'),
-      meta: legacyMeta({ requiresAuth: true })
+      meta: squad ? legacyMeta({ requiresAuth: true }) : { requiresAuth: true }
     },
     {
       path: '/admin', name: 'admin',
@@ -85,8 +85,8 @@ export const buildRoutes = (target = developmentTarget) => {
     { path: '/servers/add', redirect: '/admin', meta: { requiresAuth: true, requiresAdmin: true } },
     {
       path: '/group', name: 'group',
-      component: () => import('../views/Group.vue'),
-      meta: legacyMeta({ requiresAuth: true })
+      component: squad ? () => import('../views/Group.vue') : () => import('../views/WardogsGroup.vue'),
+      meta: squad ? legacyMeta({ requiresAuth: true }) : { requiresAuth: true }
     },
     ...(!squad ? [
       { path: '/prototype/wardogs', name: 'wardogs-prototype', component: WardogsPrototype, meta: { prototype: true } },

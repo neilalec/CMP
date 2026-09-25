@@ -15,12 +15,12 @@ test('participant routes stay eager while legacy routes load their styling lazil
 test('only routes that import the legacy bundle enable document-level legacy styling', () => {
   const legacyRoutes = [
     'lobbies', 'results', 'leaderboard', 'discord', 'about', 'terms',
-    'privacy', 'steam-auth-callback', 'lobby', 'profile', 'admin', 'group'
+    'privacy', 'steam-auth-callback', 'lobby', 'admin'
   ]
   for (const name of legacyRoutes) {
     expect(router.getRoutes().find((route) => route.name === name)?.meta.legacyStyles).toBe(true)
   }
-  for (const name of ['auth', 'play', 'matches', 'wardogs-prototype', 'wardogs-lobby']) {
+  for (const name of ['auth', 'play', 'matches', 'profile', 'group', 'wardogs-prototype', 'wardogs-lobby']) {
     expect(router.getRoutes().find((route) => route.name === name)?.meta.legacyStyles).toBeUndefined()
   }
 })

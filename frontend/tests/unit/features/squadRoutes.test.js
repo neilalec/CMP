@@ -18,6 +18,7 @@ test('each development target selects its own entry screens and routes', () => {
   expect(route(squad, 'lobbies').component).toBe(SquadPlay)
   expect(route(squad, 'auth').component).toBe(SquadAuth)
   expect(route(squad, 'profile').component).toBe(SquadProfile)
+  expect(route(squad, 'group').component).not.toBe(route(wardogs, 'group').component)
   expect(route(squad, 'admin').component).toBe(SquadAdmin)
   expect(route(squad, 'results').meta.legacySquad).toBeUndefined()
   expect(route(squad, 'wardogs-lobby')).toBeUndefined()

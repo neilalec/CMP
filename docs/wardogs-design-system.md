@@ -36,6 +36,12 @@ Lead with the current match state and the participant's planned assignment, then
 
 Show observation freshness once near the top and retain its timestamp and server detail in a disclosure. A stale observation describes last known presence; missing observation stays unknown. Keep observed scores in a compact evidence section labelled as unofficial. A referee-confirmed result takes visual priority when present, including the current revision, correction, tie, incomplete or void status. Place referee forms and history behind clearly labelled operator disclosures.
 
+## Secondary participant pages
+
+Matches, Profile and Group use the shared page header rhythm with a narrower reading width than the Match Room. Repeated history entries are compact rows: authoritative outcome leads, faction and date provide context, and backend rating entries sit alongside. Corrected revisions are noted without presenting an admin ledger. A missing rating entry is stated as missing, never inferred from outcome or roster role.
+
+Profile treats display name and account link as identity, with a recent WARDOGS rating only when a backend history entry provides it. Group uses a single premade overview, readable code, member rows and contextual leader actions. Play remains the queue summary; Group remains the management page. Loading, empty and error feedback use the shared state primitives.
+
 ## Migration boundary
 
-The shell, base primitives, opening Play → Match Accept journey and Match Room are implemented. Group, Profile, Matches and Admin still have local composition and CSS rules. Migrate them feature by feature, preserving the precise distinctions between planned and observed state, connected and aligned, active and reserve, and observed scores and the latest confirmed revision. The historical Squad entry point uses its own stylesheet and shell. The WARDOGS Auth page is approved and visually frozen.
+The shell, base primitives, opening Play → Match Accept journey, Match Room and secondary participant pages are implemented. Admin still has local composition and CSS rules. Migrate it while preserving the precise distinctions between planned and observed state, connected and aligned, active and reserve, and observed scores and the latest confirmed revision. The historical Squad entry point uses its own stylesheet and shell. The WARDOGS Auth page is approved and visually frozen.

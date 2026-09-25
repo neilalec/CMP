@@ -80,6 +80,23 @@ describe('WARDOGS Matches page', () => {
     expect(text).toContain('Corrected · revision 2');
     expect(text).toContain('1st Valkyra · 2nd Lonestar · 3rd Manticore');
     expect(text).not.toContain('Observed score');
+    expect(wrapper.findAll('.matches-row')).toHaveLength(5);
+    expect(wrapper.find('.matches-row.is-win .matches-row-result strong').text()).toBe('Win');
+    expect(wrapper.find('.matches-row.is-unrated .matches-row-rating strong').text()).toBe('No rating entry');
+  });
+
+  test('a current-match failure does not hide valid history, including a zero rating change', async () => {
+    global.fetch = jest.fn((url) => url.includes('/current')
+      ? Promise.reject(new Error('Current unavailable'))
+      : Promise.resolve(response({ success: true, matches: [row('tie', {
+        rating: { before: 1000, delta: 0, after: 1000 }
+      })] })));
+    const wrapper = mountPage();
+    await flushPromises();
+    expect(wrapper.text()).toContain('Current unavailable');
+    expect(wrapper.text()).toContain('Tie');
+    expect(wrapper.text()).toContain('0 → 1000');
+    expect(wrapper.find('.matches-row').exists()).toBe(true);
   });
 
   test('Squad routes retain Results and have no WARDOGS Matches route', () => {
