@@ -93,6 +93,8 @@ from services.profile import (
     update_display_name as update_display_name_service,
     update_steam_id as update_steam_id_service
 )
+from services.current_match import resolve_current_match_location
+from services.wardogs_history import get_current_wardogs_match
 from services.server_registry import (
     allocate_server_for_lobby as allocate_server_for_lobby_service,
     approve_server as approve_server_service,
@@ -124,7 +126,7 @@ from services.state_persistence import (
 )
 from services.wardogs_lobby import init_wardogs_lobby_tables
 from services.wardogs_results import init_wardogs_result_tables
-from state.lobby import is_user_in_any_lobby
+from state.lobby import find_active_lobby_for_user, is_user_in_any_lobby
 from state.runtime import pause_aware_sleep
 
 
@@ -454,6 +456,14 @@ def get_user_profile(username):
         is_user_in_any_lobby,
         ADMIN_STEAM_IDS,
         development_mode=DEV_MODE
+    )
+
+
+def get_current_match_location(username):
+    return resolve_current_match_location(
+        username,
+        find_active_lobby_for_user,
+        lambda user: get_current_wardogs_match(get_db_connection, user),
     )
 
 

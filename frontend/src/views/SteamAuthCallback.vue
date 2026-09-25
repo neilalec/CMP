@@ -9,7 +9,8 @@ import { useRouter } from 'vue-router';
 import { useAuthStore } from '../stores/authStore';
 import { useLobbyStore } from '../stores/lobbyStore';
 import { useRootStore } from '../stores/rootStore';
-import { setCurrentLobbyId } from '../utils/lobbyPersistence';
+import { routeForCurrentMatch } from '../features/app/utils/currentMatch';
+import { clearCurrentLobby, setCurrentLobbyId } from '../utils/lobbyPersistence';
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -44,12 +45,19 @@ onMounted(async () => {
     // persisted, so remounts/history entries cannot replay the callback.
     window.history.replaceState(window.history.state, '', `${window.location.pathname}${window.location.search}`);
 
-    if (payload.active_lobby) {
-      setCurrentLobbyId(payload.active_lobby);
-      router.replace(`/lobby/${payload.active_lobby}`);
+    const matchRoute = routeForCurrentMatch(payload.current_match);
+    if (matchRoute) {
+      if (payload.current_match.gameType === 'squad') {
+        setCurrentLobbyId(payload.current_match.lobbyId);
+      } else {
+        clearCurrentLobby();
+        lobbyStore.leaveLobby();
+      }
+      router.replace(matchRoute);
       return;
     }
 
+    clearCurrentLobby();
     lobbyStore.leaveLobby();
     router.replace('/');
   } catch (error) {

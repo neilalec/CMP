@@ -65,6 +65,7 @@ def _http_backend_api():
         get_elo_leaderboard=backend_app.get_elo_leaderboard,
         get_server_connection_details=backend_app.get_server_connection_details,
         get_user_profile=backend_app.get_user_profile,
+        get_current_match_location=backend_app.get_current_match_location,
         get_server_by_id=backend_app.get_server_by_id,
         get_db_connection=backend_app.get_db_connection,
         handle_socket_data=backend_app.handle_socket_data,
@@ -124,6 +125,7 @@ def _socket_backend_api():
         get_selected_map_team_labels=backend_app.get_selected_map_team_labels,
         get_user_group=backend_app.get_user_group,
         get_user_profile=backend_app.get_user_profile,
+        get_current_match_location=backend_app.get_current_match_location,
         get_user_record=backend_app.get_user_record,
         get_user_room=backend_app.get_user_room,
         get_username_by_sid=backend_app.get_username_by_sid,
@@ -935,6 +937,7 @@ def register_http_routes(app):
         )
         access_token = backend.create_access_token(identity=username)
         active_lobby_id = backend.find_active_lobby_for_user(username)
+        current_match = backend.get_current_match_location(username)
         profile = backend.get_user_profile(username)
         frontend_origin = state.get('frontend_origin') or frontend_origin_from_request(request, backend.FRONTEND_ORIGINS)
 
@@ -944,6 +947,7 @@ def register_http_routes(app):
             'access_token': access_token,
             'username': username,
             'active_lobby': active_lobby_id,
+            'current_match': current_match,
             'profile': profile
         }))
 
@@ -1080,6 +1084,7 @@ def register_socket_routes(socketio):
             emit=emit,
             max_attempts=backend.AUTH_LOGIN_MAX_ATTEMPTS,
             window_seconds=backend.AUTH_RATE_LIMIT_WINDOW_SECONDS,
+            get_current_match_location=backend.get_current_match_location,
             **dependencies
         )
         if result.get('success'):
@@ -1113,7 +1118,8 @@ def register_socket_routes(socketio):
             backend.build_profile_status_service,
             backend.get_user_profile,
             backend.find_active_lobby_for_user,
-            backend.logger
+            backend.logger,
+            backend.get_current_match_location
         )
 
     @socketio.on(_socket_backend_api().SOCKET_EVENTS['PROFILE']['UPDATE_STEAM_ID'])

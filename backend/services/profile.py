@@ -103,7 +103,7 @@ def normalize_display_name(display_name):
     return display_name
 
 
-def build_profile_status(username, get_user_profile_fn, find_active_lobby_for_user):
+def build_profile_status(username, get_user_profile_fn, find_active_lobby_for_user, get_current_match_location=None):
     if not username:
         return {'success': False, 'message': 'Missing username'}
 
@@ -112,11 +112,14 @@ def build_profile_status(username, get_user_profile_fn, find_active_lobby_for_us
         return {'success': False, 'message': 'User not found'}
 
     active_lobby_id = find_active_lobby_for_user(username)
+    current_match = (get_current_match_location(username) if get_current_match_location
+                     else ({'gameType': 'squad', 'lobbyId': active_lobby_id} if active_lobby_id else None))
     return {
         'success': True,
         'profile': {
             **profile,
-            'active_lobby': active_lobby_id
+            'active_lobby': active_lobby_id,
+            'current_match': current_match
         }
     }
 

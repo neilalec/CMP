@@ -98,7 +98,8 @@ def emit_active_lobby_sync(username, lobby_id):
     if not username:
         return
     app.socketio.emit('active_lobby_sync', {
-        'lobby_id': lobby_id
+        'lobby_id': lobby_id,
+        'current_match': ({'gameType': 'squad', 'lobbyId': lobby_id} if lobby_id else None)
     }, room=get_user_room(username))
 
 

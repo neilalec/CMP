@@ -1,6 +1,7 @@
 import { ref } from 'vue';
 import { API_BASE_URL } from '../../../config';
-import { setCurrentLobbyId } from '../../../utils/lobbyPersistence';
+import { routeForCurrentMatch } from '../../app/utils/currentMatch';
+import { clearCurrentLobby, setCurrentLobbyId } from '../../../utils/lobbyPersistence';
 
 export function useAuthView({
   router,
@@ -37,12 +38,19 @@ export function useAuthView({
 
       await authStore.setAuth(response.access_token, username.value, response.profile);
 
-      if (response.active_lobby) {
-        setCurrentLobbyId(response.active_lobby);
-        router.push(`/lobby/${response.active_lobby}`);
+      const matchRoute = routeForCurrentMatch(response.current_match);
+      if (matchRoute) {
+        if (response.current_match.gameType === 'squad') {
+          setCurrentLobbyId(response.current_match.lobbyId);
+        } else {
+          clearCurrentLobby();
+          lobbyStore.leaveLobby();
+        }
+        router.push(matchRoute);
         return;
       }
 
+      clearCurrentLobby();
       lobbyStore.leaveLobby();
       router.push('/');
     } catch (error) {

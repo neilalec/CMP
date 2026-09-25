@@ -47,3 +47,15 @@ test('Squad participants can reach their historical results and leaderboard rout
   await router.push('/lobbies')
   expect(router.currentRoute.value.path).toBe('/lobbies')
 })
+
+test('a stored lobby ID does not route before the backend supplies its game identity', async () => {
+  localStorage.setItem('currentLobby', 'ambiguous-room')
+  setActivePinia(createPinia())
+  const auth = useAuthStore()
+  auth.isLoggedIn = true
+  auth.token = 'test-token'
+
+  const router = createProductRouter('squad')
+  await router.push('/play')
+  expect(router.currentRoute.value.path).toBe('/play')
+})

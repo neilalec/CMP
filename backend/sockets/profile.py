@@ -1,7 +1,10 @@
-def handle_profile_status_event(data, build_profile_status, get_user_profile, find_active_lobby_for_user, logger):
+def handle_profile_status_event(data, build_profile_status, get_user_profile, find_active_lobby_for_user, logger,
+                               get_current_match_location=None):
     try:
         username = data.get('username') if data else None
-        return build_profile_status(username, get_user_profile, find_active_lobby_for_user)
+        return build_profile_status(
+            username, get_user_profile, find_active_lobby_for_user, get_current_match_location
+        )
     except Exception as e:
         logger.error(f"Error in handle_profile_status: {str(e)}")
         return {'success': False, 'message': 'Failed to get profile'}

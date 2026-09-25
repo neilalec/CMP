@@ -219,7 +219,8 @@ def login_socket_event(
     emit,
     get_user_profile,
     max_attempts,
-    window_seconds
+    window_seconds,
+    get_current_match_location=None
 ):
     try:
         logger.debug("=== Starting login handler ===")
@@ -297,6 +298,8 @@ def login_socket_event(
             'message': 'Login successful',
             'access_token': access_token,
             'active_lobby': active_lobby_id,
+            'current_match': (get_current_match_location(username)
+                              if get_current_match_location else None),
             'profile': get_user_profile(username)
         }
 

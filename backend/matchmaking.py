@@ -278,6 +278,7 @@ def finalize_pending_match(match_id, *, wardogs_config=None, queue_modes=None):
             app.logger.warning('WARDOGS allocation unavailable: lobby_id=%s', lobby_id)
         broadcast_queue_update()
         lobby_event = {'lobby_id': lobby_id, 'game_type': 'wardogs',
+                       'current_match': {'gameType': 'wardogs', 'lobbyId': lobby_id},
                        'queue_mode': queue_mode, 'players': players}
         for player in players:
             app.socketio.emit(app.SOCKET_EVENTS['LOBBY']['CREATED'], lobby_event,
@@ -649,6 +650,8 @@ def create_lobby(players_override=None, queue_mode=None):
         )
         lobby_data = {
             'lobby_id': lobby_id,
+            'game_type': 'squad',
+            'current_match': {'gameType': 'squad', 'lobbyId': lobby_id},
             'server_id': (allocated_server or {}).get('id'),
             'created_at': time.time(),
             'queue_mode': queue_config['id'],

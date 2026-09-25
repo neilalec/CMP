@@ -12,7 +12,6 @@ import SquadPrivacy from '../views/SquadPrivacy.vue';
 import WardogsPrototype from '../features/wardogs/WardogsPrototype.vue';
 import { useAuthStore } from '@/stores/authStore';
 import { useRootStore } from '@/stores/rootStore';
-import { getCurrentLobbyId } from '../utils/lobbyPersistence';
 import { developmentTarget } from '../devTarget';
 
 export const buildRoutes = (target = developmentTarget) => {
@@ -121,8 +120,6 @@ export const createProductRouter = (target = developmentTarget) => {
       next('/play');
     } else if (!squad && to.meta.legacySquad && !authStore.isAdmin && !authStore.canToggleAdmin) {
       next('/matches');
-    } else if (squad && (to.path === '/queue' || to.path === '/play') && getCurrentLobbyId()) {
-      next(`/lobby/${getCurrentLobbyId()}`);
     } else if (to.meta.guest && isAuthenticated) {
       next('/play');
     } else {

@@ -28,7 +28,8 @@ describe('SteamAuthCallback', () => {
       success: true,
       access_token: 'signed-token',
       username: 'steam_user',
-      profile
+      profile,
+      current_match: { gameType: 'wardogs', lobbyId: 'wd-callback-room' }
     }))
     window.history.replaceState({}, '', `/auth/steam/callback#payload=${payload}`)
 
@@ -40,7 +41,7 @@ describe('SteamAuthCallback', () => {
 
     expect(setAuth).toHaveBeenCalledTimes(1)
     expect(setAuth).toHaveBeenCalledWith('signed-token', 'steam_user', profile)
-    expect(global.mockRouterReplace).toHaveBeenCalledWith('/')
+    expect(global.mockRouterReplace).toHaveBeenCalledWith('/wardogs/lobby/wd-callback-room')
     expect(window.location.hash).toBe('')
     second.unmount()
   })

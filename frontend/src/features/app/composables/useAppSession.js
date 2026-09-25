@@ -1,6 +1,7 @@
 import { onBeforeUnmount, onMounted, watch, ref, computed } from 'vue'
 import { SOCKET_EVENTS } from '../../../constants/socketEvents'
 import { PASSWORD_AUTH_ENABLED } from '../../../config'
+import { routeForCurrentMatch } from '../utils/currentMatch'
 import {
   clearCurrentLobby,
   getCurrentLobbyId,
@@ -79,16 +80,22 @@ export function useAppSession({
     if (!isParticipant) return
     if (data?.lobby_id) {
       clearFinalizingLobbySyncTimer()
-      if (data.game_type === 'wardogs') {
+      const createdMatch = data.current_match || {
+        gameType: data.game_type || 'squad',
+        lobbyId: data.lobby_id
+      }
+      const matchRoute = routeForCurrentMatch(createdMatch)
+      if (!matchRoute) return
+      if (createdMatch.gameType === 'wardogs') {
         queueStore.resetQueue()
-        router.push(`/wardogs/lobby/${data.lobby_id}`)
+        router.push(matchRoute)
         return
       }
       lobbyStore.reset()
       lobbyStore.updateLobbyState(data)
       setCurrentLobbyId(data.lobby_id)
       queueStore.resetQueue()
-      router.push(`/lobby/${data.lobby_id}`)
+      router.push(matchRoute)
     }
   }
 
@@ -96,8 +103,9 @@ export function useAppSession({
     if (!lobbyId) return false
     currentLobbyId.value = lobbyId
     setCurrentLobbyId(lobbyId)
-    if (!route.path.startsWith(`/lobby/${lobbyId}`)) {
-      router.push(`/lobby/${lobbyId}`)
+    const matchRoute = routeForCurrentMatch({ gameType: 'squad', lobbyId })
+    if (!route.path.startsWith(matchRoute)) {
+      router.push(matchRoute)
     }
     return true
   }
@@ -114,7 +122,9 @@ export function useAppSession({
       if (isInLobby.value || !authStore.username) return
       try {
         const profile = await syncActiveLobbyFromProfile()
-        if (profile?.active_lobby || isInLobby.value) return
+        if (routeForCurrentMatch(profile?.current_match)
+          || profile?.active_lobby
+          || isInLobby.value) return
       } catch (error) {
         // Lobby-created is the primary path; this retry is just a fallback.
       }
@@ -125,16 +135,24 @@ export function useAppSession({
   }
 
   const handleActiveLobbySync = (data) => {
-    const activeLobby = data?.lobby_id || null
+    const activeMatch = data?.current_match
+      || (data?.lobby_id ? { gameType: 'squad', lobbyId: data.lobby_id } : null)
+    const matchRoute = routeForCurrentMatch(activeMatch)
 
-    if (activeLobby) {
-      currentLobbyId.value = activeLobby
-      setCurrentLobbyId(activeLobby)
+    if (matchRoute) {
+      if (activeMatch.gameType === 'squad') {
+        currentLobbyId.value = activeMatch.lobbyId
+        setCurrentLobbyId(activeMatch.lobbyId)
+      } else {
+        lobbyStore.leaveLobby()
+        clearCurrentLobby()
+        currentLobbyId.value = null
+      }
       if (queueStore.matchAccept.players?.includes(authStore.username)) {
         queueStore.resetQueue()
       }
-      if (!route.path.startsWith(`/lobby/${activeLobby}`)) {
-        router.push(`/lobby/${activeLobby}`)
+      if (!route.path.startsWith(matchRoute)) {
+        router.push(matchRoute)
       }
       return
     }
@@ -150,16 +168,24 @@ export function useAppSession({
   const syncActiveLobbyFromProfile = async () => {
     if (!authStore.username) return null
     const profile = await authStore.syncProfile()
-    const activeLobby = profile?.active_lobby || null
+    const currentMatch = profile?.current_match
+      || (profile?.active_lobby ? { gameType: 'squad', lobbyId: profile.active_lobby } : null)
+    const matchRoute = routeForCurrentMatch(currentMatch)
 
-    if (activeLobby) {
-      currentLobbyId.value = activeLobby
-      setCurrentLobbyId(activeLobby)
+    if (matchRoute) {
+      if (currentMatch.gameType === 'squad') {
+        currentLobbyId.value = currentMatch.lobbyId
+        setCurrentLobbyId(currentMatch.lobbyId)
+      } else {
+        lobbyStore.leaveLobby()
+        clearCurrentLobby()
+        currentLobbyId.value = null
+      }
       if (queueStore.matchAccept.players?.includes(authStore.username)) {
         queueStore.resetQueue()
       }
-      if (!route.path.startsWith(`/lobby/${activeLobby}`)) {
-        router.push(`/lobby/${activeLobby}`)
+      if (!route.path.startsWith(matchRoute)) {
+        router.push(matchRoute)
       }
     } else if (getCurrentLobbyId() || lobbyStore.lobbyId || currentLobbyId.value) {
       lobbyStore.leaveLobby()
@@ -227,10 +253,16 @@ export function useAppSession({
     try {
       const response = await queueStore.acceptMatch(authStore.username)
       if (response?.lobbyId) {
-        if (response.gameType === 'wardogs') {
-          router.push(`/wardogs/lobby/${response.lobbyId}`)
-        } else {
-          routeToLobby(response.lobbyId)
+        const matchRoute = routeForCurrentMatch({
+          gameType: response.gameType,
+          lobbyId: response.lobbyId
+        })
+        if (matchRoute) {
+          if (response.gameType === 'squad') {
+            routeToLobby(response.lobbyId)
+          } else {
+            router.push(matchRoute)
+          }
         }
         return
       }
