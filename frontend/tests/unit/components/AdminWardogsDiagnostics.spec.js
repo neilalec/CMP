@@ -30,7 +30,8 @@ describe('WARDOGS Admin console', () => {
       queueModes: { wardogs_beta9: { id: 'wardogs_beta9', gameType: 'wardogs',
         label: 'WARDOGS Beta · 3 factions', size: 1, requiredPlayers: 9,
         factionCount: 3, activePerFaction: 3, reservePerFaction: 0 } },
-      serverAvailabilityByGame: { wardogs: { available: false, reason: 'no_servers', capacity: 0 } },
+      serverAvailabilityByGame: { wardogs: { available: false, reason: 'no_servers', capacity: 0,
+        activeLobbyCount: 0, activePendingMatchCount: 0 } },
       bridge: { enabled: false }, automation: { mode: 'on', rconWritesEnabled: true },
       eos: { configured: false }, activeLobbies: [], historyCounts: {}, recentEvents: [] };
     servers = [{ id: 7, game_type: 'wardogs', display_name: 'Test WARDOGS',
@@ -51,17 +52,32 @@ describe('WARDOGS Admin console', () => {
     await flushPromises();
     const page = wrapper.text();
     expect(page).toContain('Backend databaseHealthy');
-    expect(page).toContain('WARDOGS servers0 available · 1 registered');
+    expect(page).toContain('WARDOGS server registry1 registered');
+    expect(page).toContain('WARDOGS queue capacityNo registered capacity');
     expect(page).toContain('WARDOGS Beta · 3 factions');
     expect(page).toContain('9 total players · 3 factions · 3 active/faction · 0 reserve/faction');
     expect(page).toContain('Test WARDOGS');
     expect(page).toContain('Approved');
-    expect(page).toContain('Last probe');
+    expect(page).toContain('Last probehealthy');
     expect(wrapper.find('a[href="/wardogs/lobby/wd-7"]').exists()).toBe(true);
     expect(page).not.toContain('private-secret');
     expect(page).not.toContain('Confirm result');
     expect(page).not.toContain('Correct result');
     expect(page).not.toContain('Bridge');
+    wrapper.unmount();
+  });
+
+  test('does not infer allocator eligibility from a registered server or the Squad-scoped available list', async () => {
+    servers[0].current_lobby_id = '';
+    diagnostics.serverAvailabilityByGame.wardogs = { available: true, reason: 'available', capacity: 1,
+      activeLobbyCount: 0, activePendingMatchCount: 0 };
+    const wrapper = mountAdmin();
+    await flushPromises();
+    expect(wrapper.text()).toContain('WARDOGS queue capacityHeadroom reported');
+    expect(wrapper.text()).toContain('Queue capacity describes runtime headroom from diagnostics. It does not guarantee a server will pass the allocator’s registry and fresh-health checks.');
+    expect(wrapper.text()).toContain('WARDOGS allocation checks approval, enabled state, a recent healthy probe, and reservation ownership when it runs. This registry view does not predict that decision.');
+    expect(wrapper.text()).not.toContain('Eligible');
+    expect(wrapper.text()).not.toContain('Available for allocation');
     wrapper.unmount();
   });
 
@@ -96,8 +112,8 @@ describe('WARDOGS Admin console', () => {
     global.fetch.mockClear();
     const wrapper = mountAdmin();
     await flushPromises();
-    expect(wrapper.find('[aria-label="System and integration"]').exists()).toBe(false);
-    expect(wrapper.find('[aria-label="WARDOGS servers"]').exists()).toBe(false);
+    expect(wrapper.find('[aria-label="System diagnostics"]').exists()).toBe(false);
+    expect(wrapper.find('[aria-label="WARDOGS server registry"]').exists()).toBe(false);
     expect(global.fetch).not.toHaveBeenCalled();
     wrapper.unmount();
   });
@@ -166,8 +182,8 @@ describe('WARDOGS Admin console', () => {
     }));
     const wrapper = mountAdmin();
     await flushPromises();
-    expect(wrapper.text()).toContain('Loading diagnostics');
-    expect(wrapper.text()).toContain('Loading servers');
+    expect(wrapper.text()).toContain('Loading system signals');
+    expect(wrapper.text()).toContain('Loading registered servers');
     finishDiagnostics(response({ success: true, diagnostics }));
     await flushPromises();
     expect(wrapper.text()).toContain('Backend databaseHealthy');

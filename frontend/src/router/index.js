@@ -80,7 +80,7 @@ export const buildRoutes = (target = developmentTarget) => {
     {
       path: '/admin', name: 'admin',
       component: squad ? SquadAdmin : () => import('../views/Admin.vue'),
-      meta: legacyMeta({ requiresAuth: true, requiresAdmin: true })
+      meta: squad ? legacyMeta({ requiresAuth: true, requiresAdmin: true }) : { requiresAuth: true, requiresAdmin: true }
     },
     { path: '/servers/add', redirect: '/admin', meta: { requiresAuth: true, requiresAdmin: true } },
     {

@@ -42,6 +42,10 @@ Matches, Profile and Group use the shared page header rhythm with a narrower rea
 
 Profile treats display name and account link as identity, with a recent WARDOGS rating only when a backend history entry provides it. Group uses a single premade overview, readable code, member rows and contextual leader actions. Play remains the queue summary; Group remains the management page. Loading, empty and error feedback use the shared state primitives.
 
+## Operator console
+
+Admin leads with platform signals, then separates the WARDOGS server registry from queue and runtime diagnostics. A queue-capacity signal is not a promise that a registered server can be allocated; show registry facts and probe freshness without predicting an allocator decision. Keep technical evidence in disclosures, development tools visibly local-only, and destructive cleanup in its own section. Match-result authority stays with the match room.
+
 ## Migration boundary
 
-The shell, base primitives, opening Play → Match Accept journey, Match Room and secondary participant pages are implemented. Admin still has local composition and CSS rules. Migrate it while preserving the precise distinctions between planned and observed state, connected and aligned, active and reserve, and observed scores and the latest confirmed revision. The historical Squad entry point uses its own stylesheet and shell. The WARDOGS Auth page is approved and visually frozen.
+The shell, base primitives, opening Play → Match Accept journey, Match Room, secondary participant pages and WARDOGS Admin console are implemented. Phase 6 should harmonize them while preserving the precise distinctions between planned and observed state, connected and aligned, active and reserve, and observed scores and the latest confirmed revision. The historical Squad entry point uses its own stylesheet and shell. The WARDOGS Auth page is approved and visually frozen.
