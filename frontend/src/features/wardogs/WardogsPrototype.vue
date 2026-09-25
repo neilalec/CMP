@@ -136,7 +136,7 @@ const onScenarioChange = (event) => store.selectScenario(event.target.value);
 </script>
 
 <template>
-  <main class="wardogs-demo cmp-page">
+  <component :is="authStore.isLoggedIn ? 'div' : 'main'" class="wardogs-demo cmp-page">
     <header v-if="mode === 'mock' || participantPreview" class="wardogs-header">
       <p v-if="mode === 'mock'">Local mock scenarios · no CMP match lifecycle connection</p>
       <p v-if="participantPreview">Developer participant preview — your admin role is unchanged.</p>
@@ -172,5 +172,5 @@ const onScenarioChange = (event) => store.selectScenario(event.target.value);
       <WardogsResultConfirmation v-if="mode === 'backend' && !roomState.resultProminent" :match="match" :can-confirm="authStore.isAdmin && !participantPreview" :confirming="confirmingResult" :correcting="correctingResult" :result-history="resultHistory" :history-error="resultHistoryError" @confirm="confirmResult" @correct="correctResult" />
       <MatchOverview :match="match" />
     </template>
-  </main>
+  </component>
 </template>

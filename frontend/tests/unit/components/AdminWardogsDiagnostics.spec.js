@@ -141,6 +141,9 @@ describe('WARDOGS Admin console', () => {
     const wrapper = mountAdmin();
     await flushPromises();
     expect(wrapper.text()).toContain('Diagnostics unavailable');
+    expect(wrapper.get('.runtime-section').text()).toContain('Runtime diagnostics are unavailable');
+    expect(wrapper.get('.runtime-section').text()).not.toContain('0 WARDOGS waiting');
+    expect(wrapper.find('.runtime-summary').exists()).toBe(false);
     expect(wrapper.text()).toContain('Test WARDOGS');
     expect(wrapper.findAll('button').some((button) => button.text() === 'Retry diagnostics')).toBe(true);
     wrapper.unmount();
@@ -183,6 +186,8 @@ describe('WARDOGS Admin console', () => {
     const wrapper = mountAdmin();
     await flushPromises();
     expect(wrapper.text()).toContain('Loading system signals');
+    expect(wrapper.get('.runtime-section').text()).toContain('Loading runtime diagnostics');
+    expect(wrapper.find('.runtime-summary').exists()).toBe(false);
     expect(wrapper.text()).toContain('Loading registered servers');
     finishDiagnostics(response({ success: true, diagnostics }));
     await flushPromises();

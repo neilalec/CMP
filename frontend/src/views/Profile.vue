@@ -52,7 +52,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <main class="profile-page cmp-page cmp-page-content">
+  <div class="profile-page cmp-page cmp-page-content">
     <header class="cmp-page-header"><p class="cmp-kicker">Player identity</p><h1>Profile</h1></header>
 
     <section class="profile-identity cmp-surface" aria-label="Competitive identity">
@@ -74,7 +74,7 @@ onMounted(async () => {
     <section class="profile-group cmp-disclosure" aria-label="Group access"><div><h2>Group</h2><p>Manage your premade for matchmaking.</p></div><RouterLink class="cmp-button cmp-button--secondary" to="/group">Open group</RouterLink></section>
     <details class="profile-account cmp-disclosure"><summary>Account details</summary><p>Steam ID: <span>{{ hasSteamId ? steamId : 'Not linked' }}</span></p></details>
     <button class="profile-logout cmp-button cmp-button--secondary" type="button" @click="handleLogout">Log out</button>
-  </main>
+  </div>
 </template>
 
 <style scoped>
@@ -83,7 +83,8 @@ onMounted(async () => {
 .profile-identity { display: grid; grid-template-columns: minmax(0, 1fr) minmax(190px, .6fr); gap: var(--cmp-space-5); padding: var(--cmp-space-5); border-top: 3px solid var(--cmp-primary); }
 .profile-name, .profile-rating { display: grid; align-content: start; gap: var(--cmp-space-2); min-width: 0; }
 .profile-name h2 { margin: 0; font-size: 1.5rem; line-height: 1.2; overflow-wrap: anywhere; }
-.profile-name > p:last-child, .profile-rating > p:not(.cmp-kicker) { margin: 0; color: var(--cmp-text-secondary); font-size: var(--cmp-type-meta); }
+.profile-name > p:last-child, .profile-rating > p:not(.cmp-kicker) { margin: 0; font-size: var(--cmp-type-meta); }
+.profile-name > p:last-child, .profile-rating > p:not(.cmp-kicker):not(.cmp-status) { color: var(--cmp-text-secondary); }
 .profile-rating { padding-left: var(--cmp-space-5); border-left: 1px solid var(--cmp-border); }
 .profile-rating strong { font: 700 1.5rem var(--cmp-font-mono); }
 .profile-rating span { color: var(--cmp-text-muted); font-size: var(--cmp-type-meta); }
@@ -100,5 +101,5 @@ onMounted(async () => {
 .profile-account span { color: var(--cmp-text); overflow-wrap: anywhere; }
 .profile-logout { justify-self: start; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
-@media (max-width: 640px) { .profile-identity { grid-template-columns: 1fr; }.profile-rating { padding: var(--cmp-space-4) 0 0; border-left: 0; border-top: 1px solid var(--cmp-border); }.profile-group { align-items: flex-start; flex-direction: column; }.display-name-control { flex-direction: column; }.display-name-control button { width: 100%; } }
+@media (max-width: 640px) { .profile-identity { grid-template-columns: 1fr; padding: var(--cmp-space-4); }.profile-rating { padding: var(--cmp-space-4) 0 0; border-left: 0; border-top: 1px solid var(--cmp-border); }.profile-group { align-items: flex-start; flex-direction: column; }.display-name-control { flex-direction: column; }.display-name-control button { width: 100%; } }
 </style>

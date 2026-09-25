@@ -73,7 +73,7 @@ const create = async () => {
 
 <style scoped>
 .wardogs-play-group { display: flex; align-items: center; justify-content: space-between; gap: var(--cmp-space-4); padding: var(--cmp-space-4) 0; border-block: 1px solid var(--cmp-border); }
-.wardogs-play-group-summary { display: grid; gap: var(--cmp-space-1); min-width: 0; color: var(--cmp-text-secondary); font-size: .8125rem; line-height: 1.35; }
+.wardogs-play-group-summary { display: grid; gap: var(--cmp-space-1); min-width: 0; color: var(--cmp-text-secondary); font-size: .8125rem; line-height: 1.35; overflow-wrap: anywhere; }
 .wardogs-play-group-summary strong { color: var(--cmp-text); font-size: 1rem; }
 .wardogs-play-group-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--cmp-space-2); }
 .wardogs-play-join { display: flex; gap: var(--cmp-space-2); }

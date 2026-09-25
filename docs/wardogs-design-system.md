@@ -22,6 +22,8 @@ Keep the shared outer gutter and top offset across WARDOGS pages. Center content
 
 `cmp-button` is neutral, `cmp-button--primary` is the single leading action in an area, `cmp-button--secondary` is a quiet outlined action, and `cmp-button--danger` marks destructive actions. `cmp-input` covers text fields and selects. Focus is a visible outline. Disabled controls dim and retain their shape.
 
+Disclosures keep a visible open/closed indicator and a 42px trigger. Dialogs move keyboard focus to the decision or current status, then return it to the initiating control when it still exists. The authenticated shell owns the main landmark; its page content does not nest another main landmark.
+
 `cmp-status` is a small dot plus label. Use neutral for waiting or unknown, success for verified healthy, warning for stale or attention, and danger for actionable mismatch or failure. `cmp-status--stale` uses a hollow dot. Quiet facts can be plain metadata. Do not render every state as a chip. These visual categories do not change domain states.
 
 `cmp-empty-state`, `cmp-error-state`, and `cmp-loading-state` establish concise feedback treatments. `cmp-disclosure`, `cmp-player-row`, `cmp-page-header`, `cmp-section-header`, `cmp-meta-row`, `cmp-inset`, and `cmp-faction-marker` are the shared presentation pieces for later page passes.
@@ -50,4 +52,4 @@ Admin leads with platform signals, then separates the WARDOGS server registry fr
 
 ## Migration boundary
 
-The shell, base primitives, opening Play → Match Accept journey, Match Room, secondary participant pages and WARDOGS Admin console are implemented. Phase 6 should harmonize them while preserving the precise distinctions between planned and observed state, connected and aligned, active and reserve, and observed scores and the latest confirmed revision. The historical Squad entry point uses its own stylesheet and shell. The WARDOGS Auth page is approved and visually frozen.
+The shell, base primitives, opening Play → Match Accept journey, Match Room, secondary participant pages and WARDOGS Admin console share this language. Preserve the precise distinctions between planned and observed state, connected and aligned, active and reserve, and observed scores and the latest confirmed revision. The historical Squad entry point uses its own stylesheet and shell. The WARDOGS Auth page is approved and visually frozen.

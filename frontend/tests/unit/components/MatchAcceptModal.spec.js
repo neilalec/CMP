@@ -70,12 +70,25 @@ describe('WARDOGS Match Accept modal', () => {
   })
 
   test('focuses the decision then moves focus to the accepted state', async () => {
+    const opener = document.createElement('button')
+    document.body.append(opener)
+    opener.focus()
     const wrapper = mount(MatchAcceptModal, { props: defaults, attachTo: document.body })
     await nextTick()
     expect(document.activeElement).toBe(wrapper.get('.match-accept-button').element)
     await wrapper.get('.match-accept-button').trigger('keydown', { key: 'Tab' })
     expect(document.activeElement).toBe(wrapper.get('.match-accept-close').element)
     await wrapper.setProps({ hasAccepted: true })
+    await nextTick()
+    expect(document.activeElement).toBe(wrapper.get('#match-accept-title').element)
+    await wrapper.setProps({ active: false })
+    expect(document.activeElement).toBe(opener)
+    wrapper.unmount()
+    opener.remove()
+  })
+
+  test('focuses the heading when the initial action is disabled', async () => {
+    const wrapper = mount(MatchAcceptModal, { props: { ...defaults, loading: true }, attachTo: document.body })
     await nextTick()
     expect(document.activeElement).toBe(wrapper.get('#match-accept-title').element)
     wrapper.unmount()

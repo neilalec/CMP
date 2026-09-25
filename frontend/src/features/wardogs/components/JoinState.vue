@@ -32,7 +32,7 @@ const copyJoinId = async () => {
 </script>
 
 <template>
-  <component :is="prominent ? 'section' : 'details'" class="wardogs-join-state cmp-surface" :class="{ 'is-compact': !prominent }" aria-label="Server and joining">
+  <component :is="prominent ? 'section' : 'details'" class="wardogs-join-state cmp-surface" :class="{ 'is-compact': !prominent, 'cmp-disclosure': !prominent }" aria-label="Server and joining">
     <summary v-if="!prominent" class="wardogs-join-compact-summary">Server access <span>{{ join.serverName || 'WARDOGS server allocated' }}</span></summary>
     <h2 v-if="join.state === 'waiting_for_server'">Waiting for a WARDOGS server</h2>
     <template v-else>

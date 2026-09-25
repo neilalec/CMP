@@ -280,7 +280,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <main class="admin-page cmp-page cmp-page-content">
+  <div class="admin-page cmp-page cmp-page-content">
     <header class="cmp-page-header admin-header">
       <div><p class="cmp-kicker">WARDOGS operations</p><h1>Admin</h1><p>System signals, server registry, and controlled local test tools.</p></div>
       <button v-if="isAdmin" class="cmp-button cmp-button--secondary" type="button" :disabled="loading || serverLoading" @click="loadDiagnostics(); loadServers()">
@@ -319,11 +319,11 @@ onMounted(async () => {
               <button v-for="mode in automationModes" :key="mode.id" type="button" class="cmp-button cmp-button--secondary" :aria-pressed="automationMode === mode.id" :disabled="automationLoading || loading || !!error" :title="mode.description" @click="setAutomationMode(mode.id)">{{ mode.label }}</button>
             </div>
           </div>
-          <details v-if="queueModeDiagnostics.length" class="admin-disclosure">
+          <details v-if="queueModeDiagnostics.length" class="cmp-disclosure admin-disclosure">
             <summary>Queue mode detail <span>{{ queueModeDiagnostics.length }}</span></summary>
             <div v-for="mode in queueModeDiagnostics" :key="mode.id" class="detail-row"><span>{{ mode.label }}</span><strong>{{ mode.size }} queued</strong><small>{{ formatQueueModeCapacity(mode) }}</small></div>
           </details>
-          <details class="admin-disclosure">
+          <details class="cmp-disclosure admin-disclosure">
             <summary>CMP audit events <span>{{ recentEvents.length }} recent</span></summary>
             <p v-if="!recentEvents.length" class="admin-note">No recent events.</p>
             <div v-for="event in recentEvents" :key="event.id" class="detail-row" :class="{ 'is-warning': isWarningEvent(event.event_type) }"><span>{{ formatEventType(event.event_type) }}</span><strong>{{ isWarningEvent(event.event_type) ? 'Review' : 'Recorded' }} · {{ formatDateTime(event.created_at) }}</strong><small>Lobby {{ event.lobby_id || 'unavailable' }}</small></div>
@@ -342,7 +342,7 @@ onMounted(async () => {
           <div class="server-state"><span>Registry state</span><strong>{{ server.enabled ? 'Enabled' : 'Disabled' }} · {{ server.status || 'Unknown' }}</strong></div>
           <div class="server-state"><span>Last probe</span><strong>{{ server.last_health_status || 'Not checked' }}</strong><small>{{ formatDateTime(server.last_health_check_at) }}</small></div>
           <div class="server-assignment"><span>Current match</span><RouterLink v-if="server.current_lobby_id" :to="`/wardogs/lobby/${server.current_lobby_id}`">{{ server.current_lobby_id }} · Open match</RouterLink><strong v-else>Unassigned</strong></div>
-          <details class="server-details">
+          <details class="server-details cmp-disclosure">
             <summary>Probe and registry detail</summary>
             <div class="detail-row"><span>Approval</span><strong>{{ server.approved_by ? `Approved by ${server.approved_by}` : 'Awaiting approval' }}</strong></div>
             <div class="detail-row"><span>Reservation</span><strong>{{ server.current_lobby_id ? `Assigned to ${server.current_lobby_id}` : 'No current match recorded' }}</strong></div>
@@ -355,25 +355,29 @@ onMounted(async () => {
           </details>
         </div>
         <p v-if="serversLoaded && !serverError" class="admin-note">Registry writes remain disabled here. Allocation retry is limited to the local test workflow.</p>
-        <details v-if="otherServers.length" class="admin-disclosure other-servers"><summary>Other registered game servers <span>{{ otherServers.length }}</span></summary>
+        <details v-if="otherServers.length" class="cmp-disclosure admin-disclosure other-servers"><summary>Other registered game servers <span>{{ otherServers.length }}</span></summary>
           <div v-for="server in otherServers" :key="server.id" class="detail-row"><span>{{ server.display_name || server.slug || `Server ${server.id}` }} · {{ server.game_type }}</span><strong>{{ server.approved_by ? 'Approved' : 'Awaiting approval' }} · {{ server.enabled ? 'Enabled' : 'Disabled' }} · {{ server.status || 'Unknown' }}</strong><small>Last probe {{ server.last_health_status || 'Not checked' }} · {{ formatDateTime(server.last_health_check_at) }} · {{ server.current_lobby_id || 'Unassigned' }}</small></div>
         </details>
       </section>
 
       <section class="admin-section runtime-section" aria-label="Queue and runtime">
-        <div class="admin-section-heading"><div><p class="cmp-kicker">Live operations</p><h2>Queue &amp; runtime</h2></div><span class="admin-updated">{{ wardogsQueueModes.reduce((total, mode) => total + mode.size, 0) }} WARDOGS waiting</span></div>
-        <p v-if="!wardogsQueueModes.length" class="admin-note">No WARDOGS queue modes are present in diagnostics.</p>
-        <div v-else class="runtime-modes">
-          <div v-for="mode in wardogsQueueModes" :key="mode.id" class="detail-row"><span>{{ mode.label }}</span><strong>{{ mode.size }} queued</strong><small>{{ formatQueueModeCapacity(mode) }} · {{ mode.pendingMatch ? `${mode.pendingMatch.acceptedCount}/${mode.pendingMatch.requiredCount} accepted` : 'No pending acceptance' }}</small></div>
-        </div>
-        <div class="runtime-summary">
-          <div><span>Active CMP lobbies</span><strong>{{ activeLobbies.length }}</strong></div>
-          <div><span>Pending acceptance</span><strong>{{ diagnostics?.pendingMatch ? `${diagnostics.pendingMatch.acceptedCount}/${diagnostics.pendingMatch.requiredCount} · ${diagnostics.pendingMatch.label}` : 'None reported' }}</strong></div>
-        </div>
-        <details v-if="activeLobbies.length" class="admin-disclosure">
-          <summary>Active lobby detail <span>{{ activeLobbies.length }}</span></summary>
-          <div v-for="lobby in activeLobbies" :key="lobby.lobby_id" class="detail-row"><span>{{ lobby.lobby_id }}</span><strong>{{ formatLobbyPhase(lobby.step) }} · {{ lobby.players }} players</strong><small>{{ lobby.selected_map || 'No layer selected' }}<template v-if="lobby.live_started_at"> · Live since {{ formatDateTime(lobby.live_started_at) }}</template></small></div>
-        </details>
+        <div class="admin-section-heading"><div><p class="cmp-kicker">Live operations</p><h2>Queue &amp; runtime</h2></div><span class="admin-updated">{{ diagnostics ? `${wardogsQueueModes.reduce((total, mode) => total + mode.size, 0)} WARDOGS waiting` : 'Unknown' }}</span></div>
+        <p v-if="!diagnostics" class="admin-note" role="status">{{ loading ? 'Loading runtime diagnostics…' : 'Runtime diagnostics are unavailable. Refresh system health to try again.' }}</p>
+        <template v-else>
+          <p v-if="error" class="admin-note" role="status">Showing the last successful runtime read; counts may be stale.</p>
+          <p v-if="!wardogsQueueModes.length" class="admin-note">No WARDOGS queue modes are present in diagnostics.</p>
+          <div v-else class="runtime-modes">
+            <div v-for="mode in wardogsQueueModes" :key="mode.id" class="detail-row"><span>{{ mode.label }}</span><strong>{{ mode.size }} queued</strong><small>{{ formatQueueModeCapacity(mode) }} · {{ mode.pendingMatch ? `${mode.pendingMatch.acceptedCount}/${mode.pendingMatch.requiredCount} accepted` : 'No pending acceptance' }}</small></div>
+          </div>
+          <div class="runtime-summary">
+            <div><span>Active CMP lobbies</span><strong>{{ activeLobbies.length }}</strong></div>
+            <div><span>Pending acceptance</span><strong>{{ diagnostics?.pendingMatch ? `${diagnostics.pendingMatch.acceptedCount}/${diagnostics.pendingMatch.requiredCount} · ${diagnostics.pendingMatch.label}` : 'None reported' }}</strong></div>
+          </div>
+          <details v-if="activeLobbies.length" class="cmp-disclosure admin-disclosure">
+            <summary>Active lobby detail <span>{{ activeLobbies.length }}</span></summary>
+            <div v-for="lobby in activeLobbies" :key="lobby.lobby_id" class="detail-row"><span>{{ lobby.lobby_id }}</span><strong>{{ formatLobbyPhase(lobby.step) }} · {{ lobby.players }} players</strong><small>{{ lobby.selected_map || 'No layer selected' }}<template v-if="lobby.live_started_at"> · Live since {{ formatDateTime(lobby.live_started_at) }}</template></small></div>
+          </details>
+        </template>
       </section>
 
       <section v-if="wardogsDevVisible" class="admin-section dev-section" aria-label="WARDOGS developer tools">
@@ -398,12 +402,12 @@ onMounted(async () => {
         <div class="admin-section-heading"><div><p class="cmp-kicker">Recovery</p><h2>Reset &amp; cleanup</h2></div><span class="danger-label">Destructive actions</span></div>
         <div v-if="wardogsDevAvailable" class="admin-action-row"><div><h3>Reset synthetic state</h3><p>Cancel test acceptance and remove synthetic queue players and presence overlay. Confirmed results remain.</p></div><button class="cmp-button cmp-button--danger" type="button" :disabled="wardogsDevBusy || !!wardogsDevError" @click="wardogsDevAction('reset')">Reset test queue / overlay</button></div>
         <div v-if="wardogsDevAvailable && wardogsDev.lobbyId" class="admin-action-row"><div><h3>Delete test lobby</h3><p>Delete this local WARDOGS lobby and release its server allocation. Confirmation is required.</p></div><button class="cmp-button cmp-button--danger" type="button" :disabled="wardogsDevBusy || !!wardogsDevError" @click="wardogsLobbyAction('cleanup')">Delete test lobby</button></div>
-        <details v-if="activeLobbies.length" class="admin-disclosure"><summary>CMP lobby cleanup <span>{{ activeLobbies.length }}</span></summary>
+        <details v-if="activeLobbies.length" class="cmp-disclosure admin-disclosure"><summary>CMP lobby cleanup <span>{{ activeLobbies.length }}</span></summary>
           <div v-for="lobby in activeLobbies" :key="lobby.lobby_id" class="admin-action-row"><div><h3>{{ lobby.lobby_id }}</h3><p>{{ formatLobbyPhase(lobby.step) }} · {{ lobby.players }} players · {{ lobby.selected_map || 'No layer selected' }}</p><small v-if="lobby.announcement">{{ lobby.announcement }}</small><small v-if="lobby.live_roll_done"> · Live roll complete</small><small v-if="lobby.server_details_provided_at"> · Details sent {{ formatDateTime(lobby.server_details_provided_at) }}</small><small v-if="lobby.live_started_at"> · Live started {{ formatDateTime(lobby.live_started_at) }}</small></div><button class="cmp-button cmp-button--danger" type="button" :disabled="loading" @click="deleteActiveLobby(lobby.lobby_id)">Delete lobby</button></div>
         </details>
       </section>
     </template>
-  </main>
+  </div>
 </template>
 
 <style scoped>
@@ -431,7 +435,7 @@ onMounted(async () => {
 .admin-page .cmp-button { min-height: 42px; }
 .admin-page .cmp-button[aria-pressed="true"] { border-color: var(--cmp-primary); background: var(--cmp-surface-strong); }
 .admin-disclosure { padding-top: var(--cmp-space-3); border-top: 1px solid var(--cmp-border); }
-.admin-disclosure summary, .server-details summary { display: flex; align-items: baseline; justify-content: space-between; gap: var(--cmp-space-3); min-height: 42px; color: var(--cmp-text-secondary); font-size: .875rem; font-weight: 650; cursor: pointer; }
+.admin-disclosure summary, .server-details summary { display: flex; align-items: center; justify-content: space-between; gap: var(--cmp-space-3); min-height: 42px; color: var(--cmp-text-secondary); font-size: .875rem; font-weight: 650; cursor: pointer; }
 .admin-disclosure summary span { color: var(--cmp-text-muted); font-size: var(--cmp-type-meta); font-weight: 500; text-align: right; }
 .admin-disclosure summary:focus-visible, .server-details summary:focus-visible { outline: 2px solid var(--cmp-focus); outline-offset: 3px; }
 .detail-row { display: grid; grid-template-columns: minmax(180px, .8fr) minmax(0, 1.2fr); align-items: baseline; gap: var(--cmp-space-1) var(--cmp-space-5); padding: var(--cmp-space-3) var(--cmp-space-2); border-top: 1px solid var(--cmp-border); }
@@ -449,7 +453,7 @@ onMounted(async () => {
 .server-details .detail-row:first-of-type { border-top: 0; }
 .admin-note { margin: 0; }
 .admin-section > .cmp-error-state, .admin-section > .cmp-loading-state, .admin-section > .cmp-empty-state { display: grid; gap: var(--cmp-space-2); }
-.text-action { width: fit-content; padding: 0; border: 0; background: none; color: var(--cmp-primary-hover); font: 650 .875rem var(--cmp-font-body); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.text-action { width: fit-content; min-height: 42px; padding: 0; border: 0; background: none; color: var(--cmp-primary-hover); font: 650 .875rem var(--cmp-font-body); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 .text-action:focus-visible { outline: 2px solid var(--cmp-focus); outline-offset: 3px; }
 .runtime-modes { display: grid; }
 .runtime-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--cmp-space-5); padding: var(--cmp-space-4) var(--cmp-space-2); border-top: 1px solid var(--cmp-border); }

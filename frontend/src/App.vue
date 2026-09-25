@@ -169,13 +169,13 @@ watch(() => route.fullPath, () => {
 .primary-nav a.router-link-active::after, .primary-nav a.is-active::after { content: ''; position: absolute; inset: auto 0 0; height: 2px; background: var(--cmp-primary-hover); }
 .primary-nav .mobile-profile-link { display: none; }
 .primary-nav .admin-nav-link { margin-left: 3px; color: var(--cmp-text-muted); }
-.current-match-link { display: inline-flex; align-items: center; gap: 8px; flex: none; margin-left: auto; padding: 7px 9px; color: var(--cmp-text); font-size: .78rem; font-weight: 700; text-decoration: none; white-space: nowrap; }
+.current-match-link { display: inline-flex; align-items: center; gap: 8px; flex: none; min-height: 42px; margin-left: auto; padding: 7px 9px; color: var(--cmp-text); font-size: .78rem; font-weight: 700; text-decoration: none; white-space: nowrap; }
 .current-match-link:hover { color: var(--cmp-primary-hover); }
 .current-match-indicator { width: 6px; height: 6px; border-radius: 50%; background: var(--cmp-success); }
 .current-match-short { display: none; }
 .account-menu { position: relative; flex: 0 1 auto; min-width: 0; margin-left: auto; }
 .current-match-link + .account-menu { margin-left: 0; }
-.account-menu summary { display: flex; align-items: center; gap: 8px; min-height: 42px; cursor: pointer; list-style: none; color: var(--cmp-text-secondary); font-size: .8rem; font-weight: 650; }
+.account-menu summary { display: flex; align-items: center; justify-content: center; gap: 8px; min-width: 42px; min-height: 42px; cursor: pointer; list-style: none; color: var(--cmp-text-secondary); font-size: .8rem; font-weight: 650; }
 .account-menu summary::-webkit-details-marker { display: none; }
 .account-menu summary:hover { color: var(--cmp-text); }
 .account-avatar { display: grid; place-items: center; width: 30px; height: 30px; flex: 0 0 30px; border: 1px solid var(--cmp-border-strong); border-radius: 50%; background: var(--cmp-surface); color: var(--cmp-text); font-size: .72rem; }

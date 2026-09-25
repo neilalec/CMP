@@ -67,7 +67,7 @@ onMounted(() => { loadCurrent(); loadHistory(); });
 </script>
 
 <template>
-  <main class="matches-page cmp-page cmp-page-content">
+  <div class="matches-page cmp-page cmp-page-content">
     <header class="cmp-page-header matches-heading"><p class="cmp-kicker">Competitive record</p><h1>Matches</h1><p>Your current match and referee-confirmed history.</p></header>
 
     <section class="matches-section" aria-label="Current match">
@@ -95,7 +95,7 @@ onMounted(() => { loadCurrent(); loadHistory(); });
         </li>
       </ol>
     </section>
-  </main>
+  </div>
 </template>
 
 <style scoped>
@@ -126,5 +126,5 @@ onMounted(() => { loadCurrent(); loadHistory(); });
 .matches-row-rating strong.is-negative { color: var(--cmp-warning); }
 .matches-row-context { grid-column: 2 / -1; display: flex; flex-wrap: wrap; gap: var(--cmp-space-1) var(--cmp-space-4); margin: 0; color: var(--cmp-text-muted); font-size: .75rem; overflow-wrap: anywhere; }
 .matches-corrected { color: var(--cmp-primary-hover); font-weight: 650; }
-@media (max-width: 640px) { .matches-current { align-items: flex-start; flex-direction: column; }.matches-row { grid-template-columns: minmax(0, 1fr) auto; gap: var(--cmp-space-2); }.matches-row-result { grid-column: 1; }.matches-row-main { grid-column: 1 / -1; grid-row: 2; }.matches-row-rating { grid-column: 2; grid-row: 1; text-align: right; }.matches-row-context { grid-column: 1 / -1; }.matches-retry { display: flex; margin: var(--cmp-space-2) 0 0; } }
+@media (max-width: 640px) { .matches-current { align-items: flex-start; flex-direction: column; padding: var(--cmp-space-4); }.matches-row { grid-template-columns: minmax(0, 1fr) auto; gap: var(--cmp-space-2); }.matches-row-result { grid-column: 1; }.matches-row-main { grid-column: 1 / -1; grid-row: 2; }.matches-row-rating { grid-column: 2; grid-row: 1; text-align: right; }.matches-row-context { grid-column: 1 / -1; }.matches-retry { display: flex; margin: var(--cmp-space-2) 0 0; } }
 </style>

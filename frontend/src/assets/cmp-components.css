@@ -159,6 +159,10 @@ body {
 .cmp-disclosure { border-top: 1px solid var(--cmp-border); }
 .cmp-disclosure summary { min-height: 42px; display: flex; align-items: center; cursor: pointer; color: var(--cmp-text-secondary); }
 .cmp-disclosure summary:hover { color: var(--cmp-text); }
+details.cmp-disclosure > summary { position: relative; padding-right: 24px; list-style: none; }
+details.cmp-disclosure > summary::-webkit-details-marker { display: none; }
+details.cmp-disclosure > summary::after { content: ''; position: absolute; right: 4px; top: calc(50% - 4px); width: 7px; height: 7px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg); }
+details.cmp-disclosure[open] > summary::after { top: calc(50% - 1px); transform: rotate(225deg); }
 .cmp-player-row { display: flex; align-items: center; justify-content: space-between; gap: var(--cmp-space-3); min-width: 0; padding: var(--cmp-space-3) 0; border-bottom: 1px solid var(--cmp-border); }
 .cmp-player-row > :first-child { min-width: 0; overflow-wrap: anywhere; }
 

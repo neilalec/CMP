@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 
 const props = defineProps({
   active: {
@@ -75,11 +75,22 @@ const phaseDetail = computed(() => {
 const modalElement = ref(null)
 const phaseHeading = ref(null)
 const primaryAction = ref(null)
+let previousFocus = null
+const restoreFocus = () => {
+  if (previousFocus?.isConnected && (document.activeElement === document.body || modalElement.value?.contains(document.activeElement))) previousFocus.focus()
+  previousFocus = null
+}
+onBeforeUnmount(restoreFocus)
 
-watch(() => [props.active, phase.value], async ([active]) => {
-  if (!active) return
+watch(() => [props.active, phase.value], async ([active], [wasActive] = []) => {
+  if (!active) {
+    restoreFocus()
+    return
+  }
+  if (!wasActive) previousFocus = document.activeElement
   await nextTick()
-  if (phase.value === 'pending' || phase.value === 'cancelled') primaryAction.value?.focus()
+  if (!props.active) return
+  if ((phase.value === 'pending' || phase.value === 'cancelled') && !primaryAction.value?.disabled) primaryAction.value?.focus()
   else phaseHeading.value?.focus()
 }, { immediate: true, flush: 'post' })
 

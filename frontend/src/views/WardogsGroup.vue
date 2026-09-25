@@ -29,7 +29,7 @@ const copyCode = async () => {
 </script>
 
 <template>
-  <main class="wardogs-group-page cmp-page cmp-page-content">
+  <div class="wardogs-group-page cmp-page cmp-page-content">
     <header class="cmp-page-header"><p class="cmp-kicker">Premade</p><h1>Group</h1><p>{{ groupStore.inGroup ? 'Manage your group before joining matchmaking.' : 'Queue alone, or bring players together.' }}</p></header>
 
     <template v-if="!groupStore.inGroup">
@@ -52,7 +52,7 @@ const copyCode = async () => {
       <div class="group-footer"><button class="cmp-button cmp-button--danger" type="button" :disabled="groupStore.loading" @click="handleLeave">Leave group</button></div>
     </template>
     <p v-if="groupStore.error" class="cmp-error-state" role="alert">{{ groupStore.error }}</p>
-  </main>
+  </div>
 </template>
 
 <style scoped>
@@ -70,7 +70,7 @@ const copyCode = async () => {
 .group-overview { display: flex; align-items: start; justify-content: space-between; gap: var(--cmp-space-5); padding: var(--cmp-space-5); border-top: 3px solid var(--cmp-primary); }
 .group-overview > div:first-child { display: grid; gap: var(--cmp-space-2); min-width: 0; }
 .group-overview h2 { margin: 0; font-size: 1.5rem; }
-.group-overview p:not(.cmp-kicker) { margin: 0; color: var(--cmp-text-secondary); font-size: var(--cmp-type-meta); }
+.group-overview p:not(.cmp-kicker) { margin: 0; color: var(--cmp-text-secondary); font-size: var(--cmp-type-meta); overflow-wrap: anywhere; }
 .group-overview p strong { color: var(--cmp-text); }
 .group-code { display: grid; gap: var(--cmp-space-2); min-width: 200px; padding-left: var(--cmp-space-5); border-left: 1px solid var(--cmp-border); }
 .group-code code { color: var(--cmp-text); font: 700 1.125rem var(--cmp-font-mono); letter-spacing: .04em; overflow-wrap: anywhere; }
