@@ -543,6 +543,7 @@ onMounted(async () => {
 .danger-section .admin-action-row { border-top-color: color-mix(in srgb, var(--cmp-danger) 22%, var(--cmp-border)); }
 .admin-mode { padding-top: 0; }
 .admin-mode summary { color: var(--cmp-text-secondary); }
+.admin-mode summary span { margin-left: var(--cmp-space-3); }
 .admin-mode > p { margin: 0 0 var(--cmp-space-3); color: var(--cmp-text-muted); font-size: var(--cmp-type-meta); }
 .admin-mode .admin-actions { justify-content: flex-start; padding-bottom: var(--cmp-space-3); }
 .operator-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; border-block: 1px solid var(--cmp-border); }
