@@ -1,15 +1,42 @@
 # Competitive Matchmaking Platform
 
-Competitive Matchmaking Platform is a full-stack web app for organising competitive Squad matches. Players authenticate with Steam, join queue modes, accept a match when enough players are ready, vote through lobby phases and receive server details once the match is ready.
+Competitive Matchmaking Platform (CMP) is a Flask/Vue web app for organising competitive Squad matches. Players sign in with Steam, join queues, accept a match, vote through lobby phases and receive server details. Socket.IO keeps the queue and lobby views in sync. It began as a university honours project and was later used for organised community matches.
 
-I built this as a larger portfolio project to practise real-time application design, backend state management, deployment hardening and testable service code. It began as a university honours project and has continued as a community tool used for organised competitive matches, with around 50 active users in a typical week. Overall it showcases the shape of a production-style web app with persistent state, admin controls and external game-server integration.
+The Squad flow is implemented; the hosted instance is now offline. The repository also contains a WARDOGS beta queue and backend-connected lobby under development. CMP can allocate a configured WARDOGS server, show read-only observations and support manually confirmed results, but automated WARDOGS match lifecycle and result detection are unverified. See the [WARDOGS capability matrix](docs/wardogs/CAPABILITIES.md) and [roadmap](docs/wardogs/ROADMAP.md).
 
-## Live Project
+## Demo
 
-- Live app: [squadcm.duckdns.org](https://squadcm.duckdns.org/)
-- Demo video: [matchmaking lobby flow](https://www.youtube.com/watch?v=KlR_l0pL4qo)
+**[Watch the matchmaking and lobby demo](https://www.youtube.com/watch?v=KlR_l0pL4qo)**
 
-## Features
+The former VPS deployment is offline. Run the project locally using the instructions below to explore the interface.
+
+![Squad matchmaking queue showing the three available modes and player counts](docs/images/squad-queue.png)
+
+The screenshots are genuine local development captures of the Squad interface. The queue shown above is empty; the match images below use populated local test data.
+
+## How it fits together
+
+```mermaid
+flowchart LR
+    A[Vue 3 and Pinia client] <-->|HTTP and Socket.IO| B[Flask API and socket handlers]
+    B <--> C[(SQLite persistence)]
+    B <--> D[SquadJS bridge]
+    D <--> E[Squad server]
+    B --> G[WARDOGS read client beta]
+    G -. status and player reads .-> F[WARDOGS server]
+```
+
+The backend owns matchmaking and lobby state, persists recoverable state in SQLite, and sends updates to connected clients. The SquadJS bridge handles Squad server integration. The WARDOGS read client observes server state; it does not establish an automated match result.
+
+### Match flow
+
+![Squad match acceptance dialog showing 19 of 20 local test players accepted](docs/images/squad-acceptance.png)
+
+![Populated Squad lobby with two team rosters and a timed map vote](docs/images/squad-map-vote.png)
+
+## Implemented Squad features
+
+The game-server items below describe the Squad flow. WARDOGS beta capabilities and limits are documented separately.
 
 - Steam OpenID authentication with local password auth kept as a development/test fallback.
 - Real-time queue, group, lobby and match-acceptance flows using Socket.IO.
@@ -75,11 +102,22 @@ For full stack / server integration:
 
 ## Local Development
 
-The fastest local route is the helper script:
+On Windows, choose a target from the repository root:
 
 ```powershell
-npm run dev:local
+npm run dev:squad      # Squad UI; starts SquadJS by default
+npm run dev:wardogs    # WARDOGS beta UI; no SquadJS
+npm run dev:local      # General local mode
 ```
+
+To inspect the Squad UI without SquadJS or a game server, run:
+
+```powershell
+$env:CMP_START_SQUADJS = "0"
+npm run dev:squad
+```
+
+The launcher uses Python 3.12, Flask and Vite. Install backend and frontend dependencies first. The local UI is available at `http://127.0.0.1:5173`; unset the override with `Remove-Item Env:CMP_START_SQUADJS -ErrorAction SilentlyContinue` when finished. Match completion and live server actions require a configured integration.
 
 Manual setup is also possible.
 
